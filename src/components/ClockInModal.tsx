@@ -31,8 +31,10 @@ export default function ClockInModal({
   const [locationError, setLocationError] = useState<string>('');
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [cameraError, setCameraError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
 
   // Deteksi lingkungan Dev (Localhost)
@@ -48,6 +50,10 @@ export default function ClockInModal({
     } else {
       stopCamera();
     }
+
+    return () => {
+      stopCamera();
+    };
   }, [isOpen, currentUser]);
 
   const checkCurrentAttendance = async () => {
@@ -109,44 +115,97 @@ export default function ClockInModal({
     return R * c;
   };
 
-  // 📸 2. Fungsi Kontrol Kamera Selfie
+  // 📸 2. Fungsi Kontrol Kamera Selfie dengan Fallback
   const startCamera = async () => {
+    setCameraError(null);
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setCameraError('Browser ini tidak mendukung akses kamera.');
+      return;
+    }
+
     try {
+      // Coba dengan ideal constraints untuk kamera depan
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: 300, height: 300 },
+        video: {
+          facingMode: 'user',
+          width: { ideal: 640 },
+          height: { ideal: 640 },
+        },
+        audio: false,
       });
+
+      streamRef.current = stream;
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        await videoRef.current.play().catch(() => {});
         setIsCameraActive(true);
       }
-    } catch (err) {
-      console.error('Kamera gagal diakses:', err);
+    } catch (err: any) {
+      console.warn('Gagal dengan constraint ideal, mencoba fallback dasar:', err);
+      try {
+        // Fallback jika HP Android tertentu menolak constraint 'facingMode' atau 'width'
+        const fallbackStream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false,
+        });
+
+        streamRef.current = fallbackStream;
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = fallbackStream;
+          await videoRef.current.play().catch(() => {});
+          setIsCameraActive(true);
+        }
+      } catch (fallbackErr) {
+        console.error('Kamera tetap gagal diakses:', fallbackErr);
+        setCameraError('Gagal membuka kamera. Berikan izin kamera pada browser HP Anda.');
+      }
     }
   };
 
   const stopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      stream.getTracks().forEach(track => track.stop());
-      setIsCameraActive(false);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
     }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setIsCameraActive(false);
   };
 
+  // Ambil foto & Mirror hasil jepretan pada Canvas
   const takeSelfie = () => {
     if (!videoRef.current) return;
+
+    const video = videoRef.current;
     const canvas = document.createElement('canvas');
-    canvas.width = 300;
-    canvas.height = 300;
+    const width = video.videoWidth || 300;
+    const height = video.videoHeight || 300;
+
+    canvas.width = width;
+    canvas.height = height;
+
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      ctx.drawImage(videoRef.current, 0, 0, 300, 300);
-      canvas.toBlob(blob => {
-        if (blob) {
-          setPhotoBlob(blob);
-          setPhotoPreview(URL.createObjectURL(blob));
-          stopCamera();
-        }
-      }, 'image/jpeg');
+      // Efek Mirroring Hasil Jepretan
+      ctx.translate(width, 0);
+      ctx.scale(-1, 1);
+      ctx.drawImage(video, 0, 0, width, height);
+
+      canvas.toBlob(
+        blob => {
+          if (blob) {
+            setPhotoBlob(blob);
+            setPhotoPreview(URL.createObjectURL(blob));
+            stopCamera();
+          }
+        },
+        'image/jpeg',
+        0.85
+      );
     }
   };
 
@@ -271,7 +330,7 @@ export default function ClockInModal({
               </p>
               <p className="text-xs font-bold">{currentUser?.name}</p>
               <p className="text-[11px] text-emerald-700 mt-1">
-                Clock In: {new Date(activeAttendance.clock_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
+                Clock In: {new Date(activeAttendance.clock_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA
               </p>
             </div>
 
@@ -318,15 +377,25 @@ export default function ClockInModal({
             <div className="relative w-full h-48 bg-black rounded-2xl overflow-hidden flex items-center justify-center border border-neutral-200">
               {photoPreview ? (
                 <img src={photoPreview} alt="Selfie Preview" className="w-full h-full object-cover" />
+              ) : cameraError ? (
+                <div className="p-4 text-center text-xs text-red-400 font-bold">
+                  ⚠️ {cameraError}
+                </div>
               ) : (
-                <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover transform -scale-x-100" />
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className="w-full h-full object-cover scale-x-[-1]"
+                />
               )}
 
               {!photoPreview && isCameraActive && (
                 <button
                   type="button"
                   onClick={takeSelfie}
-                  className="absolute bottom-3 px-4 py-1.5 bg-white text-[#111111] font-black text-xs rounded-full shadow-lg hover:bg-neutral-100 active:scale-95 transition cursor-pointer"
+                  className="absolute bottom-3 px-4 py-1.5 bg-white text-[#111111] font-black text-xs rounded-full shadow-lg hover:bg-neutral-100 active:scale-95 transition cursor-pointer z-10"
                 >
                   📸 Ambil Foto Selfie
                 </button>
@@ -336,7 +405,7 @@ export default function ClockInModal({
                 <button
                   type="button"
                   onClick={retakeSelfie}
-                  className="absolute bottom-3 px-3 py-1 bg-black/60 text-white font-bold text-[10px] rounded-full backdrop-blur-md hover:bg-black transition cursor-pointer"
+                  className="absolute bottom-3 px-3 py-1 bg-black/60 text-white font-bold text-[10px] rounded-full backdrop-blur-md hover:bg-black transition cursor-pointer z-10"
                 >
                   🔄 Ulang Foto
                 </button>
