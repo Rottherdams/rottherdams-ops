@@ -38,16 +38,32 @@ const getCurrentWeekKey = (): number => {
   return 4;
 };
 
+// Helper: Tentukan nama hari ini secara otomatis (Senin - Minggu)
+const getTodayName = (): string => {
+  const dayIndex = new Date().getDay(); // 0 = Minggu, 1 = Senin, ..., 6 = Sabtu
+  const dayMap: { [key: number]: string } = {
+    0: 'Minggu',
+    1: 'Senin',
+    2: 'Selasa',
+    3: 'Rabu',
+    4: 'Kamis',
+    5: 'Jumat',
+    6: 'Sabtu',
+  };
+  return dayMap[dayIndex] || 'Senin';
+};
+
 export default function JadwalStaf({ userRole = 'management', currentUser }: JadwalStafProps) {
   const [staffSummaries, setStaffSummaries] = useState<StaffSummary[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedWeek, setSelectedWeek] = useState<number>(getCurrentWeekKey());
-  const [selectedDay, setSelectedDay] = useState<string>('Senin');
+  const [selectedDay, setSelectedDay] = useState<string>(getTodayName());
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [isSwapModalOpen, setIsSwapModalOpen] = useState<boolean>(false);
 
   const isManagement = userRole === 'management' || userRole === 'owner';
   const currentWeekNow = getCurrentWeekKey();
+  const todayNameNow = getTodayName();
 
   useEffect(() => {
     fetchSchedulesFromDatabase();
@@ -203,19 +219,32 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
 
       {/* Tab Filter Hari untuk Tampilan Mobile */}
       <div className="md:hidden flex gap-1 overflow-x-auto pb-3 scrollbar-none mb-3 border-b border-neutral-100">
-        {DAYS.map(day => (
-          <button
-            key={day}
-            onClick={() => setSelectedDay(day)}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-              selectedDay === day
-                ? 'bg-[#111111] text-white'
-                : 'bg-neutral-100 text-neutral-500'
-            }`}
-          >
-            {day}
-          </button>
-        ))}
+        {DAYS.map(day => {
+          const isToday = todayNameNow === day;
+          const isActive = selectedDay === day;
+
+          return (
+            <button
+              key={day}
+              onClick={() => setSelectedDay(day)}
+              className={`relative px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+                isActive
+                  ? 'bg-[#111111] text-white'
+                  : 'bg-neutral-100 text-neutral-500'
+              }`}
+            >
+              {day}
+              {isToday && (
+                <span
+                  className={`ml-1 inline-block w-1.5 h-1.5 rounded-full ${
+                    isActive ? 'bg-amber-300 animate-pulse' : 'bg-[#d22027]'
+                  }`}
+                  title="Hari Ini"
+                ></span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Loading State */}
@@ -239,7 +268,9 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
                   </th>
                   <th className="p-3 font-bold">Divisi</th>
                   {DAYS.map(day => (
-                    <th key={day} className="p-3 text-center font-bold">{day}</th>
+                    <th key={day} className="p-3 text-center font-bold">
+                      {day} {todayNameNow === day && ' (Hari Ini)'}
+                    </th>
                   ))}
                   
                   <th className={`p-3 text-center bg-neutral-800 font-bold ${!isManagement ? 'rounded-tr-xl' : ''}`}>
@@ -333,7 +364,7 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
           <div className="md:hidden space-y-3">
             <div className="flex justify-between items-center mb-1">
               <span className="text-xs font-bold text-neutral-400">
-                Jadwal Hari {selectedDay} (Minggu {selectedWeek})
+                Jadwal Hari {selectedDay} {selectedDay === todayNameNow && '(Hari Ini)'} (Minggu {selectedWeek})
               </span>
             </div>
 
