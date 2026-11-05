@@ -1,0 +1,21 @@
+@import "tailwindcss";
+
+/* 1. Daftarkan Font Plus Jakarta Sans */
+@font-face {
+  font-family: 'PlusJakartaSans';
+  src: url('./assets/PlusJakartaSans-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'PlusJakartaSans';
+  src: url('./assets/PlusJakartaSans-Italic-VariableFont_wght.ttf') format('truetype');
+  font-weight: 100 900;
+  font-style: italic;
+}
+
+/* 2. Hubungkan Font ke Tailwind CSS v4 */
+@theme {
+  --font-sans: 'PlusJakartaSans', sans-serif;
+}
