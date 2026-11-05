@@ -1,6 +1,6 @@
 {
   "short_name": "Rottherdams",
-  "name": "Rottherdams Social House Ops",
+  "name": "Rottherdams Coffee Social House Ops",
   "icons": [
     {
       "src": "/mini-icon.svg",
@@ -22,7 +22,7 @@
     }
   ],
   "start_url": "/",
-  "background_color": "#ffffff",
+  "background_color": "#d22027",
   "theme_color": "#d22027",
   "display": "standalone",
   "orientation": "portrait"

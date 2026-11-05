@@ -12,7 +12,7 @@ interface ClockInModalProps {
 // 📍 Koordinat Presisi Rottherdams Coffee (Google Maps)
 const KAFE_LAT = -1.900938; 
 const KAFE_LNG = 116.1877179; 
-const MAX_RADIUS_METERS = 100; // Maksimal jarak presensi 100 meter dari kafe
+const MAX_RADIUS_METERS = 75; // Maksimal jarak presensi 100 meter dari kafe
 
 export default function ClockInModal({
   isOpen,
