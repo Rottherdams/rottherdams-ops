@@ -26,6 +26,9 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<'All' | 'Beverage' | 'Food' | 'Pastry'>('All');
 
+  // State Pop-Up Peringatan Kerahasiaan (Otomatis true saat komponen di-mount/buka menu)
+  const [showWarningModal, setShowWarningModal] = useState(true);
+
   // State Modal Tambah Resep
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [name, setName] = useState('');
@@ -146,8 +149,55 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
   }
 
   return (
-    <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm text-left space-y-6">
-      {/* BANNER PERINGATAN KERAHASIAAN DOKUMEN */}
+    <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm text-left space-y-6 relative">
+      
+      {/* POP-UP MODAL PERINGATAN KERAHASIAAN DOKUMEN */}
+      {showWarningModal && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
+          <div className="bg-[#0f0f0f] border-2 border-red-600 rounded-3xl p-6 max-w-lg w-full text-white shadow-2xl relative text-left">
+            <div className="flex items-center gap-2 mb-3 bg-red-600 text-white font-black text-xs sm:text-sm px-3.5 py-1.5 rounded-xl w-fit uppercase tracking-wider">
+              <span>⚠️</span> PERINGATAN KERAHASIAAN DOKUMEN <span>⚠️</span>
+            </div>
+
+            <h3 className="text-sm sm:text-base font-black text-red-400 mb-2 leading-snug">
+              DILARANG MENGAMBIL FOTO, MENYEBARKAN, ATAU MEMBAGIKAN ISI BUKU RESEP INI KEPADA PIHAK LUAR!
+            </h3>
+
+            <p className="text-xs font-bold text-neutral-200 mb-4 uppercase tracking-wide">
+              SELURUH DATA GRAMASI DAN STANDAR RESEP DI APLIKASI INI ADALAH ASET RAHASIA DAGANG ROTTHERDAMS.
+            </p>
+
+            <div className="bg-neutral-900/90 rounded-2xl p-4 border border-neutral-800 space-y-2 text-xs text-neutral-300 mb-5">
+              <p className="font-bold text-red-400 uppercase text-[11px]">SANKSI PIDANA & HUKUMAN:</p>
+
+              <ul className="list-disc list-inside space-y-2 leading-relaxed text-[11px]">
+                <li>
+                  <strong className="text-white">UU No. 30 Tahun 2000 (Rahasia Dagang) Pasal 13 & 17:</strong> Membocorkan resep/rahasia bisnis diancam pidana penjara paling lama <strong className="text-red-400">2 TAHUN</strong> dan/atau denda hingga <strong className="text-red-400">Rp300.000.000,-</strong>.
+                </li>
+                <li>
+                  <strong className="text-white">UU No. 1 Tahun 2024 (ITE) Pasal 32 & 48:</strong> Menyebarkan, memfoto, atau mendistribusikan data digital perusahaan tanpa hak diancam pidana penjara paling lama <strong className="text-red-400">8 TAHUN</strong> dan/atau denda hingga <strong className="text-red-400">Rp2.000.000.000,- (2 Miliar Rupiah)</strong>.
+                </li>
+                <li>
+                  <strong className="text-white">Sanksi Perusahaan:</strong> Pemutusan Hubungan Kerja (PHK) seketika tanpa pesangon serta tuntutan ganti rugi perdata atas kerugian bisnis.
+                </li>
+              </ul>
+            </div>
+
+            <p className="text-[10px] italic text-neutral-400 mb-5">
+              * Aktivitas dan jejak akses akun Anda di dalam sistem ini dipantau oleh manajemen.
+            </p>
+
+            <button
+              onClick={() => setShowWarningModal(false)}
+              className="w-full py-3.5 bg-[#d22027] hover:bg-[#bb2026] active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg transition cursor-pointer text-center"
+            >
+              Saya Mengerti & Setuju
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* BANNER PERINGATAN KERAHASIAAN DOKUMEN HEADER */}
       <div className="bg-[#0f0f0f] border-2 border-red-600/80 rounded-2xl p-4 sm:p-5 text-white shadow-md">
         <div className="flex items-center gap-2 mb-2 bg-red-600 text-white font-black text-xs sm:text-sm px-3 py-1 rounded-lg w-fit uppercase tracking-wider">
           <span>⚠️</span> PERINGATAN KERAHASIAAN DOKUMEN <span>⚠️</span>

@@ -9,12 +9,14 @@ import BukuResep from './components/BukuResep';
 import EditProfileModal from './components/EditProfileModal';
 import ManagementDashboard from './components/ManagementDashboard';
 import RekapPresensi from './components/RekapPresensi';
+import PWAInstallPrompt from './components/PWAInstallPrompt';
 import { supabase } from './lib/supabase';
 
-interface CurrentUser {
+export interface CurrentUser {
   name: string;
-  role: 'management' | 'kasir' | 'bar' | 'dapur' | 'owner';
+  role: string;
   staff_id: string;
+  status?: string; // Menambahkan properti status untuk deteksi staf Resign
 }
 
 interface OnDutyStaff {
@@ -47,7 +49,11 @@ export default function App() {
   useEffect(() => {
     const savedUser = localStorage.getItem('rottherdams_user');
     if (savedUser) {
-      setCurrentUser(JSON.parse(savedUser));
+      try {
+        setCurrentUser(JSON.parse(savedUser));
+      } catch (e) {
+        console.error('Error parsing user session:', e);
+      }
     }
     fetchOnDutyStaff();
   }, []);
@@ -71,7 +77,10 @@ export default function App() {
     setIsUserMenuOpen(false);
   };
 
-  const isManagementOrOwner = currentUser && (currentUser.role === 'management' || currentUser.role === 'owner');
+  const isManagementOrOwner = currentUser && (
+    currentUser.role?.toLowerCase().includes('management') || 
+    currentUser.role?.toLowerCase().includes('owner')
+  );
 
   const activeUserAttendance = currentUser 
     ? onDutyList.find(item => item.staff_id === currentUser.staff_id)
@@ -111,6 +120,7 @@ export default function App() {
         onClose={() => setIsLoginOpen(false)}
         onLoginSuccess={(user) => {
           setCurrentUser(user);
+          localStorage.setItem('rottherdams_user', JSON.stringify(user));
           setIsLoginOpen(false);
         }}
       />
@@ -130,7 +140,10 @@ export default function App() {
           isOpen={isEditProfileOpen}
           onClose={() => setIsEditProfileOpen(false)}
           currentUser={currentUser}
-          onUpdateSuccess={(updatedUser) => setCurrentUser(updatedUser)}
+          onUpdateSuccess={(updatedUser) => {
+            setCurrentUser(updatedUser);
+            localStorage.setItem('rottherdams_user', JSON.stringify(updatedUser));
+          }}
         />
       )}
 
@@ -604,6 +617,9 @@ export default function App() {
           )}
         </div>
       </nav>
+
+      {/* Pop-up Prompt Install PWA */}
+      <PWAInstallPrompt />
     </div>
   );
 }
