@@ -2,7 +2,7 @@
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 
     <!-- 1. Icon Tab (Favicon Browser & PWA Icons) -->
     <link rel="icon" type="image/svg+xml" href="/mini-icon.svg" />
@@ -10,10 +10,13 @@
     <link rel="apple-touch-icon" href="/Logo.png" />
     <link rel="apple-touch-icon" sizes="180x180" href="/Logo.png" />
 
-    <!-- 2. Nama / Judul Tab Browser -->
+    <!-- 2. Splash Screen / Startup Image khusus iOS (iPhone/iPad) -->
+    <link rel="apple-touch-startup-image" href="/Logo.png" />
+
+    <!-- 3. Nama / Judul Tab Browser -->
     <title>Rottherdams — Daily Operational Hub</title>
 
-    <!-- 3. Meta Data SEO & WhatsApp / Social Media Preview -->
+    <!-- 4. Meta Data SEO & WhatsApp / Social Media Preview -->
     <meta name="title" content="Rottherdams — Daily Operational Hub" />
     <meta name="description" content="Presensi, checklist SOP harian, dan serah terima shift dalam satu genggaman di Rottherdams Coffee Social House." />
 
@@ -32,11 +35,12 @@
     <meta property="twitter:description" content="Presensi, checklist SOP harian, dan serah terima shift dalam satu genggaman." />
     <meta property="twitter:image" content="/og-image.png" />
 
-    <!-- PWA Settings & Web App Capabilities -->
+    <!-- 5. PWA Settings & Web App Capabilities -->
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#d22027" />
+    <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Rottherdams" />
 
   </head>
