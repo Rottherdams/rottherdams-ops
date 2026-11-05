@@ -14,9 +14,9 @@ import { supabase } from './lib/supabase';
 
 export interface CurrentUser {
   name: string;
-  role: string;
+  role: 'management' | 'kasir' | 'bar' | 'dapur' | 'owner' | string;
   staff_id: string;
-  status?: string; // Menambahkan properti status untuk deteksi staf Resign
+  status?: string;
 }
 
 interface OnDutyStaff {
@@ -118,7 +118,7 @@ export default function App() {
       <LoginModal
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
-        onLoginSuccess={(user) => {
+        onLoginSuccess={(user: any) => {
           setCurrentUser(user);
           localStorage.setItem('rottherdams_user', JSON.stringify(user));
           setIsLoginOpen(false);
@@ -129,7 +129,7 @@ export default function App() {
       <ClockInModal
         isOpen={isClockInOpen}
         onClose={() => setIsClockInOpen(false)}
-        currentUser={currentUser}
+        currentUser={currentUser as any}
         activeShift={activeTab}
         onSuccess={fetchOnDutyStaff}
       />
@@ -139,8 +139,8 @@ export default function App() {
         <EditProfileModal
           isOpen={isEditProfileOpen}
           onClose={() => setIsEditProfileOpen(false)}
-          currentUser={currentUser}
-          onUpdateSuccess={(updatedUser) => {
+          currentUser={currentUser as any}
+          onUpdateSuccess={(updatedUser: any) => {
             setCurrentUser(updatedUser);
             localStorage.setItem('rottherdams_user', JSON.stringify(updatedUser));
           }}
@@ -334,22 +334,22 @@ export default function App() {
         </section>
 
         {activeNav === 'dashboard' && isManagementOrOwner ? (
-          <ManagementDashboard currentUser={currentUser!} />
+          <ManagementDashboard currentUser={currentUser as any} />
         ) : activeNav === 'presensi' && currentUser ? (
-          <RekapPresensi currentUser={currentUser} />
+          <RekapPresensi currentUser={currentUser as any} />
         ) : activeNav === 'handover' && currentUser ? (
           <HandoverLog 
-            currentUser={currentUser} 
+            currentUser={currentUser as any} 
             onRequireLogin={() => setIsLoginOpen(true)} 
           />
         ) : activeNav === 'karyawan' && isManagementOrOwner ? (
           <DaftarKaryawan />
         ) : activeNav === 'jadwal' ? (
-          <JadwalStaf userRole={currentUser?.role || 'bar'} currentUser={currentUser} />
+          <JadwalStaf userRole={(currentUser?.role as any) || 'bar'} currentUser={currentUser as any} />
         ) : activeNav === 'resep' && currentUser ? (
-          <BukuResep currentUser={currentUser} />
+          <BukuResep currentUser={currentUser as any} />
         ) : activeNav === 'sop' && currentUser ? (
-          <SopChecklist isFullView={true} currentUser={currentUser} />
+          <SopChecklist isFullView={true} currentUser={currentUser as any} />
         ) : (
           <div>
             {isManagementOrOwner && (
@@ -467,7 +467,7 @@ export default function App() {
               </div>
             )}
 
-            {currentUser && <SopChecklist activeShift={activeTab} currentUser={currentUser} />}
+            {currentUser && <SopChecklist activeShift={activeTab} currentUser={currentUser as any} />}
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 md:gap-5 mt-8 text-left">
               {currentUser && (
