@@ -3,8 +3,9 @@ import { supabase } from '../lib/supabase';
 
 interface CurrentUser {
   name: string;
-  role: 'management' | 'kasir' | 'bar' | 'dapur' | 'owner';
+  role: string;
   staff_id: string;
+  status?: string; // Menambahkan properti status
 }
 
 interface RecipeItem {
@@ -34,7 +35,15 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
   const [extractionTime, setExtractionTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isManagementOrOwner = currentUser && (currentUser.role === 'management' || currentUser.role === 'owner');
+  // Normalisasi string role & status ke huruf kecil untuk pencegahan bug
+  const rawRole = (currentUser?.role || '').toLowerCase();
+  const rawStatus = (currentUser?.status || '').toLowerCase();
+
+  const isResign = rawStatus.includes('resign');
+  const isManagementOrOwner = rawRole.includes('management') || rawRole.includes('owner');
+  const isBar = rawRole.includes('bar');
+  const isDapur = rawRole.includes('dapur') || rawRole.includes('kitchen');
+  const isKasir = rawRole.includes('kasir') || rawRole.includes('cashier');
 
   useEffect(() => {
     fetchRecipes();
@@ -99,17 +108,89 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
     }
   };
 
-  const filteredRecipes = selectedCategory === 'All'
-    ? recipes
-    : recipes.filter(r => (r.category || 'Beverage').toLowerCase() === selectedCategory.toLowerCase());
+  // FILTER STRICT PER DIVISI (Hanya berlaku untuk staf Aktif)
+  const getAllowedRecipes = () => {
+    if (isBar && !isManagementOrOwner) {
+      return recipes.filter(r => (r.category || '').toLowerCase() === 'beverage');
+    }
+    if (isDapur && !isManagementOrOwner) {
+      return recipes.filter(r => {
+        const cat = (r.category || '').toLowerCase();
+        return cat === 'food' || cat === 'pastry';
+      });
+    }
+    return recipes;
+  };
+
+  const roleAllowedRecipes = getAllowedRecipes();
+
+  const filteredRecipes = (isBar && !isManagementOrOwner)
+    ? roleAllowedRecipes
+    : (selectedCategory === 'All'
+        ? roleAllowedRecipes
+        : roleAllowedRecipes.filter(r => (r.category || 'Beverage').toLowerCase() === selectedCategory.toLowerCase()));
+
+  // AKSES DIBLOKIR UNTUK STAF RESIGN ATAU DIVISI KASIR
+  if (isResign || (isKasir && !isManagementOrOwner && !isBar && !isDapur)) {
+    return (
+      <div className="bg-white rounded-3xl p-8 border border-neutral-200 shadow-sm text-center">
+        <div className="text-4xl mb-3">🔒</div>
+        <h2 className="text-base font-extrabold text-[#111111] mb-1">Akses Buku Resep Dibatasi</h2>
+        <p className="text-xs text-neutral-500 max-w-md mx-auto">
+          {isResign
+            ? 'Akun Anda berstatus Resign. Akses ke dokumen dan rahasia resep perusahaan telah dinonaktifkan.'
+            : 'Divisi Kasir tidak diizinkan mengakses buku resep dan standar gramasi. Resep hanya dapat diakses oleh tim Bar, Kitchen, dan Management.'}
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm text-left">
+    <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm text-left space-y-6">
+      {/* BANNER PERINGATAN KERAHASIAAN DOKUMEN */}
+      <div className="bg-[#0f0f0f] border-2 border-red-600/80 rounded-2xl p-4 sm:p-5 text-white shadow-md">
+        <div className="flex items-center gap-2 mb-2 bg-red-600 text-white font-black text-xs sm:text-sm px-3 py-1 rounded-lg w-fit uppercase tracking-wider">
+          <span>⚠️</span> PERINGATAN KERAHASIAAN DOKUMEN <span>⚠️</span>
+        </div>
+
+        <p className="text-xs sm:text-sm font-extrabold text-red-400 mb-2 leading-snug">
+          DILARANG MENGAMBIL FOTO, MENYEBARKAN, ATAU MEMBAGIKAN ISI BUKU RESEP INI KEPADA PIHAK LUAR!
+        </p>
+
+        <p className="text-[11px] sm:text-xs font-bold text-neutral-200 mb-3 uppercase tracking-wide">
+          SELURUH DATA GRAMASI DAN STANDAR RESEP DI APLIKASI INI ADALAH ASET RAHASIA DAGANG ROTTHERDAMS.
+        </p>
+
+        <div className="bg-neutral-900/90 rounded-xl p-3 border border-neutral-800 space-y-2 text-[10px] sm:text-[11px] text-neutral-300">
+          <p className="font-bold text-red-400 uppercase">SANKSI PIDANA & HUKUMAN:</p>
+
+          <ul className="list-disc list-inside space-y-1.5 leading-relaxed">
+            <li>
+              <strong className="text-white">UU No. 30 Tahun 2000 (Rahasia Dagang) Pasal 13 & 17:</strong> Membocorkan resep/rahasia bisnis diancam pidana penjara paling lama <strong className="text-red-400">2 TAHUN</strong> dan/atau denda hingga <strong className="text-red-400">Rp300.000.000,-</strong>.
+            </li>
+            <li>
+              <strong className="text-white">UU No. 1 Tahun 2024 (ITE) Pasal 32 & 48:</strong> Menyebarkan, memfoto, atau mendistribusikan data digital perusahaan tanpa hak diancam pidana penjara paling lama <strong className="text-red-400">8 TAHUN</strong> dan/atau denda hingga <strong className="text-red-400">Rp2.000.000.000,- (2 Miliar Rupiah)</strong>.
+            </li>
+            <li>
+              <strong className="text-white">Sanksi Perusahaan:</strong> Pemutusan Hubungan Kerja (PHK) seketika tanpa pesangon serta tuntutan ganti rugi perdata atas kerugian bisnis.
+            </li>
+          </ul>
+        </div>
+
+        <p className="text-[10px] italic text-neutral-400 mt-2.5">
+          * Aktivitas dan jejak akses akun Anda di dalam sistem ini dipantau oleh manajemen.
+        </p>
+      </div>
+
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6 pb-4 border-b border-neutral-100">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-4 border-b border-neutral-100">
         <div>
           <h2 className="text-lg font-black text-[#111111]">📖 Buku Resep & Standar Gramasi</h2>
-          <p className="text-xs text-neutral-400 mt-0.5">Panduan porsi bahan dan standar penyajian Bar & Kitchen Rottherdams.</p>
+          <p className="text-xs text-neutral-400 mt-0.5">
+            {isBar && !isManagementOrOwner && 'Daftar resep standar khusus divisi Bar (Beverage).'}
+            {isDapur && !isManagementOrOwner && 'Daftar resep standar khusus divisi Kitchen (Food & Pastry).'}
+            {isManagementOrOwner && 'Panduan porsi bahan dan standar penyajian Bar & Kitchen Rottherdams.'}
+          </p>
         </div>
 
         {isManagementOrOwner && (
@@ -122,14 +203,19 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
         )}
       </div>
 
-      {/* Filter Kategori (All / Beverage / Food / Pastry) */}
-      <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
-        {(['All', 'Beverage', 'Food', 'Pastry'] as const).map(cat => (
+      {/* Filter Kategori Button */}
+      <div className="flex gap-2 overflow-x-auto pb-1">
+        {((isBar && !isManagementOrOwner)
+          ? (['Beverage'] as const)
+          : (isDapur && !isManagementOrOwner)
+          ? (['All', 'Food', 'Pastry'] as const)
+          : (['All', 'Beverage', 'Food', 'Pastry'] as const)
+        ).map(cat => (
           <button
             key={cat}
             onClick={() => setSelectedCategory(cat)}
             className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-              selectedCategory === cat
+              ((isBar && !isManagementOrOwner) || selectedCategory === cat)
                 ? 'bg-[#d22027] text-white shadow-sm'
                 : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200 hover:text-neutral-800'
             }`}
