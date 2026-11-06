@@ -28,8 +28,8 @@ interface OnDutyStaff {
   clock_in: string;
 }
 
-// ⏱️ Batas waktu idle auto-logout (15 Menit)
-const IDLE_TIMEOUT_MS = 1 * 60 * 1000;
+// ⏱️ Batas waktu idle auto-logout (5 Menit)
+const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
 
 export default function App() {
   const currentHour = new Date().getHours();
