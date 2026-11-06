@@ -64,25 +64,25 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
     fetchRecipes();
   }, []);
 
-  // 🛡️ 1. DETEKSI SCREENSHOT & VISIBILITY CHANGE (LOG SECURITY)
+  // 🛡️ 1. DETEKSI SCREENSHOT & VISIBILITY / BLUR CHANGE (LOG SECURITY MOBILE & DESKTOP)
   useEffect(() => {
     if (!currentUser) return;
 
     const logSecurityViolation = async (type: string) => {
-        try {
-            await supabase.from('security_audit_logs').insert([
-            {
-                staff_id: currentUser.staff_id,
-                staff_name: currentUser.name,
-                role: currentUser.role,
-                action_type: `SCREENSHOT_ATTEMPT_${type}`, // ✅ Parameter 'type' sekarang dipakai
-                target_recipe: unlockedRecipeId ? `Resep ID: ${unlockedRecipeId}` : 'Halaman Buku Resep',
-                device_info: navigator.userAgent,
-            },
-            ]);
-        } catch (err) {
-            console.error('Gagal mencatat log pelanggaran screenshot:', err);
-        }
+      try {
+        await supabase.from('security_audit_logs').insert([
+          {
+            staff_id: currentUser.staff_id,
+            staff_name: currentUser.name,
+            role: currentUser.role,
+            action_type: `SCREENSHOT_ATTEMPT_${type}`,
+            target_recipe: unlockedRecipeId ? `Resep ID: ${unlockedRecipeId}` : 'Halaman Buku Resep',
+            device_info: navigator.userAgent,
+          },
+        ]);
+      } catch (err) {
+        console.error('Gagal mencatat log pelanggaran screenshot:', err);
+      }
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -104,12 +104,22 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
       }
     };
 
+    // Deteksi kehilangan fokus layar di HP (saat panggil app screenshot/minimize)
+    const handleWindowBlur = () => {
+      if (unlockedRecipeId) {
+        logSecurityViolation('MOBILE_APP_SWITCH');
+        setUnlockedRecipeId(null); // Kunci kembali resep
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleWindowBlur);
 
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('blur', handleWindowBlur);
     };
   }, [currentUser, unlockedRecipeId]);
 

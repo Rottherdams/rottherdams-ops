@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { recordLoginLog } from '../lib/security';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -80,15 +81,15 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
       .ilike('staff_name', username.trim())
       .single();
 
-    setIsLoading(false);
-
     if (error || !data) {
+      setIsLoading(false);
       setErrorMsg('Username tidak ditemukan!');
       setPin('');
       return;
     }
 
     if (data.status === 'Resign') {
+      setIsLoading(false);
       setErrorMsg('Akun staf ini sudah tidak aktif.');
       setPin('');
       return;
@@ -114,9 +115,18 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
         staff_id: data.staff_id,
       };
 
+      // 🔐 REKAM LOG LOGIN KE SUPABASE (IP, GPS, DEVICE INFO)
+      try {
+        await recordLoginLog(userSession);
+      } catch (logErr) {
+        console.warn('Gagal mencatat log login:', logErr);
+      }
+
+      setIsLoading(false);
       localStorage.setItem('rottherdams_user', JSON.stringify(userSession));
       onLoginSuccess(userSession);
     } else {
+      setIsLoading(false);
       setErrorMsg('PIN Salah! Silakan coba lagi.');
       setPin('');
     }

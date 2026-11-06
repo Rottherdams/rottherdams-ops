@@ -29,7 +29,7 @@ interface OnDutyStaff {
 }
 
 // ⏱️ Batas waktu idle auto-logout (15 Menit)
-const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+const IDLE_TIMEOUT_MS = 1 * 60 * 1000;
 
 export default function App() {
   const currentHour = new Date().getHours();
@@ -52,14 +52,14 @@ export default function App() {
 
  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 🛡️ 1. Inactivity Tracker (Auto Logout 15 Menit)
+  // 🛡️ 1. Inactivity Tracker (Auto Logout 5 Menit)
   useEffect(() => {
     if (!currentUser) return;
 
     const resetIdleTimer = () => {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
       idleTimerRef.current = setTimeout(() => {
-        alert('⚠️ Sesi Anda telah berakhir karena tidak ada aktivitas selama 15 menit.');
+        alert('⚠️ Sesi Anda telah berakhir karena tidak ada aktivitas selama 5 menit.');
         handleLogout();
       }, IDLE_TIMEOUT_MS);
     };

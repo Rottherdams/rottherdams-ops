@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-const TIMEOUT_MS = 15 * 60 * 1000; // 15 Menit
+const TIMEOUT_MS = 1 * 60 * 1000; // 15 Menit
 
 export function useIdleLogout(onLogout: () => void, isLoggedIn: boolean) {
   // ✅ Menggunakan ReturnType<typeof setTimeout> agar ramah browser/Vite TypeScript
@@ -10,7 +10,7 @@ export function useIdleLogout(onLogout: () => void, isLoggedIn: boolean) {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (isLoggedIn) {
       timerRef.current = setTimeout(() => {
-        alert('⚠️ Sesi Anda telah berakhir karena tidak ada aktivitas selama 15 menit.');
+        alert('⚠️ Sesi Anda telah berakhir karena tidak ada aktivitas selama 5 menit.');
         onLogout();
       }, TIMEOUT_MS);
     }
