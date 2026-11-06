@@ -11,6 +11,7 @@ import ManagementDashboard from './components/ManagementDashboard';
 import RekapPresensi from './components/RekapPresensi';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import { supabase } from './lib/supabase';
+import { recordLoginLog } from './lib/security';
 
 export interface CurrentUser {
   name: string;
@@ -50,7 +51,7 @@ export default function App() {
   const [onDutyList, setOnDutyList] = useState<OnDutyStaff[]>([]);
   const [isClockingOut, setIsClockingOut] = useState<boolean>(false);
 
- const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // 🛡️ 1. Inactivity Tracker (Auto Logout 5 Menit)
   useEffect(() => {
@@ -58,9 +59,9 @@ export default function App() {
 
     const resetIdleTimer = () => {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = setTimeout(() => {
+      idleTimerRef.current = setTimeout(async () => {
         alert('⚠️ Sesi Anda telah berakhir karena tidak ada aktivitas selama 5 menit.');
-        handleLogout();
+        await handleLogout('AUTO_LOGOUT_IDLE');
       }, IDLE_TIMEOUT_MS);
     };
 
@@ -99,7 +100,16 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  // 🚪 FUNGSI LOGOUT MANUAL / AUTO IDLE WITH AUDIT LOG
+  const handleLogout = async (actionType: 'LOGOUT' | 'AUTO_LOGOUT_IDLE' = 'LOGOUT') => {
+    if (currentUser) {
+      try {
+        await recordLoginLog(currentUser, actionType);
+      } catch (err) {
+        console.warn('Gagal mencatat log logout:', err);
+      }
+    }
+
     localStorage.removeItem('rottherdams_user');
     setCurrentUser(null);
     setActiveNav('home');
@@ -295,7 +305,7 @@ export default function App() {
                   </button>
 
                   <button 
-                    onClick={handleLogout}
+                    onClick={() => handleLogout('LOGOUT')}
                     className="w-full text-left px-4 py-2 text-xs text-[#d22027] hover:bg-red-50 flex items-center gap-2 transition cursor-pointer font-bold border-t border-neutral-100 mt-1"
                   >
                     🚪 Keluar (Logout)

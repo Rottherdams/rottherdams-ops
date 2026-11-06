@@ -1,6 +1,9 @@
 import { supabase } from './supabase';
 
-export const recordLoginLog = async (user: { staff_id: string; name: string; role: string }) => {
+export const recordLoginLog = async (
+  user: { staff_id: string; name: string; role: string },
+  actionType: 'LOGIN' | 'LOGOUT' | 'AUTO_LOGOUT_IDLE' = 'LOGIN'
+) => {
   try {
     let ipAddress = 'Unknown';
     let locationCity = 'Unknown';
@@ -36,12 +39,13 @@ export const recordLoginLog = async (user: { staff_id: string; name: string; rol
       });
     }
 
-    // 3. Simpan Ke Supabase
+    // 3. Simpan Ke Supabase (Merekam LOGIN, LOGOUT, atau AUTO_LOGOUT_IDLE)
     await supabase.from('login_logs').insert([
       {
         staff_id: user.staff_id,
         staff_name: user.name,
         role: user.role,
+        action_type: actionType, // 📝 Kolom aksi baru
         ip_address: ipAddress,
         location_city: locationCity,
         latitude,
@@ -51,6 +55,6 @@ export const recordLoginLog = async (user: { staff_id: string; name: string; rol
       },
     ]);
   } catch (err) {
-    console.error('Gagal rekam login log:', err);
+    console.error('Gagal rekam login/logout log:', err);
   }
 };
