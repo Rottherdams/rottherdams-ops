@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import SopChecklist from './components/SopChecklist';
 import JadwalStaf from './components/JadwalStaf';
 import DaftarKaryawan from './components/DaftarKaryawan';
@@ -28,6 +28,9 @@ interface OnDutyStaff {
   clock_in: string;
 }
 
+// ⏱️ Batas waktu idle auto-logout (15 Menit)
+const IDLE_TIMEOUT_MS = 15 * 60 * 1000;
+
 export default function App() {
   const currentHour = new Date().getHours();
   const defaultShift = currentHour < 15 ? 'morning' : 'night';
@@ -35,6 +38,7 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'morning' | 'night'>(defaultShift);
   const [activeNav, setActiveNav] = useState<'home' | 'sop' | 'resep' | 'jadwal' | 'karyawan' | 'handover' | 'dashboard' | 'presensi'>('home');
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false); // Drawer "Lainnya" Mobile
   
   // State Modal Edit Profil
   const [isEditProfileOpen, setIsEditProfileOpen] = useState<boolean>(false);
@@ -45,6 +49,31 @@ export default function App() {
   const [isClockInOpen, setIsClockInOpen] = useState<boolean>(false);
   const [onDutyList, setOnDutyList] = useState<OnDutyStaff[]>([]);
   const [isClockingOut, setIsClockingOut] = useState<boolean>(false);
+
+ const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 🛡️ 1. Inactivity Tracker (Auto Logout 15 Menit)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const resetIdleTimer = () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => {
+        alert('⚠️ Sesi Anda telah berakhir karena tidak ada aktivitas selama 15 menit.');
+        handleLogout();
+      }, IDLE_TIMEOUT_MS);
+    };
+
+    const activityEvents = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+    activityEvents.forEach(event => window.addEventListener(event, resetIdleTimer));
+
+    resetIdleTimer(); // Start initial timer
+
+    return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      activityEvents.forEach(event => window.removeEventListener(event, resetIdleTimer));
+    };
+  }, [currentUser]);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('rottherdams_user');
@@ -75,6 +104,7 @@ export default function App() {
     setCurrentUser(null);
     setActiveNav('home');
     setIsUserMenuOpen(false);
+    setIsMoreMenuOpen(false);
   };
 
   const isManagementOrOwner = currentUser && (
@@ -152,7 +182,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16 md:h-20 gap-4">
             
-            <div className="flex items-center gap-3 shrink-0">
+            <div className="flex items-center gap-3 shrink-0 cursor-pointer" onClick={() => setActiveNav('home')}>
               <img 
                 src="/logo.svg" 
                 alt="Rottherdams Logo" 
@@ -163,14 +193,12 @@ export default function App() {
               </span>
             </div>
 
-            {/* Desktop Navbar Clean without scrollbar */}
-            <nav className="hidden lg:flex items-center gap-1 bg-black/15 p-1 rounded-xl border border-white/10 [ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {/* Desktop Navbar Clean (Hover Dropdown) */}
+            <nav className="hidden lg:flex items-center gap-2 bg-black/15 p-1 rounded-xl border border-white/10">
               <button
                 onClick={() => setActiveNav('home')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-                  activeNav === 'home'
-                    ? 'bg-white text-[#d22027] shadow-sm'
-                    : 'text-white/80 hover:text-white hover:bg-white/10'
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  activeNav === 'home' ? 'bg-white text-[#d22027] shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
               >
                 Home
@@ -180,85 +208,46 @@ export default function App() {
                 <>
                   <button
                     onClick={() => setActiveNav('presensi')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-                      activeNav === 'presensi'
-                        ? 'bg-white text-[#d22027] shadow-sm'
-                        : 'text-white/80 hover:text-white hover:bg-white/10'
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                      activeNav === 'presensi' ? 'bg-white text-[#d22027] shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'
                     }`}
                   >
                     Presensi
                   </button>
 
-                  <button
-                    onClick={() => setActiveNav('sop')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-                      activeNav === 'sop'
-                        ? 'bg-white text-[#d22027] shadow-sm'
-                        : 'text-white/80 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    SOP Checklist
-                  </button>
-
-                  <button
-                    onClick={() => setActiveNav('resep')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-                      activeNav === 'resep'
-                        ? 'bg-white text-[#d22027] shadow-sm'
-                        : 'text-white/80 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    Buku Resep
-                  </button>
-
-                  <button
-                    onClick={() => setActiveNav('handover')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-                      activeNav === 'handover'
-                        ? 'bg-white text-[#d22027] shadow-sm'
-                        : 'text-white/80 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    Handover Log
-                  </button>
+                  {/* Dropdown Operasional */}
+                  <div className="relative group py-1">
+                    <button className="px-3 py-1.5 text-xs font-bold text-white/80 group-hover:text-white flex items-center gap-1">
+                      Operasional ▾
+                    </button>
+                    <div className="absolute top-full left-0 hidden group-hover:flex flex-col bg-white text-[#111111] rounded-2xl shadow-xl border border-neutral-100 p-2 min-w-[160px] z-50 animate-in fade-in duration-150">
+                      <button onClick={() => setActiveNav('sop')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">📋 SOP Checklist</button>
+                      <button onClick={() => setActiveNav('resep')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">☕ Buku Resep</button>
+                      <button onClick={() => setActiveNav('handover')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">📝 Handover Log</button>
+                    </div>
+                  </div>
                 </>
               )}
 
               <button
                 onClick={() => setActiveNav('jadwal')}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-                  activeNav === 'jadwal'
-                    ? 'bg-white text-[#d22027] shadow-sm'
-                    : 'text-white/80 hover:text-white hover:bg-white/10'
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                  activeNav === 'jadwal' ? 'bg-white text-[#d22027] shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
               >
                 Jadwal Staf
               </button>
 
               {isManagementOrOwner && (
-                <>
-                  <button
-                    onClick={() => setActiveNav('dashboard')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-                      activeNav === 'dashboard'
-                        ? 'bg-white text-[#d22027] shadow-sm'
-                        : 'text-white/80 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    Analytics
+                <div className="relative group py-1">
+                  <button className="px-3 py-1.5 text-xs font-bold text-white/80 group-hover:text-white flex items-center gap-1">
+                    Management ▾
                   </button>
-
-                  <button
-                    onClick={() => setActiveNav('karyawan')}
-                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer whitespace-nowrap ${
-                      activeNav === 'karyawan'
-                        ? 'bg-white text-[#d22027] shadow-sm'
-                        : 'text-white/80 hover:text-white hover:bg-white/10'
-                    }`}
-                  >
-                    Daftar Staf
-                  </button>
-                </>
+                  <div className="absolute top-full left-0 hidden group-hover:flex flex-col bg-white text-[#111111] rounded-2xl shadow-xl border border-neutral-100 p-2 min-w-[160px] z-50 animate-in fade-in duration-150">
+                    <button onClick={() => setActiveNav('dashboard')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">📊 Analytics</button>
+                    <button onClick={() => setActiveNav('karyawan')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">👥 Daftar Staf</button>
+                  </div>
+                </div>
               )}
             </nav>
 
@@ -535,12 +524,12 @@ export default function App() {
         )}
       </main>
 
-      {/* Bottom Navigation Mobile */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t border-neutral-200 px-4 py-2 z-50 shadow-2xl">
+      {/* 📱 Bottom Navigation Mobile (Ringkas 5 Tab Utama) */}
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-neutral-200 px-4 py-2 z-40 shadow-2xl">
         <div className="max-w-md mx-auto flex justify-around items-center">
           <button
             onClick={() => setActiveNav('home')}
-            className={`flex flex-col items-center gap-1 cursor-pointer transition ${
+            className={`flex flex-col items-center gap-0.5 cursor-pointer transition ${
               activeNav === 'home' ? 'text-[#d22027]' : 'text-neutral-400 hover:text-neutral-700'
             }`}
           >
@@ -552,7 +541,7 @@ export default function App() {
             <>
               <button
                 onClick={() => setActiveNav('presensi')}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition ${
+                className={`flex flex-col items-center gap-0.5 cursor-pointer transition ${
                   activeNav === 'presensi' ? 'text-[#d22027]' : 'text-neutral-400 hover:text-neutral-700'
                 }`}
               >
@@ -562,7 +551,7 @@ export default function App() {
 
               <button
                 onClick={() => setActiveNav('sop')}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition ${
+                className={`flex flex-col items-center gap-0.5 cursor-pointer transition ${
                   activeNav === 'sop' ? 'text-[#d22027]' : 'text-neutral-400 hover:text-neutral-700'
                 }`}
               >
@@ -572,7 +561,7 @@ export default function App() {
 
               <button
                 onClick={() => setActiveNav('resep')}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition ${
+                className={`flex flex-col items-center gap-0.5 cursor-pointer transition ${
                   activeNav === 'resep' ? 'text-[#d22027]' : 'text-neutral-400 hover:text-neutral-700'
                 }`}
               >
@@ -582,41 +571,75 @@ export default function App() {
             </>
           )}
 
+          {/* Tab Lainnya (Membuka Slide-up Drawer) */}
           <button
-            onClick={() => setActiveNav('jadwal')}
-            className={`flex flex-col items-center gap-1 cursor-pointer transition ${
-              activeNav === 'jadwal' ? 'text-[#d22027]' : 'text-neutral-400 hover:text-neutral-700'
+            onClick={() => setIsMoreMenuOpen(true)}
+            className={`flex flex-col items-center gap-0.5 cursor-pointer transition ${
+              ['jadwal', 'dashboard', 'karyawan', 'handover'].includes(activeNav) ? 'text-[#d22027]' : 'text-neutral-400 hover:text-neutral-700'
             }`}
           >
-            <span className="text-lg leading-none">📅</span>
-            <span className="text-[10px] font-bold">Jadwal</span>
+            <span className="text-lg leading-none">⚡</span>
+            <span className="text-[10px] font-bold">Lainnya</span>
           </button>
-
-          {isManagementOrOwner && (
-            <>
-              <button
-                onClick={() => setActiveNav('dashboard')}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition ${
-                  activeNav === 'dashboard' ? 'text-[#d22027]' : 'text-neutral-400 hover:text-neutral-700'
-                }`}
-              >
-                <span className="text-lg leading-none">📊</span>
-                <span className="text-[10px] font-bold">Analytics</span>
-              </button>
-
-              <button
-                onClick={() => setActiveNav('karyawan')}
-                className={`flex flex-col items-center gap-1 cursor-pointer transition ${
-                  activeNav === 'karyawan' ? 'text-[#d22027]' : 'text-neutral-400 hover:text-neutral-700'
-                }`}
-              >
-                <span className="text-lg leading-none">👤</span>
-                <span className="text-[10px] font-bold">Staf</span>
-              </button>
-            </>
-          )}
         </div>
       </nav>
+
+      {/* ⚡ Mobile Slide-Up Drawer Menu "Lainnya" */}
+      {isMoreMenuOpen && (
+        <div className="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end animate-in fade-in duration-200">
+          <div className="w-full bg-white rounded-t-3xl p-6 space-y-4 animate-in slide-in-from-bottom duration-250 border-t border-neutral-100">
+            <div className="flex justify-between items-center pb-2 border-b border-neutral-100">
+              <h3 className="font-extrabold text-sm text-[#111111]">Menu & Fitur Lainnya</h3>
+              <button 
+                onClick={() => setIsMoreMenuOpen(false)}
+                className="w-7 h-7 bg-neutral-100 text-neutral-500 rounded-full font-bold flex items-center justify-center text-xs"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3 pt-2 text-left">
+              <button 
+                onClick={() => { setActiveNav('jadwal'); setIsMoreMenuOpen(false); }}
+                className="p-3 bg-neutral-50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:bg-red-50 transition border border-neutral-100"
+              >
+                <span className="text-2xl">📅</span>
+                <span className="text-[11px] font-bold text-neutral-800">Jadwal Staf</span>
+              </button>
+
+              {currentUser && (
+                <button 
+                  onClick={() => { setActiveNav('handover'); setIsMoreMenuOpen(false); }}
+                  className="p-3 bg-neutral-50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:bg-red-50 transition border border-neutral-100"
+                >
+                  <span className="text-2xl">📝</span>
+                  <span className="text-[11px] font-bold text-neutral-800">Handover Log</span>
+                </button>
+              )}
+
+              {isManagementOrOwner && (
+                <>
+                  <button 
+                    onClick={() => { setActiveNav('dashboard'); setIsMoreMenuOpen(false); }}
+                    className="p-3 bg-neutral-50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:bg-red-50 transition border border-neutral-100"
+                  >
+                    <span className="text-2xl">📊</span>
+                    <span className="text-[11px] font-bold text-neutral-800">Analytics</span>
+                  </button>
+
+                  <button 
+                    onClick={() => { setActiveNav('karyawan'); setIsMoreMenuOpen(false); }}
+                    className="p-3 bg-neutral-50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:bg-red-50 transition border border-neutral-100"
+                  >
+                    <span className="text-2xl">👥</span>
+                    <span className="text-[11px] font-bold text-neutral-800">Daftar Staf</span>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Pop-up Prompt Install PWA */}
       <PWAInstallPrompt />

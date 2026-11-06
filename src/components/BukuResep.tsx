@@ -5,7 +5,7 @@ interface CurrentUser {
   name: string;
   role: string;
   staff_id: string;
-  status?: string; // Menambahkan properti status
+  status?: string;
 }
 
 interface RecipeItem {
@@ -26,7 +26,11 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<'All' | 'Beverage' | 'Food' | 'Pastry'>('All');
 
-  // State Pop-Up Peringatan Kerahasiaan (Otomatis true saat komponen di-mount/buka menu)
+  // State Keamanan Tambahan
+  const [unlockedRecipeId, setUnlockedRecipeId] = useState<number | null>(null);
+  const [screenshotWarning, setScreenshotWarning] = useState(false);
+
+  // State Pop-Up Peringatan Kerahasiaan
   const [showWarningModal, setShowWarningModal] = useState(true);
 
   // State Modal Tambah Resep
@@ -38,7 +42,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
   const [extractionTime, setExtractionTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Normalisasi string role & status ke huruf kecil untuk pencegahan bug
+  // Normalisasi role & status
   const rawRole = (currentUser?.role || '').toLowerCase();
   const rawStatus = (currentUser?.status || '').toLowerCase();
 
@@ -48,9 +52,66 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
   const isDapur = rawRole.includes('dapur') || rawRole.includes('kitchen');
   const isKasir = rawRole.includes('kasir') || rawRole.includes('cashier');
 
+  const formattedDate = new Date().toLocaleString('id-ID', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
   useEffect(() => {
     fetchRecipes();
   }, []);
+
+  // 🛡️ 1. DETEKSI SCREENSHOT & VISIBILITY CHANGE (LOG SECURITY)
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const logSecurityViolation = async (type: string) => {
+        try {
+            await supabase.from('security_audit_logs').insert([
+            {
+                staff_id: currentUser.staff_id,
+                staff_name: currentUser.name,
+                role: currentUser.role,
+                action_type: `SCREENSHOT_ATTEMPT_${type}`, // ✅ Parameter 'type' sekarang dipakai
+                target_recipe: unlockedRecipeId ? `Resep ID: ${unlockedRecipeId}` : 'Halaman Buku Resep',
+                device_info: navigator.userAgent,
+            },
+            ]);
+        } catch (err) {
+            console.error('Gagal mencatat log pelanggaran screenshot:', err);
+        }
+    };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === 'PrintScreen' ||
+        (e.metaKey && e.shiftKey && (e.key === '3' || e.key === '4' || e.key === '5')) ||
+        (e.ctrlKey && e.key === 'p')
+      ) {
+        setScreenshotWarning(true);
+        logSecurityViolation('KEYBOARD_SHORTCUT');
+        setTimeout(() => setScreenshotWarning(false), 4000);
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.hidden && unlockedRecipeId) {
+        logSecurityViolation('TAB_SWITCH_WHILE_UNLOCKED');
+        setUnlockedRecipeId(null); // Otomatis blur kembali jika staf pindah tab
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [currentUser, unlockedRecipeId]);
 
   const fetchRecipes = async () => {
     setLoading(true);
@@ -65,6 +126,32 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
       setRecipes(data);
     }
     setLoading(false);
+  };
+
+  // 📖 2. FUNGSI TAP TO REVEAL & LOG BACA RESEP (READ LOG)
+  const handleToggleRecipe = async (item: RecipeItem) => {
+    if (unlockedRecipeId === item.id) {
+      setUnlockedRecipeId(null);
+    } else {
+      setUnlockedRecipeId(item.id);
+
+      if (currentUser) {
+        try {
+          await supabase.from('security_audit_logs').insert([
+            {
+              staff_id: currentUser.staff_id,
+              staff_name: currentUser.name,
+              role: currentUser.role,
+              action_type: 'READ_RECIPE',
+              target_recipe: item.name,
+              device_info: navigator.userAgent,
+            },
+          ]);
+        } catch (err) {
+          console.warn('Gagal mencatat log pembacaan resep:', err);
+        }
+      }
+    }
   };
 
   const handleAddRecipe = async (e: React.FormEvent) => {
@@ -96,7 +183,8 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
     }
   };
 
-  const handleDeleteRecipe = async (id: number, recipeName: string) => {
+  const handleDeleteRecipe = async (e: React.MouseEvent, id: number, recipeName: string) => {
+    e.stopPropagation(); // Mencegah pemicu toggle unlock saat menekan tombol hapus
     if (!confirm(`Apakah Anda yakin ingin menghapus resep "${recipeName}"?`)) return;
 
     const { error } = await supabase
@@ -111,7 +199,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
     }
   };
 
-  // FILTER STRICT PER DIVISI (Hanya berlaku untuk staf Aktif)
+  // FILTER STRICT PER DIVISI
   const getAllowedRecipes = () => {
     if (isBar && !isManagementOrOwner) {
       return recipes.filter(r => (r.category || '').toLowerCase() === 'beverage');
@@ -149,7 +237,31 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
   }
 
   return (
-    <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm text-left space-y-6 relative">
+    <div 
+      className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm text-left space-y-6 relative select-none"
+      onCopy={(e) => e.preventDefault()}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      {/* 🌊 DYNAMIC WATERMARK MELAYANG */}
+      {currentUser && (
+        <div className="pointer-events-none fixed inset-0 z-30 flex flex-col justify-between p-6 opacity-[0.06] rotate-[-15deg] overflow-hidden">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex justify-around text-xs md:text-sm font-black tracking-widest text-black whitespace-nowrap">
+              <span>{currentUser.name} ({currentUser.staff_id})</span>
+              <span>ROTTHERDAMS CONFIDENTIAL</span>
+              <span>{formattedDate} WITA</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ⚠️ NOTIFIKASI DETEKSI SCREENSHOT */}
+      {screenshotWarning && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white px-6 py-3 rounded-2xl shadow-2xl font-bold text-xs flex items-center gap-2 animate-bounce">
+          <span>⚠️ TERDETEKSI INDIKASI SCREENSHOT!</span>
+          <span className="text-[10px] opacity-80">Aktivitas ini telah dicatat ke log audit keamanan.</span>
+        </div>
+      )}
       
       {/* POP-UP MODAL PERINGATAN KERAHASIAAN DOKUMEN */}
       {showWarningModal && (
@@ -286,34 +398,66 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredRecipes.map(item => (
-            <div key={item.id} className="p-4 rounded-2xl bg-neutral-50 border border-neutral-200 relative group">
-              <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center gap-2">
-                  <h3 className="font-extrabold text-sm text-[#111111]">{item.name}</h3>
-                  <span className="text-[9px] font-bold px-2 py-0.5 bg-neutral-200 text-neutral-600 rounded-md uppercase">
-                    {item.category || 'Beverage'}
-                  </span>
+          {filteredRecipes.map(item => {
+            const isUnlocked = unlockedRecipeId === item.id;
+
+            return (
+              <div 
+                key={item.id} 
+                onClick={() => handleToggleRecipe(item)}
+                className={`p-4 rounded-2xl bg-neutral-50 border relative transition duration-200 cursor-pointer overflow-hidden ${
+                  isUnlocked 
+                    ? 'border-[#d22027] shadow-md ring-2 ring-red-500/10' 
+                    : 'border-neutral-200 hover:border-neutral-300'
+                }`}
+              >
+                <div className="flex justify-between items-start mb-2">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-extrabold text-sm text-[#111111]">{item.name}</h3>
+                    <span className="text-[9px] font-bold px-2 py-0.5 bg-neutral-200 text-neutral-600 rounded-md uppercase">
+                      {item.category || 'Beverage'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md transition ${
+                      isUnlocked ? 'bg-red-100 text-[#d22027]' : 'bg-neutral-200 text-neutral-600'
+                    }`}>
+                      {isUnlocked ? '🔓 Clear' : '🔒 Tap View'}
+                    </span>
+
+                    {isManagementOrOwner && (
+                      <button
+                        onClick={(e) => handleDeleteRecipe(e, item.id, item.name)}
+                        className="text-neutral-400 hover:text-red-500 transition text-xs p-1 cursor-pointer"
+                        title="Hapus Resep"
+                      >
+                        🗑️
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {isManagementOrOwner && (
-                  <button
-                    onClick={() => handleDeleteRecipe(item.id, item.name)}
-                    className="text-neutral-300 hover:text-red-500 transition opacity-0 group-hover:opacity-100 text-xs p-1 cursor-pointer"
-                    title="Hapus Resep"
-                  >
-                    🗑️
-                  </button>
+                {/* RINCIAN GRAMASI (EFEK BLUR TAP-TO-REVEAL) */}
+                <div className={`space-y-1 text-xs transition-all duration-300 ${
+                  isUnlocked ? 'filter-none opacity-100' : 'blur-md opacity-30 select-none pointer-events-none'
+                }`}>
+                  <p><span className="font-semibold text-neutral-400">Gramasi / Komposisi:</span> <strong className="text-neutral-900">{item.grammage}</strong></p>
+                  <p><span className="font-semibold text-neutral-400">Suhu / Metode:</span> <strong className="text-neutral-900">{item.temperature}</strong></p>
+                  <p><span className="font-semibold text-neutral-400">Waktu / Ekstraksi:</span> <strong className="text-neutral-900">{item.extraction_time}</strong></p>
+                </div>
+
+                {/* PETUNJUK OVERLAY TAP UNTUK BUKA */}
+                {!isUnlocked && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/20 backdrop-blur-[1px]">
+                    <span className="bg-[#111111] text-white text-[10px] font-extrabold px-3 py-1.5 rounded-full shadow-md">
+                      👆 Tap Untuk Membuka Gramasi
+                    </span>
+                  </div>
                 )}
               </div>
-
-              <div className="space-y-1 text-xs text-neutral-600">
-                <p><span className="font-semibold text-neutral-400">Gramasi / Komposisi:</span> {item.grammage}</p>
-                <p><span className="font-semibold text-neutral-400">Suhu / Metode:</span> {item.temperature}</p>
-                <p><span className="font-semibold text-neutral-400">Waktu / Ekstraksi:</span> {item.extraction_time}</p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 

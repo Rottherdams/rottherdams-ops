@@ -12,7 +12,7 @@ interface ClockInModalProps {
 // 📍 Koordinat Presisi Rottherdams Coffee (Google Maps)
 const KAFE_LAT = -1.900938; 
 const KAFE_LNG = 116.1877179; 
-const MAX_RADIUS_METERS = 75; // Maksimal jarak presensi 100 meter dari kafe
+const MAX_RADIUS_METERS = 75; // Maksimal jarak presensi 75 meter dari kafe
 
 export default function ClockInModal({
   isOpen,
@@ -25,8 +25,10 @@ export default function ClockInModal({
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [isChecking, setIsChecking] = useState<boolean>(true);
 
-  // State GPS & Kamera
+  // State GPS, Metadata Audit & Kamera
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [gpsAccuracy, setGpsAccuracy] = useState<number | null>(null);
+  const [ipAddress, setIpAddress] = useState<string>('');
   const [distance, setDistance] = useState<number | null>(null);
   const [locationError, setLocationError] = useState<string>('');
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
@@ -47,6 +49,7 @@ export default function ClockInModal({
     if (isOpen && currentUser) {
       checkCurrentAttendance();
       getLocation();
+      fetchIpAddress();
     } else {
       stopCamera();
     }
@@ -55,6 +58,17 @@ export default function ClockInModal({
       stopCamera();
     };
   }, [isOpen, currentUser]);
+
+  // Ambil IP Address publik untuk Audit Trail Metadata
+  const fetchIpAddress = async () => {
+    try {
+      const res = await fetch('https://api.ipify.org?format=json');
+      const data = await res.json();
+      if (data?.ip) setIpAddress(data.ip);
+    } catch (e) {
+      console.warn('Gagal mengambil IP address:', e);
+    }
+  };
 
   const checkCurrentAttendance = async () => {
     if (!currentUser) return;
@@ -76,14 +90,31 @@ export default function ClockInModal({
     }
   };
 
-  // 📍 1. Fungsi Ambil Lokasi GPS & Hitung Jarak
+  // 📍 1. Fungsi Ambil Lokasi GPS & Deteksi Fake GPS
   const getLocation = () => {
     setLocationError('');
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         position => {
-          const lat = position.coords.latitude;
-          const lng = position.coords.longitude;
+          const coords = position.coords;
+          const accuracy = coords.accuracy;
+          setGpsAccuracy(Math.round(accuracy));
+
+          // ⚠️ A. Deteksi Flag 'mocked' dari Android Webview
+          const isMock = (position as any).isMock || (coords as any).isMocked;
+          if (isMock) {
+            setLocationError('⚠️ Penggunaan Fake GPS / Lokasi Palsu terdeteksi! Harap matikan aplikasi pengubah lokasi.');
+            return;
+          }
+
+          // ⚠️ B. Deteksi Akurasi Terlalu Sempurna (< 2 meter) Ciri Khas Fake GPS
+          if (!isLocalhost && accuracy < 2.0) {
+            setLocationError('⚠️ Indikasi Fake GPS terdeteksi (Akurasi tidak wajar). Harap gunakan GPS asli HP.');
+            return;
+          }
+
+          const lat = coords.latitude;
+          const lng = coords.longitude;
           setLocation({ lat, lng });
 
           // Hitung jarak Haversine ke lokasi Kafe (dalam meter)
@@ -93,7 +124,7 @@ export default function ClockInModal({
         () => {
           setLocationError('Gagal mengambil lokasi GPS. Pastikan izin lokasi aktif.');
         },
-        { enableHighAccuracy: true }
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
       );
     } else {
       setLocationError('Browser Anda tidak mendukung fitur Geolocation.');
@@ -125,7 +156,6 @@ export default function ClockInModal({
     }
 
     try {
-      // Coba dengan ideal constraints untuk kamera depan
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           facingMode: 'user',
@@ -145,7 +175,6 @@ export default function ClockInModal({
     } catch (err: any) {
       console.warn('Gagal dengan constraint ideal, mencoba fallback dasar:', err);
       try {
-        // Fallback jika HP Android tertentu menolak constraint 'facingMode' atau 'width'
         const fallbackStream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: false,
@@ -176,7 +205,6 @@ export default function ClockInModal({
     setIsCameraActive(false);
   };
 
-  // Ambil foto & Mirror hasil jepretan pada Canvas
   const takeSelfie = () => {
     if (!videoRef.current) return;
 
@@ -190,7 +218,6 @@ export default function ClockInModal({
 
     const ctx = canvas.getContext('2d');
     if (ctx) {
-      // Efek Mirroring Hasil Jepretan
       ctx.translate(width, 0);
       ctx.scale(-1, 1);
       ctx.drawImage(video, 0, 0, width, height);
@@ -217,7 +244,7 @@ export default function ClockInModal({
 
   if (!isOpen) return null;
 
-  // ☁️ 3. Proses Clock In + Upload Foto Selfie
+  // ☁️ 3. Proses Clock In + Upload Foto Selfie & Audit Metadata
   const handleClockIn = async () => {
     if (!currentUser) return;
     if (!photoBlob) {
@@ -242,7 +269,7 @@ export default function ClockInModal({
         photo_url = publicUrlData.publicUrl;
       }
 
-      // B. Simpan Presensi ke Database
+      // B. Simpan Presensi + Metadata Audit Trail ke Database
       const { error } = await supabase.from('attendances').insert([
         {
           staff_id: currentUser.staff_id,
@@ -253,6 +280,10 @@ export default function ClockInModal({
           longitude: location?.lng || null,
           photo_url,
           status: 'On Duty',
+          // Metadata Audit Trail Anti-Fake GPS
+          gps_accuracy: gpsAccuracy,
+          ip_address: ipAddress || 'Unknown',
+          device_info: navigator.userAgent,
         },
       ]);
 
@@ -292,8 +323,9 @@ export default function ClockInModal({
     }
   };
 
-  // Validasi radius (Diabaikan jika berada di mode Localhost)
+  // Validasi radius & Fake GPS
   const isOutsideRadius = !isLocalhost && distance !== null && distance > MAX_RADIUS_METERS;
+  const isFakeGpsDetected = !!locationError && locationError.includes('Fake GPS');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
@@ -346,7 +378,7 @@ export default function ClockInModal({
           <div className="space-y-3.5">
             {/* Status GPS Lokasi */}
             <div className={`p-3 rounded-2xl text-xs border ${
-              isOutsideRadius 
+              isOutsideRadius || isFakeGpsDetected
                 ? 'bg-red-50 border-red-200 text-red-700' 
                 : distance !== null 
                 ? 'bg-emerald-50 border-emerald-200 text-emerald-700' 
@@ -356,6 +388,12 @@ export default function ClockInModal({
                 <span>📍 Lokasi GPS Kafe:</span>
                 <span>{distance !== null ? `${distance} Meter` : 'Mendeteksi...'}</span>
               </div>
+
+              {gpsAccuracy !== null && (
+                <div className="text-[10px] text-neutral-500 mt-0.5">
+                  Akurasi Sensor: ±{gpsAccuracy}m
+                </div>
+              )}
               
               {isLocalhost && (
                 <p className="text-[10px] font-bold mt-1 text-amber-600">
@@ -369,7 +407,7 @@ export default function ClockInModal({
                 </p>
               )}
               {locationError && (
-                <p className="text-[10px] font-bold mt-1 text-red-500">{locationError}</p>
+                <p className="text-[10px] font-bold mt-1 text-red-600 leading-tight">{locationError}</p>
               )}
             </div>
 
@@ -414,7 +452,7 @@ export default function ClockInModal({
 
             <button
               onClick={handleClockIn}
-              disabled={isLoading || !photoBlob || isOutsideRadius}
+              disabled={isLoading || !photoBlob || isOutsideRadius || isFakeGpsDetected}
               className="w-full py-3.5 bg-[#d22027] hover:bg-[#b81b21] disabled:opacity-40 text-white font-bold text-xs rounded-2xl shadow-md transition cursor-pointer active:scale-95"
             >
               {isLoading ? 'Mengunggah & Menyimpan...' : '✅ Clock In Presensi Sekarang'}
