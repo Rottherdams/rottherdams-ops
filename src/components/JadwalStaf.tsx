@@ -20,6 +20,8 @@ interface StaffSummary {
   role: string;
   status: string;
   shifts: { [day: string]: string };
+  restWarnings: { [day: string]: boolean };
+  hasAnyRestWarning: boolean;
   total_shift: number;
   total_shift_1: number;
   total_shift_2: number;
@@ -61,7 +63,14 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [isSwapModalOpen, setIsSwapModalOpen] = useState<boolean>(false);
 
-  const isManagement = userRole === 'management' || userRole === 'owner';
+  // Periksa role user yang login
+  const rawRole = (currentUser?.role || userRole || '').toLowerCase();
+  const isManagement = 
+    rawRole.includes('management') || 
+    rawRole.includes('owner') ||
+    (currentUser?.staff_id || '').startsWith('MNG-') ||
+    (currentUser?.staff_id || '').startsWith('OWN-');
+
   const currentWeekNow = getCurrentWeekKey();
   const todayNameNow = getTodayName();
 
@@ -95,7 +104,7 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
         item => item.week_number === selectedWeek
       );
 
-      // Map untuk pencarian cepat jadwal (Gunakan ID dan Nama secara case-insensitive)
+      // Map untuk pencarian cepat jadwal
       const scheduleMap: { [key: string]: string } = {};
       currentWeekSchedules.forEach(item => {
         scheduleMap[`${item.staff_id}_${item.day}`] = item.shift;
@@ -104,15 +113,16 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
         }
       });
 
-      // 3. Gabungkan data staf operasional & jadwal
+      // 3. Gabungkan data staf operasional, jadwal, dan deteksi peringatan Rest Time (Shift 2 -> Shift 1)
       const summaries: StaffSummary[] = (staffData || []).map(staf => {
         const shifts: { [day: string]: string } = {};
+        const restWarnings: { [day: string]: boolean } = {};
         let total_shift_1 = 0;
         let total_shift_2 = 0;
         let total_off = 0;
+        let hasAnyRestWarning = false;
 
-        DAYS.forEach(day => {
-          // Cari berdasarkan ID atau nama staf
+        DAYS.forEach((day, idx) => {
           const shift = scheduleMap[`${staf.staff_id}_${day}`] 
             || scheduleMap[`${staf.staff_name.toLowerCase()}_${day}`] 
             || 'OFF';
@@ -126,6 +136,19 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
           } else {
             total_off += 1;
           }
+
+          // DETEKSI REST TIME WARNING: Hari kemarin Shift 2 (Malam) -> Hari ini Shift 1 (Pagi)
+          if (idx > 0) {
+            const prevDay = DAYS[idx - 1];
+            const prevShift = shifts[prevDay];
+            const isPrevNight = prevShift === 'Shift 2' || prevShift === 'S2';
+            const isCurrMorning = shift === 'Shift 1' || shift === 'S1';
+
+            if (isPrevNight && isCurrMorning) {
+              restWarnings[day] = true;
+              hasAnyRestWarning = true;
+            }
+          }
         });
 
         return {
@@ -134,6 +157,8 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
           role: staf.role,
           status: staf.status || 'Aktif',
           shifts,
+          restWarnings,
+          hasAnyRestWarning,
           total_shift: total_shift_1 + total_shift_2,
           total_shift_1,
           total_shift_2,
@@ -165,7 +190,7 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
           </p>
         </div>
 
-        {/* Kontrol Kanan: Tombol Tukar Shift, Edit Roster & Switcher Minggu */}
+        {/* Kontrol Kanan */}
         <div className="flex flex-wrap items-center gap-2">
           {currentUser && (
             <button
@@ -254,7 +279,7 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
         </div>
       ) : (
         <>
-          {/* Tampilan Desktop: Tabel Roster Lengkap */}
+          {/* Tampilan Desktop: Tabel Roster */}
           <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
@@ -307,36 +332,55 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
                       )}
 
                       <td className="p-3 font-bold text-[#111111]">
-                        <span className="flex items-center gap-1.5">
-                          {staff.staff_name}
-                          {isLoggedUser && (
-                            <span className="bg-[#d22027] text-white text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase">
-                              Anda
+                        <div className="flex flex-col">
+                          <span className="flex items-center gap-1.5">
+                            {staff.staff_name}
+                            {isLoggedUser && (
+                              <span className="bg-[#d22027] text-white text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase">
+                                Anda
+                              </span>
+                            )}
+                          </span>
+
+                          {/* 🔒 PERINGATAN REST TIME HANYA UTK OWNER/MANAGEMENT */}
+                          {isManagement && staff.hasAnyRestWarning && (
+                            <span
+                              className="mt-0.5 text-[9px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded font-semibold w-max"
+                              title="Terdeteksi jadwal Shift 2 (Malam) disambung Shift 1 (Pagi)"
+                            >
+                              ⚠️ Rest Time &lt; 8 Jam
                             </span>
                           )}
-                        </span>
-                        {isManagement && staff.status && staff.status !== 'Aktif' && (
-                          <span className="mt-0.5 inline-block px-1.5 py-0.5 text-[9px] rounded font-semibold bg-amber-100 text-amber-700">
-                            {staff.status}
-                          </span>
-                        )}
+
+                          {isManagement && staff.status && staff.status !== 'Aktif' && (
+                            <span className="mt-0.5 inline-block px-1.5 py-0.5 text-[9px] rounded font-semibold bg-amber-100 text-amber-700 w-max">
+                              {staff.status}
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="p-3 text-neutral-500 capitalize">{staff.role}</td>
                       
                       {DAYS.map(day => {
                         const shift = staff.shifts[day] || 'OFF';
+                        const isRestWarning = isManagement && staff.restWarnings[day];
+
                         return (
                           <td key={day} className="p-3 text-center">
                             <span
                               className={`px-2 py-1 rounded-md font-bold text-[10px] inline-block min-w-[54px] ${
-                                shift === 'Shift 1' || shift === 'S1'
+                                isRestWarning
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-300' // Soft Amber/Kuning Lembut
+                                  : shift === 'Shift 1' || shift === 'S1'
                                   ? 'bg-blue-50 text-blue-600 border border-blue-100'
                                   : shift === 'Shift 2' || shift === 'S2'
                                   ? 'bg-amber-50 text-amber-700 border border-amber-100'
                                   : 'bg-red-50 text-red-500 border border-red-100'
                               }`}
+                              title={isRestWarning ? 'Waktu istirahat kurang dari 8 jam' : undefined}
                             >
                               {shift}
+                              {isRestWarning && <span className="ml-1 text-[9px]">⚠️</span>}
                             </span>
                           </td>
                         );
@@ -370,6 +414,7 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
 
             {staffSummaries.map(staff => {
               const shiftToday = staff.shifts[selectedDay] || 'OFF';
+              const isRestWarningToday = isManagement && staff.restWarnings[selectedDay];
               const isLoggedUser = currentUser && (
                 currentUser.staff_id === staff.staff_id ||
                 currentUser.name.toLowerCase() === staff.staff_name.toLowerCase()
@@ -394,10 +439,18 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
                       )}
                     </h3>
                     <p className="text-[10px] text-neutral-400 capitalize">{staff.role}</p>
+
+                    {isRestWarningToday && (
+                      <span className="mt-1 inline-block text-[9px] bg-amber-100 text-amber-800 border border-amber-300 font-bold px-2 py-0.5 rounded-full">
+                        ⚠️ Rest Time &lt; 8 Jam
+                      </span>
+                    )}
                   </div>
                   <span
                     className={`px-3 py-1 rounded-xl font-bold text-xs ${
-                      shiftToday === 'Shift 1' || shiftToday === 'S1'
+                      isRestWarningToday
+                        ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                        : shiftToday === 'Shift 1' || shiftToday === 'S1'
                         ? 'bg-blue-100 text-blue-700'
                         : shiftToday === 'Shift 2' || shiftToday === 'S2'
                         ? 'bg-amber-100 text-amber-800'

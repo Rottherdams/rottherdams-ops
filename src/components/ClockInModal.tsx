@@ -244,7 +244,7 @@ export default function ClockInModal({
 
   if (!isOpen) return null;
 
-  // ☁️ 3. Proses Clock In + Upload Foto Selfie & Audit Metadata
+  // ☁️ 3. Proses Clock In + Upload Foto Selfie & Audit Metadata (TERSEDIA DETEKSI FAKE GPS)
   const handleClockIn = async () => {
     if (!currentUser) return;
     if (!photoBlob) {
@@ -269,7 +269,12 @@ export default function ClockInModal({
         photo_url = publicUrlData.publicUrl;
       }
 
-      // B. Simpan Presensi + Metadata Audit Trail ke Database
+      // B. Hitung Status Kecurangan / Fake GPS Sebelum Simpan
+      const isOutsideRadius = !isLocalhost && distance !== null && distance > MAX_RADIUS_METERS;
+      const isFakeGpsDetected = !!locationError && locationError.includes('Fake GPS');
+      const isFakeGpsFlag = isOutsideRadius || isFakeGpsDetected;
+
+      // C. Simpan Presensi + Metadata Audit Trail + Status Fake GPS ke Database
       const { error } = await supabase.from('attendances').insert([
         {
           staff_id: currentUser.staff_id,
@@ -280,7 +285,7 @@ export default function ClockInModal({
           longitude: location?.lng || null,
           photo_url,
           status: 'On Duty',
-          // Metadata Audit Trail Anti-Fake GPS
+          is_fake_gps: isFakeGpsFlag, // 🚨 SIMPAN SINYAL FAKE GPS UNTUK AUDIT TIM
           gps_accuracy: gpsAccuracy,
           ip_address: ipAddress || 'Unknown',
           device_info: navigator.userAgent,
@@ -323,7 +328,7 @@ export default function ClockInModal({
     }
   };
 
-  // Validasi radius & Fake GPS
+  // Validasi radius & Fake GPS untuk UI Modal
   const isOutsideRadius = !isLocalhost && distance !== null && distance > MAX_RADIUS_METERS;
   const isFakeGpsDetected = !!locationError && locationError.includes('Fake GPS');
 

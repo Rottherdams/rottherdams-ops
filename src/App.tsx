@@ -9,6 +9,7 @@ import BukuResep from './components/BukuResep';
 import EditProfileModal from './components/EditProfileModal';
 import ManagementDashboard from './components/ManagementDashboard';
 import RekapPresensi from './components/RekapPresensi';
+import AnnouncementBanner from './components/AnnouncementBanner';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import { supabase } from './lib/supabase';
 import { recordLoginLog } from './lib/security';
@@ -376,7 +377,8 @@ export default function App() {
               </div>
             )}
 
-            <div className="bg-[#111111] text-white rounded-3xl p-6 md:p-8 mb-8 relative overflow-hidden shadow-xl border border-neutral-800 text-left">
+            {/* WIDGET KAFE OPEN & BUTTON PRESENSI */}
+            <div className="bg-[#111111] text-white rounded-3xl p-6 md:p-8 mb-6 relative overflow-hidden shadow-xl border border-neutral-800 text-left">
               <div className="absolute -right-8 -bottom-8 w-44 h-44 bg-[#d22027] rounded-full blur-3xl opacity-40"></div>
 
               <div className="relative z-10">
@@ -435,6 +437,13 @@ export default function App() {
                 )}
               </div>
             </div>
+
+            {/* 📢 WIDGET BROADCAST ANNOUNCEMENT BULLETIN BOARD */}
+            {currentUser && (
+              <div className="mb-8">
+                <AnnouncementBanner currentUser={currentUser as any} />
+              </div>
+            )}
 
             {onDutyList.length > 0 && (
               <div className="bg-neutral-50 rounded-3xl p-5 border border-neutral-200 mb-8 text-left">

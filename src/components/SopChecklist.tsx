@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 
 interface CurrentUser {
   name: string;
-  role: 'management' | 'kasir' | 'bar' | 'dapur' | 'owner';
+  role: 'management' | 'kasir' | 'bar' | 'dapur' | 'owner' | string;
   staff_id: string;
 }
 
@@ -13,8 +13,8 @@ interface SopItem {
   task_name: string;
   category: string;
   is_completed: boolean;
-  completed_by?: string;
-  completed_at?: string;
+  completed_by?: string | null;
+  completed_at?: string | null;
 }
 
 interface SopChecklistProps {
@@ -35,11 +35,29 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
   const [newShift, setNewShift] = useState<'morning' | 'night'>('morning');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const isManagementOrOwner = currentUser && (currentUser.role === 'management' || currentUser.role === 'owner');
+  const rawRole = (currentUser?.role || '').toLowerCase();
+  const isManagementOrOwner = currentUser && (rawRole.includes('management') || rawRole.includes('owner'));
   const currentShift = activeShift.toLowerCase().includes('night') ? 'night' : 'morning';
 
   useEffect(() => {
     fetchSopTasks();
+
+    // 🚀 INTEGRASI REALTIME SUPABASE
+    const sopChannel = supabase
+      .channel('sop_realtime_channel')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'sop_checklists' },
+        () => {
+          // Ketika ada perubahan centang/data dari staf lain, perbarui data secara otomatis
+          fetchSopTasks();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(sopChannel);
+    };
   }, [currentShift, isFullView]);
 
   const fetchSopTasks = async () => {
@@ -62,11 +80,11 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
 
       // MAPPING RESET OTOMATIS HARIAN:
       // Jika completed_at BUKAN hari ini, anggap is_completed = false
-      const formattedTasks = data.map(item => {
+      const formattedTasks: SopItem[] = data.map(item => {
         const isToday = item.completed_at && new Date(item.completed_at).toDateString() === todayStr;
         return {
           ...item,
-          is_completed: isToday ? item.is_completed : false,
+          is_completed: isToday ? Boolean(item.is_completed) : false,
           completed_by: isToday ? item.completed_by : null,
           completed_at: isToday ? item.completed_at : null,
         };
@@ -80,15 +98,16 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
   const toggleTask = async (id: number, currentStatus: boolean) => {
     const nextStatus = !currentStatus;
 
+    // Optimistic UI Update biar responsif di layar lokal
     setTasks(prev =>
-      prev.map(t => (t.id === id ? { ...t, is_completed: nextStatus } : t))
+      prev.map(t => (t.id === id ? { ...t, is_completed: nextStatus, completed_by: nextStatus ? (currentUser?.name || 'Staf On-Duty') : null } : t))
     );
 
     const { error } = await supabase
       .from('sop_checklists')
       .update({
         is_completed: nextStatus,
-        completed_by: nextStatus ? (currentUser?.name || 'Barista On-Duty') : null,
+        completed_by: nextStatus ? (currentUser?.name || 'Staf On-Duty') : null,
         completed_at: nextStatus ? new Date().toISOString() : null,
       })
       .eq('id', id);
@@ -141,8 +160,8 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
     }
   };
 
-  const morningTasks = tasks.filter(t => t.shift.toLowerCase().includes('morning'));
-  const nightTasks = tasks.filter(t => t.shift.toLowerCase().includes('night'));
+  const morningTasks = tasks.filter(t => (t.shift || '').toLowerCase().includes('morning'));
+  const nightTasks = tasks.filter(t => (t.shift || '').toLowerCase().includes('night'));
 
   const renderTaskList = (taskList: SopItem[], titleLabel?: string) => (
     <div className="space-y-2.5">
@@ -178,10 +197,12 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
               >
                 {task.task_name}
               </p>
-              <p className="text-[10px] text-neutral-400">
-                {task.category} • <span className="uppercase font-medium">{task.shift}</span>
+              <p className="text-[10px] text-neutral-400 flex items-center gap-1 flex-wrap mt-0.5">
+                <span className="font-bold text-neutral-600">{task.category}</span>
+                <span>•</span>
+                <span className="uppercase font-medium">{task.shift}</span>
                 {task.completed_by && (
-                  <span className="ml-1.5 text-emerald-600 font-medium">
+                  <span className="text-emerald-600 font-medium ml-1">
                     • Oleh: {task.completed_by}
                   </span>
                 )}
@@ -199,7 +220,7 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
             {isManagementOrOwner && (
               <button
                 onClick={e => handleDeleteTask(task.id, task.task_name, e)}
-                className="p-1 text-neutral-300 hover:text-red-500 rounded-lg transition opacity-0 group-hover:opacity-100"
+                className="p-1 text-neutral-300 hover:text-red-500 rounded-lg transition opacity-0 group-hover:opacity-100 cursor-pointer"
                 title="Hapus SOP"
               >
                 🗑️
@@ -223,6 +244,9 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
             </h2>
             <span className="text-[10px] bg-red-50 text-[#d22027] font-bold px-2 py-0.5 rounded-full border border-red-100 uppercase">
               {isFullView ? 'All Shifts' : currentShift}
+            </span>
+            <span className="text-[9px] bg-emerald-50 text-emerald-600 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+              ● Realtime Sync
             </span>
           </div>
           <p className="text-[11px] text-neutral-400 mt-0.5">
@@ -287,7 +311,7 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
                   <select
                     value={newCategory}
                     onChange={e => setNewCategory(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-[#d22027]"
+                    className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-[#d22027] cursor-pointer"
                   >
                     <option value="Bar">Bar</option>
                     <option value="Kasir">Kasir</option>
@@ -301,7 +325,7 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
                   <select
                     value={newShift}
                     onChange={e => setNewShift(e.target.value as 'morning' | 'night')}
-                    className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-[#d22027]"
+                    className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-[#d22027] cursor-pointer"
                   >
                     <option value="morning">Morning (Opening)</option>
                     <option value="night">Night (Closing)</option>

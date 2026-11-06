@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
 interface CurrentUser {
@@ -26,7 +26,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
   const [loading, setLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<'All' | 'Beverage' | 'Food' | 'Pastry'>('All');
 
-  // State Keamanan Tambahan
+  // State Keamanan: Press & Hold ID
   const [unlockedRecipeId, setUnlockedRecipeId] = useState<number | null>(null);
   const [screenshotWarning, setScreenshotWarning] = useState(false);
 
@@ -41,6 +41,9 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
   const [temperature, setTemperature] = useState('');
   const [extractionTime, setExtractionTime] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Ref untuk timer auto-blur 15 detik
+  const autoBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Normalisasi role & status
   const rawRole = (currentUser?.role || '').toLowerCase();
@@ -64,7 +67,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
     fetchRecipes();
   }, []);
 
-  // 🛡️ 1. DETEKSI SCREENSHOT & VISIBILITY / BLUR CHANGE (LOG SECURITY MOBILE & DESKTOP)
+  // 🛡️ 1. DETEKSI SCREENSHOT & VISIBILITY / BLUR CHANGE (LOG SECURITY)
   useEffect(() => {
     if (!currentUser) return;
 
@@ -100,15 +103,14 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
     const handleVisibilityChange = () => {
       if (document.hidden && unlockedRecipeId) {
         logSecurityViolation('TAB_SWITCH_WHILE_UNLOCKED');
-        setUnlockedRecipeId(null); // Otomatis blur kembali jika staf pindah tab
+        setUnlockedRecipeId(null);
       }
     };
 
-    // Deteksi kehilangan fokus layar di HP (saat panggil app screenshot/minimize)
     const handleWindowBlur = () => {
       if (unlockedRecipeId) {
         logSecurityViolation('MOBILE_APP_SWITCH');
-        setUnlockedRecipeId(null); // Kunci kembali resep
+        setUnlockedRecipeId(null);
       }
     };
 
@@ -138,30 +140,38 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
     setLoading(false);
   };
 
-  // 📖 2. FUNGSI TAP TO REVEAL & LOG BACA RESEP (READ LOG)
-  const handleToggleRecipe = async (item: RecipeItem) => {
-    if (unlockedRecipeId === item.id) {
-      setUnlockedRecipeId(null);
-    } else {
-      setUnlockedRecipeId(item.id);
+  // 📖 2. MEKANISME PRESS & HOLD (TEKAN & TAHAN UNTUK BUKU RESEP)
+  const handlePressStart = async (item: RecipeItem) => {
+    setUnlockedRecipeId(item.id);
 
-      if (currentUser) {
-        try {
-          await supabase.from('security_audit_logs').insert([
-            {
-              staff_id: currentUser.staff_id,
-              staff_name: currentUser.name,
-              role: currentUser.role,
-              action_type: 'READ_RECIPE',
-              target_recipe: item.name,
-              device_info: navigator.userAgent,
-            },
-          ]);
-        } catch (err) {
-          console.warn('Gagal mencatat log pembacaan resep:', err);
-        }
+    // Set auto-blur 15 detik jika ditahan terlalu lama
+    if (autoBlurTimerRef.current) clearTimeout(autoBlurTimerRef.current);
+    autoBlurTimerRef.current = setTimeout(() => {
+      setUnlockedRecipeId(null);
+    }, 15000);
+
+    // Rekam Log Audit Pembacaan Resep
+    if (currentUser) {
+      try {
+        await supabase.from('security_audit_logs').insert([
+          {
+            staff_id: currentUser.staff_id,
+            staff_name: currentUser.name,
+            role: currentUser.role,
+            action_type: 'READ_RECIPE',
+            target_recipe: item.name,
+            device_info: navigator.userAgent,
+          },
+        ]);
+      } catch (err) {
+        console.warn('Gagal mencatat log pembacaan resep:', err);
       }
     }
+  };
+
+  const handlePressEnd = () => {
+    if (autoBlurTimerRef.current) clearTimeout(autoBlurTimerRef.current);
+    setUnlockedRecipeId(null); // Langsung Blur seketika saat jari terlepas dari layar HP
   };
 
   const handleAddRecipe = async (e: React.FormEvent) => {
@@ -194,7 +204,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
   };
 
   const handleDeleteRecipe = async (e: React.MouseEvent, id: number, recipeName: string) => {
-    e.stopPropagation(); // Mencegah pemicu toggle unlock saat menekan tombol hapus
+    e.stopPropagation();
     if (!confirm(`Apakah Anda yakin ingin menghapus resep "${recipeName}"?`)) return;
 
     const { error } = await supabase
@@ -252,7 +262,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
       onCopy={(e) => e.preventDefault()}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* 🌊 DYNAMIC WATERMARK MELAYANG */}
+      {/* 🌊 DYNAMIC WATERMARK MELAYANG DI LAYAR */}
       {currentUser && (
         <div className="pointer-events-none fixed inset-0 z-30 flex flex-col justify-between p-6 opacity-[0.06] rotate-[-15deg] overflow-hidden">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -397,7 +407,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
         ))}
       </div>
 
-      {/* List Card Resep */}
+      {/* List Card Resep dengan Fitur Press & Hold */}
       {loading ? (
         <div className="py-8 text-center text-xs text-neutral-400 animate-pulse">
           Memuat resep dari database...
@@ -414,8 +424,13 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
             return (
               <div 
                 key={item.id} 
-                onClick={() => handleToggleRecipe(item)}
-                className={`p-4 rounded-2xl bg-neutral-50 border relative transition duration-200 cursor-pointer overflow-hidden ${
+                onMouseDown={() => handlePressStart(item)}
+                onMouseUp={handlePressEnd}
+                onMouseLeave={handlePressEnd}
+                onTouchStart={() => handlePressStart(item)}
+                onTouchEnd={handlePressEnd}
+                onTouchCancel={handlePressEnd}
+                className={`p-4 rounded-2xl bg-neutral-50 border relative transition duration-200 cursor-pointer overflow-hidden select-none touch-callout-none ${
                   isUnlocked 
                     ? 'border-[#d22027] shadow-md ring-2 ring-red-500/10' 
                     : 'border-neutral-200 hover:border-neutral-300'
@@ -433,13 +448,13 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md transition ${
                       isUnlocked ? 'bg-red-100 text-[#d22027]' : 'bg-neutral-200 text-neutral-600'
                     }`}>
-                      {isUnlocked ? '🔓 Clear' : '🔒 Tap View'}
+                      {isUnlocked ? '🔓 Hold View' : '🔒 Tahan Layar'}
                     </span>
 
                     {isManagementOrOwner && (
                       <button
                         onClick={(e) => handleDeleteRecipe(e, item.id, item.name)}
-                        className="text-neutral-400 hover:text-red-500 transition text-xs p-1 cursor-pointer"
+                        className="text-neutral-400 hover:text-red-500 transition text-xs p-1 cursor-pointer z-10"
                         title="Hapus Resep"
                       >
                         🗑️
@@ -448,8 +463,8 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
                   </div>
                 </div>
 
-                {/* RINCIAN GRAMASI (EFEK BLUR TAP-TO-REVEAL) */}
-                <div className={`space-y-1 text-xs transition-all duration-300 ${
+                {/* RINCIAN GRAMASI (EFEK BLUR PRESS-TO-REVEAL) */}
+                <div className={`space-y-1 text-xs transition-all duration-300 relative ${
                   isUnlocked ? 'filter-none opacity-100' : 'blur-md opacity-30 select-none pointer-events-none'
                 }`}>
                   <p><span className="font-semibold text-neutral-400">Gramasi / Komposisi:</span> <strong className="text-neutral-900">{item.grammage}</strong></p>
@@ -457,11 +472,11 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
                   <p><span className="font-semibold text-neutral-400">Waktu / Ekstraksi:</span> <strong className="text-neutral-900">{item.extraction_time}</strong></p>
                 </div>
 
-                {/* PETUNJUK OVERLAY TAP UNTUK BUKA */}
+                {/* PETUNJUK OVERLAY PRESS & HOLD */}
                 {!isUnlocked && (
                   <div className="absolute inset-0 flex items-center justify-center bg-white/20 backdrop-blur-[1px]">
-                    <span className="bg-[#111111] text-white text-[10px] font-extrabold px-3 py-1.5 rounded-full shadow-md">
-                      👆 Tap Untuk Membuka Gramasi
+                    <span className="bg-[#111111] text-white text-[10px] font-extrabold px-3 py-1.5 rounded-full shadow-md animate-pulse">
+                      👇 Tekan & Tahan Layar Untuk Membuka
                     </span>
                   </div>
                 )}
