@@ -127,12 +127,11 @@ export default function EditProfileModal({
 
     const displayName = staffName.trim() || `${firstName.trim()} ${lastName.trim()}`.trim();
 
-    // Data yang akan di-update di database Supabase
+    // Data yang akan di-update di database Supabase (Kolom 'name' dihapus karena tidak ada di tabel staff)
     const updateData: any = {
       first_name: firstName.trim(),
       last_name: lastName.trim(),
       staff_name: displayName,
-      name: displayName,
       phone_number: phoneNumber.trim(),
       email: email.trim(),
       telegram_chat_id: telegramChatId.trim(),
