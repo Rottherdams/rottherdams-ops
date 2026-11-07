@@ -155,11 +155,11 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
 
       if (staffError) throw staffError;
 
-      // 3. Ambil Data Jadwal dari Tabel 'schedules' Berdasarkan Range Tanggal & Filter Minggu
+      // 3. Ambil Data Jadwal dari Tabel 'schedules' Berdasarkan Range Tanggal (start - end) & Filter Minggu
       const { data: scheduleData, error: scheduleError } = await supabase
         .from('schedules')
         .select('staff_id, staff_name, day, date, shift, week_number')
-        .or(`date.gte.${start},week_number.eq.${selectedWeek}`);
+        .or(`and(date.gte.${start},date.lte.${end}),week_number.eq.${selectedWeek}`);
 
       if (scheduleError) throw scheduleError;
 
