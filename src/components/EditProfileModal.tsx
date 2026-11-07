@@ -110,7 +110,7 @@ export default function EditProfileModal({
     try {
       const img = imageRef.current;
       const canvas = document.createElement('canvas');
-      const size = 300; // Output resolusi avatar (300x300px)
+      const size = 400; // Resolusi output avatar (400x400px)
       canvas.width = size;
       canvas.height = size;
       const ctx = canvas.getContext('2d');
@@ -122,19 +122,29 @@ export default function EditProfileModal({
       ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
       ctx.clip();
 
-      // Hitung skala & posisi berdasarkan Zoom + Pan
+      // Latar belakang putih jika ada area kosong saat zoom out
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, size, size);
+
+      // Hitung skala berdasarkan ukuran container preview (256px / w-64)
+      const containerSize = 256;
+      const scaleFactor = size / containerSize;
+
       const aspect = img.naturalWidth / img.naturalHeight;
-      let drawWidth = size * zoom;
-      let drawHeight = size * zoom;
+      let baseWidth = containerSize;
+      let baseHeight = containerSize;
 
       if (aspect > 1) {
-        drawWidth = size * aspect * zoom;
+        baseHeight = containerSize / aspect;
       } else {
-        drawHeight = (size / aspect) * zoom;
+        baseWidth = containerSize * aspect;
       }
 
-      const drawX = (size - drawWidth) / 2 + pan.x;
-      const drawY = (size - drawHeight) / 2 + pan.y;
+      const drawWidth = baseWidth * zoom * scaleFactor;
+      const drawHeight = baseHeight * zoom * scaleFactor;
+
+      const drawX = (size - drawWidth) / 2 + pan.x * scaleFactor;
+      const drawY = (size - drawHeight) / 2 + pan.y * scaleFactor;
 
       ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
 
@@ -454,7 +464,7 @@ export default function EditProfileModal({
 
             {/* AREA CANVAS CROP LINGKARAN */}
             <div
-              className="relative w-64 h-64 mx-auto rounded-full overflow-hidden border-4 border-[#d22027] bg-neutral-900 cursor-grab active:cursor-grabbing select-none"
+              className="relative w-64 h-64 mx-auto rounded-full overflow-hidden border-4 border-[#d22027] bg-neutral-900 cursor-grab active:cursor-grabbing select-none flex items-center justify-center"
               onMouseDown={(e) => {
                 setIsDragging(true);
                 setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
@@ -479,21 +489,26 @@ export default function EditProfileModal({
                 ref={imageRef}
                 src={cropImageSrc}
                 alt="Crop preview"
-                className="max-w-none absolute top-1/2 left-1/2 transition-transform duration-75 pointer-events-none"
+                className="max-w-none max-h-none pointer-events-none transition-transform duration-75"
                 style={{
-                  transform: `translate(-50%, -50%) translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                  height: '100%',
+                  width: 'auto',
+                  transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
                 }}
               />
             </div>
 
             {/* SLIDER ZOOM */}
             <div className="space-y-1 px-4">
-              <label className="text-[10px] font-bold text-neutral-500 block">Zoom</label>
+              <div className="flex justify-between items-center text-[10px] font-bold text-neutral-500">
+                <span>Zoom Out</span>
+                <span>Zoom In</span>
+              </div>
               <input
                 type="range"
-                min="0.8"
+                min="0.2"
                 max="3"
-                step="0.1"
+                step="0.05"
                 value={zoom}
                 onChange={(e) => setZoom(parseFloat(e.target.value))}
                 className="w-full accent-[#d22027]"
