@@ -1,6 +1,6 @@
 /* Custom Utility Animations untuk Rottherdams Ops */
 
-/* Animasi Slide Up dari Bawah (Untuk Mobile Drawer / Modal) */
+/* Animasi Slide Up dari Bawah (Untuk Mobile Drawer / Modal) - 1s Ease-In-Out */
 @keyframes slideUp {
   0% {
     transform: translateY(100%);
@@ -33,12 +33,12 @@
 }
 
 .animate-slide-up {
-  animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: slideUp 1s cubic-bezier(0.25, 1, 0.5, 1) forwards !important;
   will-change: transform, opacity;
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  animation: fadeIn 0.8s ease-in-out forwards !important;
   will-change: opacity;
 }
 
