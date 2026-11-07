@@ -15,7 +15,6 @@
   font-style: italic;
 }
 
-/* 2. Set Font Utama via Root Variable */
 :root {
   --font-sans: 'PlusJakartaSans', sans-serif;
 }
@@ -24,7 +23,7 @@ body {
   font-family: var(--font-sans);
 }
 
-/* 3. Keyframes Ease-In-Out (Muncul & Masuk 0.5s) */
+/* 2. Keyframes Animasi 1 Detik */
 @keyframes slideUpDrawer {
   0% {
     transform: translateY(100%);
@@ -45,13 +44,13 @@ body {
   }
 }
 
-/* 4. Utility Classes Tailwind CSS v4 */
-@utility animate-slide-up {
-  animation: slideUpDrawer 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+/* 3. Class CSS Standar (Bebas Warning di VS Code) */
+.animate-slide-up {
+  animation: slideUpDrawer 1s cubic-bezier(0.25, 1, 0.5, 1) forwards !important;
   will-change: transform, opacity;
 }
 
-@utility animate-fade-in {
-  animation: fadeInOverlay 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+.animate-fade-in {
+  animation: fadeInOverlay 0.8s ease-in-out forwards !important;
   will-change: opacity;
 }
