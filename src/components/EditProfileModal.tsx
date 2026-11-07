@@ -15,9 +15,6 @@ interface EditProfileModalProps {
   onUpdateSuccess: (updatedUser: CurrentUser) => void;
 }
 
-// 📌 NAMA BOT TELEGRAM KAMU (Ganti sesuai username bot Telegram milikmu)
-const TELEGRAM_BOT_USERNAME = 'RottherdamsBot'; 
-
 export default function EditProfileModal({
   isOpen,
   onClose,
@@ -170,8 +167,6 @@ export default function EditProfileModal({
     }
   };
 
-  const telegramConnectUrl = `https://t.me/${TELEGRAM_BOT_USERNAME}?start=${currentUser.staff_id}`;
-
   return (
     <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
       <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-neutral-100 text-left my-8 space-y-4">
@@ -272,7 +267,7 @@ export default function EditProfileModal({
             />
           </div>
 
-          {/* KONTAK & TELEGRAM */}
+          {/* KONTAK & TELEGRAM (TELEGRAM DISABLED) */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-bold text-neutral-600 mb-1">
@@ -287,35 +282,34 @@ export default function EditProfileModal({
               />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-neutral-600 mb-1">
-                Telegram Chat ID
+              <label className="block text-[11px] font-bold text-neutral-400 mb-1">
+                Telegram Chat ID <span className="text-[9px] font-normal italic">(Belum Tersedia)</span>
               </label>
               <input
                 type="text"
+                disabled
                 value={telegramChatId}
-                onChange={e => setTelegramChatId(e.target.value)}
                 placeholder="ID Chat Telegram"
-                className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-mono font-bold text-[#111111] focus:outline-none focus:border-[#d22027]"
+                className="w-full px-3.5 py-2 bg-neutral-100 border border-neutral-200 rounded-xl text-xs font-mono font-bold text-neutral-400 cursor-not-allowed select-none"
               />
             </div>
           </div>
 
-          {/* BANNER CONNECT TELEGRAM BOT */}
-          <div className="p-3 bg-sky-50 border border-sky-200 rounded-2xl flex items-center justify-between gap-2">
+          {/* BANNER CONNECT TELEGRAM BOT (DISABLED) */}
+          <div className="p-3 bg-neutral-100 border border-neutral-200 rounded-2xl flex items-center justify-between gap-2 opacity-75">
             <div>
-              <p className="text-xs font-bold text-sky-900">🤖 Telegram Notification</p>
-              <p className="text-[10px] text-sky-700 mt-0.5">
-                {telegramChatId ? '✅ Telegram Terhubung' : 'Belum terhubung ke Bot Telegram'}
+              <p className="text-xs font-bold text-neutral-500">🤖 Telegram Notification</p>
+              <p className="text-[10px] text-neutral-400 mt-0.5">
+                Fitur notifikasi Telegram belum tersedia
               </p>
             </div>
-            <a
-              href={telegramConnectUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-xl text-[11px] font-bold transition shadow-2xs whitespace-nowrap"
+            <button
+              type="button"
+              disabled
+              className="px-3 py-1.5 bg-neutral-300 text-neutral-500 rounded-xl text-[11px] font-bold cursor-not-allowed whitespace-nowrap shadow-none"
             >
-              Hubungkan Bot 🚀
-            </a>
+              Belum Tersedia 🔒
+            </button>
           </div>
 
           {/* EMAIL */}
