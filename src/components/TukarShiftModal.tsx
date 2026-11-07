@@ -37,6 +37,22 @@ interface TukarShiftModalProps {
 
 const DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 
+// 🚀 HELPER: Menghitung Rentang Tanggal Presisi Mulai (Senin) & Selesai (Minggu) Berdasarkan Minggu Ke-
+const getWeekDateRange = (weekNum: number) => {
+  const baseMonday = new Date(2026, 10, 2); // 2 Nov 2026 (Senin Minggu 1)
+  
+  const startDate = new Date(baseMonday);
+  startDate.setDate(baseMonday.getDate() + (weekNum - 1) * 7);
+
+  const endDate = new Date(startDate);
+  endDate.setDate(startDate.getDate() + 6);
+
+  return {
+    start: startDate.toISOString().split('T')[0],
+    end: endDate.toISOString().split('T')[0],
+  };
+};
+
 export default function TukarShiftModal({
   isOpen,
   onClose,
@@ -117,37 +133,43 @@ export default function TukarShiftModal({
     setLoading(false);
   };
 
-  // 🤖 FUNGSI UNTUK OTOMATIS MEMBACA SHIFT DARI DATABASE 'schedules'
+  // 🤖 FUNGSI PRESISI DENGAN RANGE TANGGAL MINGGU UNTUK OTOMATIS MEMBACA SHIFT DARI DATABASE 'schedules'
   const fetchAutoShifts = async () => {
     if (!currentUser) return;
     setFetchingShifts(true);
 
     try {
-      // 1. Ambil shift staf yang sedang login (requester)
-      const { data: mySchedule } = await supabase
+      const { start, end } = getWeekDateRange(weekNumber);
+
+      // Ambil jadwal presisi berdasarkan rentang tanggal & minggu terpilih
+      const { data: scheduleData, error } = await supabase
         .from('schedules')
-        .select('shift')
-        .eq('staff_id', currentUser.staff_id)
-        .eq('week_number', weekNumber)
-        .eq('day', swapDay)
-        .maybeSingle();
+        .select('staff_id, shift, date, day, week_number')
+        .or(`and(date.gte.${start},date.lte.${end}),week_number.eq.${weekNumber}`);
 
-      setMyShift(mySchedule?.shift || 'OFF');
-
-      // 2. Ambil shift staf pasangan (target) jika sudah dipilih
-      if (targetStaffId) {
-        const { data: targetSchedule } = await supabase
-          .from('schedules')
-          .select('shift')
-          .eq('staff_id', targetStaffId)
-          .eq('week_number', weekNumber)
-          .eq('day', swapDay)
-          .maybeSingle();
-
-        setTargetShift(targetSchedule?.shift || 'OFF');
-      } else {
-        setTargetShift('Pilih Pasangan');
+      if (error) {
+        console.error('Error fetching dynamic shift details:', error);
       }
+
+      let foundMyShift = 'OFF';
+      let foundTargetShift = 'OFF';
+
+      (scheduleData || []).forEach(item => {
+        const isDayMatch = item.day === swapDay;
+
+        // Pencocokan Staf Requester (Staf Login)
+        if (String(item.staff_id) === String(currentUser.staff_id) && isDayMatch) {
+          foundMyShift = item.shift || 'OFF';
+        }
+
+        // Pencocokan Staf Pasangan (Target)
+        if (targetStaffId && String(item.staff_id) === String(targetStaffId) && isDayMatch) {
+          foundTargetShift = item.shift || 'OFF';
+        }
+      });
+
+      setMyShift(foundMyShift);
+      setTargetShift(targetStaffId ? foundTargetShift : 'Pilih Pasangan');
     } catch (err) {
       console.error('Error fetching automatic shifts:', err);
     } finally {
@@ -368,14 +390,14 @@ export default function TukarShiftModal({
               </div>
 
               {/* ⚠️ NOTIFIKASI WARNING DENGAN NAMA STAF SPESIFIK */}
-                {isSameShift && (
+              {isSameShift && (
                 <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-800 flex items-start gap-2">
-                    <span className="text-sm">⚠️</span>
-                    <span>
+                  <span className="text-sm">⚠️</span>
+                  <span>
                     <b>Kamu</b> dan <b>{selectedTargetStaff?.staff_name || 'pasangan'}</b> sama-sama dijadwalkan pada <b>{myShift}</b>. Pertukaran tidak dapat dilakukan, silakan pilih hari atau pasangan staf yang berbeda!
-                    </span>
+                  </span>
                 </div>
-                )}
+              )}
 
               <div>
                 <label className="block text-xs font-bold text-neutral-700 mb-1">Alasan Tukar Shift:</label>
