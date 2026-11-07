@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import EditRosterModal from './EditRosterModal';
 import TukarShiftModal from './TukarShiftModal';
+import LeaveRequestModal from './LeaveRequestModal';
+import StaffInboxModal from './StaffInboxModal';
 
 interface CurrentUser {
   name: string;
@@ -31,7 +33,42 @@ interface StaffSummary {
 const DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 const WEEKS = [1, 2, 3, 4];
 
-// Helper: Tentukan minggu berjalan otomatis berdasarkan tanggal saat ini
+// 🚀 HELPER: Menghitung Rentang Tanggal Mulai (Senin) & Selesai (Minggu) Berdasarkan Minggu Ke-
+const getWeekDateRange = (weekNum: number) => {
+  // Rujukan Senin Minggu 1 (November 2026): 2 Nov 2026
+  const baseMonday = new Date(2026, 10, 2); 
+  
+  const startDate = new Date(baseMonday);
+  startDate.setDate(baseMonday.getDate() + (weekNum - 1) * 7);
+
+  const endDate = new Date(startDate);
+  endDate.setDate(startDate.getDate() + 6);
+
+  // Array Tanggal Presisi untuk 7 Hari (Senin - Minggu)
+  const weekDates: string[] = [];
+  const dateFormattedLabels: { [day: string]: string } = {};
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(startDate);
+    d.setDate(startDate.getDate() + i);
+    const dateStr = d.toISOString().split('T')[0];
+    weekDates.push(dateStr);
+
+    const dayName = DAYS[i];
+    dateFormattedLabels[dayName] = d.toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short'
+    });
+  }
+
+  return {
+    start: startDate.toISOString().split('T')[0],
+    end: endDate.toISOString().split('T')[0],
+    weekDates,
+    dateFormattedLabels
+  };
+};
+
 const getCurrentWeekKey = (): number => {
   const currentDate = new Date().getDate();
   if (currentDate <= 7) return 1;
@@ -40,9 +77,8 @@ const getCurrentWeekKey = (): number => {
   return 4;
 };
 
-// Helper: Tentukan nama hari ini secara otomatis (Senin - Minggu)
 const getTodayName = (): string => {
-  const dayIndex = new Date().getDay(); // 0 = Minggu, 1 = Senin, ..., 6 = Sabtu
+  const dayIndex = new Date().getDay();
   const dayMap: { [key: number]: string } = {
     0: 'Minggu',
     1: 'Senin',
@@ -60,10 +96,15 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
   const [loading, setLoading] = useState<boolean>(true);
   const [selectedWeek, setSelectedWeek] = useState<number>(getCurrentWeekKey());
   const [selectedDay, setSelectedDay] = useState<string>(getTodayName());
+  const [dateLabels, setDateLabels] = useState<{ [day: string]: string }>({});
+  
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [isSwapModalOpen, setIsSwapModalOpen] = useState<boolean>(false);
+  const [isLeaveModalOpen, setIsLeaveModalOpen] = useState<boolean>(false);
+  
+  const [isInboxOpen, setIsInboxOpen] = useState<boolean>(false);
+  const [pendingInboxCount, setPendingInboxCount] = useState<number>(0);
 
-  // Periksa role user yang login
   const rawRole = (currentUser?.role || userRole || '').toLowerCase();
   const isManagement = 
     rawRole.includes('management') || 
@@ -76,13 +117,35 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
 
   useEffect(() => {
     fetchSchedulesFromDatabase();
-  }, [selectedWeek]);
+    if (currentUser?.staff_id) {
+      checkPendingInbox();
+    }
+  }, [selectedWeek, currentUser]);
+
+  const checkPendingInbox = async () => {
+    if (!currentUser?.staff_id) return;
+    try {
+      const { count } = await supabase
+        .from('shift_swaps')
+        .select('*', { count: 'exact', head: true })
+        .eq('target_staff_id', currentUser.staff_id)
+        .eq('target_status', 'pending');
+
+      setPendingInboxCount(count || 0);
+    } catch (err) {
+      console.error('Error checking pending inbox:', err);
+    }
+  };
 
   const fetchSchedulesFromDatabase = async () => {
     setLoading(true);
 
     try {
-      // 1. Ambil data staf aktif DENGAN MENYARING role Owner & Management
+      // 1. Dapatkan Rentang Tanggal Minggu Terpilih
+      const { start, end, dateFormattedLabels } = getWeekDateRange(selectedWeek);
+      setDateLabels(dateFormattedLabels);
+
+      // 2. Ambil Data Staf Operasional (Kecualikan Owner & Management)
       const { data: staffData, error: staffError } = await supabase
         .from('staff')
         .select('staff_id, staff_name, role, status')
@@ -92,28 +155,27 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
 
       if (staffError) throw staffError;
 
-      // 2. Ambil data jadwal dari tabel 'schedules'
+      // 3. Ambil Data Jadwal dari Tabel 'schedules' Berdasarkan Range Tanggal & Filter Minggu
       const { data: scheduleData, error: scheduleError } = await supabase
         .from('schedules')
-        .select('staff_id, staff_name, day, shift, week_number');
+        .select('staff_id, staff_name, day, date, shift, week_number')
+        .or(`date.gte.${start},week_number.eq.${selectedWeek}`);
 
       if (scheduleError) throw scheduleError;
 
-      // Filter jadwal berdasarkan minggu yang dipilih
-      const currentWeekSchedules = (scheduleData || []).filter(
-        item => item.week_number === selectedWeek
-      );
-
-      // Map untuk pencarian cepat jadwal
+      // Map untuk Pencarian Jadwal Cepat (Penyamaan via Tanggal atau Nama Hari)
       const scheduleMap: { [key: string]: string } = {};
-      currentWeekSchedules.forEach(item => {
+      (scheduleData || []).forEach(item => {
+        if (item.date) {
+          scheduleMap[`${item.staff_id}_${item.date}`] = item.shift;
+        }
         scheduleMap[`${item.staff_id}_${item.day}`] = item.shift;
         if (item.staff_name) {
           scheduleMap[`${item.staff_name.toLowerCase()}_${item.day}`] = item.shift;
         }
       });
 
-      // 3. Gabungkan data staf operasional, jadwal, dan deteksi peringatan Rest Time (Shift 2 -> Shift 1)
+      // 4. Susun Data Roster dan Deteksi Rest Time Warning (Shift 2 -> Shift 1)
       const summaries: StaffSummary[] = (staffData || []).map(staf => {
         const shifts: { [day: string]: string } = {};
         const restWarnings: { [day: string]: boolean } = {};
@@ -193,12 +255,36 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
         {/* Kontrol Kanan */}
         <div className="flex flex-wrap items-center gap-2">
           {currentUser && (
-            <button
-              onClick={() => setIsSwapModalOpen(true)}
-              className="px-3.5 py-1.5 bg-white text-[#111111] border border-neutral-300 rounded-2xl text-xs font-bold hover:bg-neutral-100 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
-            >
-              <span>🔄</span> Tukar Shift
-            </button>
+            <>
+              {/* Tombol Inbox & Status Notifikasi Karyawan */}
+              <button
+                onClick={() => setIsInboxOpen(true)}
+                className="px-3.5 py-1.5 bg-[#111111] hover:bg-black text-white rounded-2xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs relative"
+              >
+                <span>🔔</span> Inbox & Status
+                {pendingInboxCount > 0 && (
+                  <span className="bg-[#d22027] text-white text-[9px] px-1.5 py-0.2 rounded-full font-black animate-bounce">
+                    {pendingInboxCount}
+                  </span>
+                )}
+              </button>
+
+              {/* Tombol Ajukan Izin / Sakit / Cuti */}
+              <button
+                onClick={() => setIsLeaveModalOpen(true)}
+                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs"
+              >
+                <span>📩</span> Ajukan Izin / Cuti
+              </button>
+
+              {/* Tombol Tukar Shift */}
+              <button
+                onClick={() => setIsSwapModalOpen(true)}
+                className="px-3.5 py-1.5 bg-white text-[#111111] border border-neutral-300 rounded-2xl text-xs font-bold hover:bg-neutral-100 transition cursor-pointer flex items-center gap-1.5 shadow-2xs"
+              >
+                <span>🔄</span> Tukar Shift
+              </button>
+            </>
           )}
 
           {isManagement && (
@@ -258,7 +344,7 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
                   : 'bg-neutral-100 text-neutral-500'
               }`}
             >
-              {day}
+              {day} {dateLabels[day] && `(${dateLabels[day]})`}
               {isToday && (
                 <span
                   className={`ml-1 inline-block w-1.5 h-1.5 rounded-full ${
@@ -275,7 +361,7 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
       {/* Loading State */}
       {loading ? (
         <div className="py-12 text-center text-xs text-neutral-400 animate-pulse">
-          Memuat data roster dari database...
+          Memuat data roster presisi dari database...
         </div>
       ) : (
         <>
@@ -292,9 +378,14 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
                     Nama Staf
                   </th>
                   <th className="p-3 font-bold">Divisi</th>
+
+                  {/* HEADER HARI + TANGGAL PRESISI */}
                   {DAYS.map(day => (
                     <th key={day} className="p-3 text-center font-bold">
-                      {day} {todayNameNow === day && ' (Hari Ini)'}
+                      <div>{day}</div>
+                      <div className="text-[10px] font-normal opacity-80 mt-0.5">
+                        {dateLabels[day] || ''} {todayNameNow === day && ' (Hari Ini)'}
+                      </div>
                     </th>
                   ))}
                   
@@ -370,7 +461,7 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
                             <span
                               className={`px-2 py-1 rounded-md font-bold text-[10px] inline-block min-w-[54px] ${
                                 isRestWarning
-                                  ? 'bg-amber-100 text-amber-800 border border-amber-300' // Soft Amber/Kuning Lembut
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-300'
                                   : shift === 'Shift 1' || shift === 'S1'
                                   ? 'bg-blue-50 text-blue-600 border border-blue-100'
                                   : shift === 'Shift 2' || shift === 'S2'
@@ -408,7 +499,7 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
           <div className="md:hidden space-y-3">
             <div className="flex justify-between items-center mb-1">
               <span className="text-xs font-bold text-neutral-400">
-                Jadwal Hari {selectedDay} {selectedDay === todayNameNow && '(Hari Ini)'} (Minggu {selectedWeek})
+                Jadwal Hari {selectedDay} {dateLabels[selectedDay] && `(${dateLabels[selectedDay]})`} (Minggu {selectedWeek})
               </span>
             </div>
 
@@ -481,6 +572,36 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
         currentUser={currentUser || null}
         onSuccess={() => fetchSchedulesFromDatabase()}
       />
+
+      {/* Modal Pengajuan Izin / Sakit / Cuti */}
+      <LeaveRequestModal
+        isOpen={isLeaveModalOpen}
+        onClose={() => setIsLeaveModalOpen(false)}
+        onSuccess={() => {
+          alert('Pengajuan izin berhasil dikirim!');
+        }}
+        currentUser={{
+          id: currentUser?.staff_id || '',
+          name: currentUser?.name || '',
+        }}
+      />
+
+      {/* Modal Kotak Masuk & Status Notifikasi Karyawan */}
+      {currentUser && (
+        <StaffInboxModal
+          currentUser={{
+            name: currentUser.name,
+            role: currentUser.role,
+            staff_id: currentUser.staff_id,
+          }}
+          isOpen={isInboxOpen}
+          onClose={() => setIsInboxOpen(false)}
+          onUpdateSuccess={() => {
+            checkPendingInbox();
+            fetchSchedulesFromDatabase();
+          }}
+        />
+      )}
     </div>
   );
 }

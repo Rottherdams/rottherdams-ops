@@ -18,7 +18,7 @@ interface StaffOption {
 const DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 const SHIFTS = ['Shift 1', 'Shift 2', 'OFF'];
 
-// Data Staf Fallback jika di Supabase belum ada record tabel staff
+// Data Staf Fallback jika di Supabase belum ada record tabel staff (Hanya Staf Operasional)
 const INITIAL_STAFF_OPTIONS: StaffOption[] = [
   { staff_id: 'STF-001', staff_name: 'Yusuf', role: 'Dapur', status: 'Aktif' },
   { staff_id: 'STF-002', staff_name: 'Indah', role: 'Dapur', status: 'Aktif' },
@@ -28,6 +28,12 @@ const INITIAL_STAFF_OPTIONS: StaffOption[] = [
   { staff_id: 'STF-006', staff_name: 'Opang', role: 'Bar & Server', status: 'Aktif' },
   { staff_id: 'STF-007', staff_name: 'Cece', role: 'Kasir', status: 'Aktif' },
 ];
+
+// Helper Function: Cek apakah role termasuk manajemen/owner
+const isOperationalStaff = (roleStr: string) => {
+  const roleLower = (roleStr || '').toLowerCase();
+  return !roleLower.includes('management') && !roleLower.includes('owner') && !roleLower.includes('manajer');
+};
 
 export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWeek }: EditRosterModalProps) {
   const [staffList, setStaffList] = useState<StaffOption[]>(INITIAL_STAFF_OPTIONS);
@@ -51,16 +57,19 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
       .order('staff_id', { ascending: true });
 
     if (!error && data && data.length > 0) {
-      // Filter pegawai yang statusnya BUKAN Resign (Aktif / Cuti / Izin tetap tampil)
-      const activeStaff = data.filter(s => s.status !== 'Resign');
-      if (activeStaff.length > 0) {
-        setStaffList(activeStaff);
-        setSelectedStaffId(activeStaff[0].staff_id);
+      // 🟢 Filter: Pegawai status Aktif / Izin (bukan Resign) DAN HANYA OPERASIONAL (Bukan Management & Owner)
+      const operationalStaff = data.filter(
+        s => s.status !== 'Resign' && isOperationalStaff(s.role)
+      );
+
+      if (operationalStaff.length > 0) {
+        setStaffList(operationalStaff);
+        setSelectedStaffId(operationalStaff[0].staff_id);
         return;
       }
     }
 
-    // Jika tabel staff di Supabase belum dibuat/kosong, gunakan data default
+    // Jika tabel staff di Supabase belum dibuat/kosong, gunakan data fallback operasional
     setStaffList(INITIAL_STAFF_OPTIONS);
     setSelectedStaffId(INITIAL_STAFF_OPTIONS[0].staff_id);
   };
@@ -120,9 +129,9 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs text-left">
-          {/* Pilih Karyawan */}
+          {/* Pilih Karyawan (Hanya Operasional: Bar, Server, Dapur, Kasir) */}
           <div>
-            <label className="block font-bold text-neutral-700 mb-1">Pilih Staf:</label>
+            <label className="block font-bold text-neutral-700 mb-1">Pilih Staf Operasional:</label>
             <select
               value={selectedStaffId}
               onChange={e => setSelectedStaffId(e.target.value)}

@@ -52,12 +52,26 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
   // State sisa kuota cuti staf login
   const [myLeaveQuota, setMyLeaveQuota] = useState<number>(12);
 
+  // Gamifikasi Jam Kerja (Persentil Keaktifan)
+  const [percentileRank, setPercentileRank] = useState<number | null>(null);
+
   const rawRole = (currentUser?.role || '').toLowerCase();
+  
+  // Identifikasi Role Owner
+  const isOwner = rawRole.includes('owner') || currentUser.staff_id?.startsWith('OWN-');
+
+  // Identifikasi Management & Owner untuk Akses Fitur Audit Tim
   const isManagementOrOwner = 
+    isOwner || 
     rawRole.includes('management') || 
-    rawRole.includes('owner') ||
-    currentUser.staff_id?.startsWith('MNG-') ||
-    currentUser.staff_id?.startsWith('OWN-');
+    currentUser.staff_id?.startsWith('MNG-');
+
+  // 🚀 DEFAULT UNTUK OWNER: Otomatis pilih tab 'semua_staf' (Audit Tim) saat pertama kali buka
+  useEffect(() => {
+    if (isOwner) {
+      setViewMode('semua_staf');
+    }
+  }, [isOwner]);
 
   useEffect(() => {
     fetchAttendances();
@@ -148,6 +162,8 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
     const pctIzinUnpaid = targetDaysCount > 0 ? Math.round((izinUnpaid / targetDaysCount) * 100) : 0;
     const pctAlpha = targetDaysCount > 0 ? Math.round((alpha / targetDaysCount) * 100) : 0;
 
+    const totalMyWorkHours = myMonthlyAttendances.reduce((acc, r) => acc + (r.work_hours || 0), 0);
+
     return {
       hadir: uniqueDaysPresent,
       sakit,
@@ -160,6 +176,7 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
       pctCuti,
       pctIzinUnpaid,
       pctAlpha,
+      totalMyWorkHours,
     };
   };
 
@@ -199,6 +216,22 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
   ).sort((a, b) => a.totalJamKerja - b.totalJamKerja);
 
   const maxWorkHours = Math.max(...staffSummaries.map(s => s.totalJamKerja), 1);
+
+  // GAMIFIKASI PERSENTIL: Hitung berapa % staf operasional yang jam kerjanya lebih rendah dari pengguna saat ini
+  useEffect(() => {
+    if (staffSummaries.length > 1) {
+      const otherStaff = staffSummaries.filter(s => s.staff_id !== currentUser.staff_id);
+      if (otherStaff.length > 0) {
+        const lowerCount = otherStaff.filter(s => s.totalJamKerja < myStats.totalMyWorkHours).length;
+        const pct = Math.round((lowerCount / otherStaff.length) * 100);
+        setPercentileRank(pct);
+      } else {
+        setPercentileRank(null);
+      }
+    } else {
+      setPercentileRank(null);
+    }
+  }, [staffSummaries, myStats.totalMyWorkHours, currentUser.staff_id]);
 
   // 3. FILTER TABEL LOG PRESENSI
   const activeLogData = (viewMode === 'pribadi' ? myMonthlyAttendances : monthlyAttendances).filter(item => {
@@ -298,13 +331,13 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
   return (
     <div className="space-y-6 text-left">
       <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm">
-        {/* Header, Filter Bulan & Switch View Management */}
+        {/* Header & Filter Bulan */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b border-neutral-100">
           <div>
             <h2 className="text-lg font-black text-[#111111]">📌 Analytics & Rekap Presensi Staf</h2>
             <p className="text-xs text-neutral-400 mt-0.5">
               {viewMode === 'semua_staf'
-                ? 'Persentase performa dan audit presensi bulanan seluruh tim.'
+                ? 'Pusat audit performa dan rekap presensi tim operasional Rottherdams.'
                 : `Riwayat dan analisis presensi ${currentUser.name} bulan ini.`}
             </p>
           </div>
@@ -332,17 +365,18 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
               </select>
             </div>
 
-            {/* Switch Mode Akses Khusus Management / Owner */}
-            {isManagementOrOwner && (
-              <div className="bg-neutral-100 p-1 rounded-2xl flex border border-neutral-200">
-                <button
-                  onClick={() => setViewMode('pribadi')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
-                    viewMode === 'pribadi' ? 'bg-[#111111] text-[#ffffff] shadow-sm' : 'text-neutral-500 hover:text-black'
-                  }`}
-                >
-                  👤 Presensi Saya
-                </button>
+            {/* 🟢 SWITCH VIEW MODE: DUA TAB TETAP TAMPIL UNTUK SEMUA ROLE (Karyawan, Management, dan Owner) */}
+            <div className="bg-neutral-100 p-1 rounded-2xl flex border border-neutral-200">
+              <button
+                onClick={() => setViewMode('pribadi')}
+                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
+                  viewMode === 'pribadi' ? 'bg-[#111111] text-[#ffffff] shadow-sm' : 'text-neutral-500 hover:text-black'
+                }`}
+              >
+                👤 Presensi Saya
+              </button>
+              
+              {isManagementOrOwner && (
                 <button
                   onClick={() => setViewMode('semua_staf')}
                   className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
@@ -351,12 +385,12 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
                 >
                   📊 Audit Tim
                 </button>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 
-        {/* TAMPILAN 1: AUDIT TIM & LEADERBOARD (KHUSUS MANAGEMENT / OWNER ATALAU MODES AUDIT) */}
+        {/* TAMPILAN 1: AUDIT TIM & LEADERBOARD (Ditampilkan jika viewMode === 'semua_staf') */}
         {viewMode === 'semua_staf' && isManagementOrOwner ? (
           <div className="space-y-6">
             {/* 🏆 KOMPONEN LEADERBOARD & GAMIFICATION STAF */}
@@ -424,8 +458,8 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
           </div>
         ) : (
           /* TAMPILAN 2: ANALYTICS KEHADIRAN PRIBADI USER */
-          <div className="mb-8">
-            <div className="flex justify-between items-center mb-3">
+          <div className="mb-8 space-y-4">
+            <div className="flex justify-between items-center">
               <h3 className="font-extrabold text-sm text-[#111111]">
                 📊 Analytics Kehadiran Saya ({monthNames[selectedMonth]} {selectedYear})
               </h3>
@@ -436,16 +470,29 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
 
             {renderPieChart(myStats)}
 
-            <div className="mt-3 p-3.5 bg-emerald-50 border border-emerald-200 rounded-2xl flex justify-between items-center text-xs">
+            {/* KOTAK SKOR KEHADIRAN & BADGE GAMIFIKASI KEAKTIFAN */}
+            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
               <div>
-                <p className="font-extrabold text-emerald-800">
-                  Total Persentase Diakui Saya: {myStats.recognizedPercentage}%
-                </p>
+                <div className="flex items-center gap-2">
+                  <span className="text-base">🏆</span>
+                  <p className="font-extrabold text-xs text-emerald-900">
+                    Tingkat Kehadiran Diakui: <span className="text-sm font-black text-emerald-600">{myStats.recognizedPercentage}%</span>
+                  </p>
+                </div>
                 <p className="text-[11px] text-emerald-600 mt-0.5">
                   Formula: (Hadir + Sakit Surat Dokter + Cuti Resmi) / {targetDaysCount} Hari Berjalan × 100%
                 </p>
               </div>
-              <span className="text-xl">🏆</span>
+
+              {/* BADGE PERSENTIL GAMIFIKASI */}
+              {percentileRank !== null && (
+                <div className="bg-white px-3.5 py-2 rounded-xl border border-emerald-200 shadow-2xs flex items-center gap-2 shrink-0">
+                  <span className="text-base">🔥</span>
+                  <p className="text-xs font-bold text-[#111111]">
+                    Kamu lebih aktif dari <span className="text-[#d22027] font-black">{percentileRank}%</span> karyawan Rottherdams!
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -454,11 +501,11 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
         <div className="border-t border-neutral-100 pt-6 mt-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4">
             <h3 className="font-extrabold text-sm text-[#111111]">
-              📋 {viewMode === 'pribadi' ? 'Log Detail Presensi Saya' : 'Log Detail Presensi Tim'}
+              📋 {viewMode === 'semua_staf' ? 'Log Detail Presensi Tim' : 'Log Detail Presensi Saya'}
             </h3>
 
             <div className="flex gap-2 w-full sm:w-auto">
-              {isManagementOrOwner && viewMode === 'semua_staf' && (
+              {viewMode === 'semua_staf' && (
                 <input
                   type="text"
                   placeholder="Cari Nama / ID Staf..."
@@ -499,7 +546,7 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
                     <th className="p-3.5">Clock In</th>
                     <th className="p-3.5">Clock Out</th>
                     <th className="p-3.5 font-bold text-[#d22027]">Durasi Jam</th>
-                    {viewMode === 'semua_staf' && isManagementOrOwner && (
+                    {viewMode === 'semua_staf' && (
                       <>
                         <th className="p-3.5 text-center">Lokasi & Deteksi Fake GPS</th>
                         <th className="p-3.5 text-center">Foto Presensi</th>
@@ -547,7 +594,7 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
                       </td>
 
                       {/* AUDIT KEAMANAN LOKASI & FAKE GPS */}
-                      {viewMode === 'semua_staf' && isManagementOrOwner && (
+                      {viewMode === 'semua_staf' && (
                         <>
                           <td className="p-3.5 text-center">
                             {item.latitude && item.longitude ? (

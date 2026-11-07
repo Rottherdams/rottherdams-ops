@@ -13,15 +13,21 @@ interface ManagementDashboardProps {
 
 interface ShiftSwapRequest {
   id: number;
-  requester_name: string;
-  requester_id: string;
+  requester_name?: string;
+  requester_id?: string;
+  requester_staff_name?: string;
+  requester_staff_id?: string;
   target_staff_name: string;
   target_staff_id: string;
-  shift_date: string;
-  shift_type: string;
+  shift_date?: string;
+  swap_date?: string;
+  date?: string;
+  shift_type?: string;
+  requester_shift?: string;
   reason: string;
-  target_status: 'pending' | 'accepted' | 'rejected';
-  management_status: 'pending' | 'approved' | 'rejected';
+  target_status?: string;
+  status?: string;
+  management_status: 'pending' | 'approved' | 'rejected' | string;
   created_at: string;
 }
 
@@ -34,7 +40,7 @@ interface LeaveRequest {
   end_date: string;
   reason: string;
   attachment_url?: string;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | string;
   created_at: string;
 }
 
@@ -198,8 +204,23 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
     }
   };
 
-  const pendingSwapCount = swapRequests.filter((s) => s.management_status === 'pending').length;
-  const pendingLeaveCount = leaveRequests.filter((l) => l.status === 'pending').length;
+  // 🚀 LOGIKA COUNTER PENDING ACC YANG SUDAH DIPERBAIKI:
+  // Hanya hitung butuh ACC jika persetujuan Manajemen 'pending' DAN belum ditolak oleh Staf Pengganti
+  const pendingSwapCount = swapRequests.filter((s) => {
+    const mgmtStatus = (s.management_status || s.status || 'pending').toLowerCase();
+    const targetStatusRaw = (s.target_status && s.target_status !== 'pending' ? s.target_status : s.status) || '';
+    const targetStatusLower = targetStatusRaw.toLowerCase();
+
+    const isRejectedByStaff = targetStatusLower === 'rejected' || targetStatusLower === 'tolak';
+    const isMgmtPending = mgmtStatus === 'pending';
+
+    return isMgmtPending && !isRejectedByStaff;
+  }).length;
+
+  const pendingLeaveCount = leaveRequests.filter(
+    (l) => l.status?.toLowerCase() === 'pending'
+  ).length;
+
   const totalPendingApproval = pendingSwapCount + pendingLeaveCount;
 
   // 🚀 LOGIKA SMART AUTO-SWITCH TAB
@@ -213,22 +234,62 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
     }
   }, [pendingSwapCount, pendingLeaveCount, loading]);
 
+  // 🚀 UPDATE DENGAN DYNAMIC FALLBACK
   const handleApproveSwap = async (swapId: number, status: 'approved' | 'rejected') => {
-    const { error } = await supabase
-      .from('shift_swaps')
-      .update({ management_status: status })
-      .eq('id', swapId);
+    try {
+      const { error: primaryError } = await supabase
+        .from('shift_swaps')
+        .update({ management_status: status })
+        .eq('id', swapId);
 
-    if (error) {
-      alert(`Gagal memproses persetujuan: ${error.message}`);
-    } else {
+      if (primaryError) {
+        console.warn('Fallback: update kolom status sebagai pengganti management_status');
+        const { error: fallbackError } = await supabase
+          .from('shift_swaps')
+          .update({ status: status === 'approved' ? 'Approved' : 'Rejected' })
+          .eq('id', swapId);
+
+        if (fallbackError) throw fallbackError;
+      }
+
+      setSwapRequests((prev) =>
+        prev.map((item) => (item.id === swapId ? { ...item, management_status: status, status: status === 'approved' ? 'Approved' : 'Rejected' } : item))
+      );
+
       alert(status === 'approved' ? '✅ Tukar Shift Berhasil Di-ACC!' : '❌ Tukar Shift Ditolak!');
       fetchAnalyticsData();
+    } catch (err: any) {
+      alert(`Gagal memproses persetujuan: ${err.message}`);
     }
   };
 
-  // 🚀 ACC IZIN / CUTI (DENGAN AUTO-POTONG KUOTA CUTI & REKAP ATTENDANCE)
+  // 🚀 ACC / TOLAK IZIN / CUTI
   const handleApproveLeave = async (leaveItem: LeaveRequest, status: 'approved' | 'rejected') => {
+    if (status === 'approved') {
+      try {
+        const { data: scheduleData } = await supabase
+          .from('staff_schedules')
+          .select('*')
+          .gte('date', leaveItem.start_date)
+          .lte('date', leaveItem.end_date || leaveItem.start_date);
+
+        const otherWorkingStaff = scheduleData?.filter((s) => s.staff_id !== leaveItem.staff_id) || [];
+
+        if (otherWorkingStaff.length === 0) {
+          const confirmAcc = window.confirm(
+            `⚠️ PERINGATAN OPERASIONAL KOSONG!\n\n` +
+            `Staf ${leaveItem.staff_name} (${leaveItem.staff_id}) adalah SATU-SATUNYA staf yang dijadwalkan pada ${leaveItem.start_date}.\n\n` +
+            `Jika pengajuan ini di-ACC, outlet/shift tersebut akan KOSONG tanpa penjaga.\n\n` +
+            `Apakah Manajemen tetap yakin meng-ACC dan akan mencari pengganti (Overtime/Replacement) secara manual?`
+          );
+
+          if (!confirmAcc) return;
+        }
+      } catch (err) {
+        console.warn('Gagal memvalidasi kuota jadwal staf:', err);
+      }
+    }
+
     const { error } = await supabase
       .from('leave_requests')
       .update({ status })
@@ -239,8 +300,11 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
       return;
     }
 
+    setLeaveRequests((prev) =>
+      prev.map((item) => (item.id === leaveItem.id ? { ...item, status } : item))
+    );
+
     if (status === 'approved') {
-      // 1. Catat ke tabel presensi sebagai Izin Diakui
       await supabase.from('attendances').insert([
         {
           staff_id: leaveItem.staff_id,
@@ -253,7 +317,6 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
         },
       ]);
 
-      // 2. Jika tipe pengajuan adalah Cuti, potong kuota cuti tahunan staf otomatis
       if (leaveItem.leave_type === 'Cuti') {
         const { data: staffData } = await supabase
           .from('staff')
@@ -281,6 +344,83 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
   const floorSopPct = Math.round((sopStats.floorCompleted / sopStats.floorTotal) * 100);
 
   const screenshotAttemptsCount = securityLogs.filter((l) => l.action_type.includes('SCREENSHOT')).length;
+
+  // 🚀 SMART HELPER: MENGHITUNG HARI MENDATANG TERDEKAT DARI CREATED_AT
+  const formatFullDate = (rawDateStr?: string, createdAtStr?: string) => {
+    if (!rawDateStr && !createdAtStr) return '-';
+
+    // 1. Jika rawDateStr sudah berbentuk format tanggal valid YYYY-MM-DD / ISO
+    if (rawDateStr && rawDateStr.match(/\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4}/)) {
+      try {
+        const d = new Date(rawDateStr);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleDateString('id-ID', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+          });
+        }
+      } catch {
+        // Fallback
+      }
+    }
+
+    // 2. Jika rawDateStr berupa NAMA HARI (misal "Selasa")
+    const dayNames = ['minggu', 'senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu'];
+    const cleanDayInput = (rawDateStr || '').trim().toLowerCase();
+    const targetDayIndex = dayNames.indexOf(cleanDayInput);
+
+    if (targetDayIndex !== -1 && createdAtStr) {
+      try {
+        const baseDate = new Date(createdAtStr);
+        if (!isNaN(baseDate.getTime())) {
+          const currentDayIndex = baseDate.getDay();
+          let diff = targetDayIndex - currentDayIndex;
+
+          // 💡 JIKA HARI TERSEBUT SUDAH LEWAT DI MINGGU INI (misal: buat Sabtu, minta Selasa),
+          // TAMBAHKAN 7 HARI agar menunjuk ke HARI SELASA MENDATANG (Selasa Depan)!
+          if (diff <= 0) {
+            diff += 7;
+          }
+
+          const resultDate = new Date(baseDate);
+          resultDate.setDate(baseDate.getDate() + diff);
+
+          return resultDate.toLocaleDateString('id-ID', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+          });
+        }
+      } catch {
+        // Fallback jika terjadi error
+      }
+    }
+
+    // 3. Fallback jika rawDateStr teks biasa
+    if (rawDateStr) return rawDateStr;
+
+    // 4. Fallback ke created_at jika rawDateStr kosong
+    if (createdAtStr) {
+      try {
+        const d = new Date(createdAtStr);
+        if (!isNaN(d.getTime())) {
+          return d.toLocaleDateString('id-ID', {
+            weekday: 'short',
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+          });
+        }
+      } catch {
+        return createdAtStr;
+      }
+    }
+
+    return '-';
+  };
 
   return (
     <div className="space-y-6 text-left">
@@ -371,53 +511,102 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-neutral-100">
-                        {swapRequests.map((item) => (
-                          <tr key={item.id} className="hover:bg-neutral-50">
-                            <td className="p-3">
-                              <p className="font-extrabold text-[#111111]">{item.requester_name}</p>
-                              <p className="text-[10px] text-neutral-400 font-mono">{item.requester_id}</p>
-                            </td>
-                            <td className="p-3">
-                              <p className="font-extrabold text-[#111111]">{item.target_staff_name}</p>
-                              <p className="text-[10px] text-neutral-400 font-mono">{item.target_staff_id}</p>
-                            </td>
-                            <td className="p-3 font-bold text-neutral-700">
-                              {item.shift_date} <span className="block text-[10px] text-neutral-400 uppercase">{item.shift_type} Shift</span>
-                            </td>
-                            <td className="p-3 text-neutral-600 max-w-xs">{item.reason || '-'}</td>
-                            <td className="p-3">
-                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                                item.target_status === 'accepted' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'
-                              }`}>
-                                {item.target_status === 'accepted' ? '🟢 Setuju' : '⏳ Menunggu Staf'}
-                              </span>
-                            </td>
-                            <td className="p-3 text-center">
-                              {item.management_status === 'pending' ? (
-                                <div className="flex justify-center gap-1.5">
-                                  <button
-                                    onClick={() => handleApproveSwap(item.id, 'approved')}
-                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer"
-                                  >
-                                    ✅ ACC
-                                  </button>
-                                  <button
-                                    onClick={() => handleApproveSwap(item.id, 'rejected')}
-                                    className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer"
-                                  >
-                                    ❌ Tolak
-                                  </button>
-                                </div>
-                              ) : (
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
-                                  item.management_status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
-                                }`}>
-                                  {item.management_status === 'approved' ? '✅ Approved' : '❌ Rejected'}
+                        {swapRequests.map((item) => {
+                          const requesterName = item.requester_staff_name || item.requester_name || 'Staf';
+                          const requesterId = item.requester_staff_id || item.requester_id || '-';
+                          const targetName = item.target_staff_name || '-';
+                          const targetId = item.target_staff_id || '-';
+
+                          const rawSwapDate = item.swap_date || item.shift_date || item.date;
+                          const formattedDateDisplay = formatFullDate(rawSwapDate, item.created_at);
+                          const shiftInfo = item.requester_shift || item.shift_type || 'Shift';
+
+                          // Status Staf Pengganti
+                          const targetStatusRaw = (item.target_status && item.target_status !== 'pending' ? item.target_status : item.status) || '';
+                          const targetStatusLower = targetStatusRaw.toLowerCase();
+
+                          const isAcceptedByStaff = targetStatusLower === 'accepted' || targetStatusLower === 'setuju' || targetStatusLower === 'approved';
+                          const isRejectedByStaff = targetStatusLower === 'rejected' || targetStatusLower === 'tolak';
+
+                          const mgmtStatus = (item.management_status || item.status || 'pending').toLowerCase();
+                          const isMgmtApproved = mgmtStatus === 'approved';
+                          const isMgmtRejected = mgmtStatus === 'rejected';
+
+                          return (
+                            <tr key={item.id} className="hover:bg-neutral-50">
+                              <td className="p-3">
+                                <p className="font-extrabold text-[#111111]">{requesterName}</p>
+                                <p className="text-[10px] text-neutral-400 font-mono">{requesterId}</p>
+                              </td>
+                              <td className="p-3">
+                                <p className="font-extrabold text-[#111111]">{targetName}</p>
+                                <p className="text-[10px] text-neutral-400 font-mono">{targetId}</p>
+                              </td>
+                              <td className="p-3 font-bold text-neutral-700">
+                                {formattedDateDisplay} 
+                                <span className="block text-[10px] text-[#d22027] font-extrabold uppercase mt-0.5">
+                                  {shiftInfo}
                                 </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                              <td className="p-3 text-neutral-600 max-w-xs">{item.reason || '-'}</td>
+                              
+                              {/* Status Staf Pengganti */}
+                              <td className="p-3">
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                  isAcceptedByStaff
+                                    ? 'bg-emerald-50 text-emerald-600'
+                                    : isRejectedByStaff
+                                    ? 'bg-red-50 text-red-600'
+                                    : 'bg-amber-50 text-amber-600'
+                                }`}>
+                                  {isAcceptedByStaff
+                                    ? '🟢 Setuju'
+                                    : isRejectedByStaff
+                                    ? '❌ Menolak'
+                                    : '⏳ Menunggu Staf'}
+                                </span>
+                              </td>
+
+                              {/* Action ACC Management */}
+                              <td className="p-3 text-center">
+                                {isRejectedByStaff ? (
+                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-neutral-100 text-neutral-400">
+                                    🚫 Batal (Ditolak Staf)
+                                  </span>
+                                ) : isAcceptedByStaff && !isMgmtApproved && !isMgmtRejected ? (
+                                  <div className="flex justify-center gap-1.5">
+                                    <button
+                                      onClick={() => handleApproveSwap(item.id, 'approved')}
+                                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer active:scale-95 transition"
+                                    >
+                                      ✅ ACC
+                                    </button>
+                                    <button
+                                      onClick={() => handleApproveSwap(item.id, 'rejected')}
+                                      className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer active:scale-95 transition"
+                                    >
+                                      ❌ Tolak
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
+                                    isMgmtApproved
+                                      ? 'bg-emerald-100 text-emerald-700' 
+                                      : isMgmtRejected
+                                      ? 'bg-red-100 text-red-700' 
+                                      : 'bg-amber-100 text-amber-700'
+                                  }`}>
+                                    {isMgmtApproved 
+                                      ? '✅ Approved' 
+                                      : isMgmtRejected 
+                                      ? '❌ Rejected' 
+                                      : '⏳ Menunggu Staf'}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -425,7 +614,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
               </div>
             )}
 
-            {/* TAB 2: IZIN & CUTI (DENGAN BUKTI PRATINJAU FOTO SURAT DOKTER) */}
+            {/* TAB 2: IZIN & CUTI */}
             {approvalTab === 'leave' && (
               <div>
                 {leaveRequests.length === 0 ? (
@@ -478,26 +667,26 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
                               )}
                             </td>
                             <td className="p-3 text-center">
-                              {item.status === 'pending' ? (
+                              {item.status?.toLowerCase() === 'pending' ? (
                                 <div className="flex justify-center gap-1.5">
                                   <button
                                     onClick={() => handleApproveLeave(item, 'approved')}
-                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer"
+                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer active:scale-95 transition"
                                   >
                                     ✅ ACC
                                   </button>
                                   <button
                                     onClick={() => handleApproveLeave(item, 'rejected')}
-                                    className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer"
+                                    className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer active:scale-95 transition"
                                   >
                                     ❌ Tolak
                                   </button>
                                 </div>
                               ) : (
                                 <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
-                                  item.status === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                                  item.status?.toLowerCase() === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
                                 }`}>
-                                  {item.status === 'approved' ? '✅ Disetujui' : '❌ Ditolak'}
+                                  {item.status?.toLowerCase() === 'approved' ? '✅ Disetujui' : '❌ Ditolak'}
                                 </span>
                               )}
                             </td>
@@ -643,7 +832,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
                       >
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-extrabold text-white">{log.staff_name}</span>
+                            <span className="font-extrabold text-[#ffffff]">{log.staff_name}</span>
                             <span className="text-[9px] px-1.5 py-0.2 bg-white/10 rounded font-mono text-neutral-400">
                               {log.staff_id}
                             </span>
@@ -680,7 +869,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {onDutyList.map((staf) => (
                     <div key={staf.id} className="p-3 bg-neutral-50 rounded-2xl border border-neutral-200 flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-[#111111] text-white flex items-center justify-center text-xs font-black shrink-0">
+                      <div className="w-9 h-9 rounded-xl bg-[#111111] text-[#ffffff] flex items-center justify-center text-xs font-black shrink-0">
                         {staf.staff_name.substring(0, 2).toUpperCase()}
                       </div>
                       <div className="overflow-hidden">

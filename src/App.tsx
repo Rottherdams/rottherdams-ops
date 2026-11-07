@@ -54,6 +54,20 @@ export default function App() {
 
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // 👑 Helper Formatting Role Kanan Atas (Owner / Management / Staff)
+  const formatDisplayRole = (role?: string, staffId?: string): string => {
+    const r = (role || '').toLowerCase();
+    const id = (staffId || '').toUpperCase();
+
+    if (r.includes('owner') || id.startsWith('OWN-')) {
+      return 'OWNER';
+    }
+    if (r.includes('management') || id.startsWith('MNG-')) {
+      return 'MANAGEMENT';
+    }
+    return (role || '').toUpperCase();
+  };
+
   // 🛡️ 1. Inactivity Tracker (Auto Logout 5 Menit)
   useEffect(() => {
     if (!currentUser) return;
@@ -120,7 +134,9 @@ export default function App() {
 
   const isManagementOrOwner = currentUser && (
     currentUser.role?.toLowerCase().includes('management') || 
-    currentUser.role?.toLowerCase().includes('owner')
+    currentUser.role?.toLowerCase().includes('owner') ||
+    currentUser.staff_id?.startsWith('MNG-') ||
+    currentUser.staff_id?.startsWith('OWN-')
   );
 
   const activeUserAttendance = currentUser 
@@ -270,7 +286,10 @@ export default function App() {
                 >
                   <div className="text-right hidden sm:block">
                     <p className="text-xs font-bold leading-none">{currentUser.name}</p>
-                    <p className="text-[10px] text-white/80 mt-0.5 uppercase tracking-wider">{currentUser.role}</p>
+                    {/* 🟢 MODIFIKASI: Menampilkan 'OWNER' secara spesifik jika role/staff_id Owner */}
+                    <p className="text-[10px] text-white/80 mt-0.5 uppercase tracking-wider font-bold">
+                      {formatDisplayRole(currentUser.role, currentUser.staff_id)}
+                    </p>
                   </div>
                   <div className="w-8 h-8 rounded-full bg-white/20 border border-white/40 flex items-center justify-center text-xs font-black shadow-inner">
                     {currentUser.name.substring(0, 2).toUpperCase()}
@@ -291,7 +310,7 @@ export default function App() {
                   <div className="px-4 py-2 border-b border-neutral-100">
                     <p className="text-xs font-bold">{currentUser.name}</p>
                     <p className="text-[10px] text-neutral-400 font-mono uppercase mt-0.5">
-                      {currentUser.staff_id} • {currentUser.role}
+                      {currentUser.staff_id} • {formatDisplayRole(currentUser.role, currentUser.staff_id)}
                     </p>
                   </div>
 

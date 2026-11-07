@@ -14,7 +14,7 @@ interface StaffOption {
 }
 
 interface SwapRequest {
-  id: number;
+  id: number | string;
   requester_staff_id: string;
   requester_staff_name: string;
   target_staff_id: string;
@@ -24,7 +24,7 @@ interface SwapRequest {
   requester_shift: string;
   target_shift: string;
   reason: string;
-  status: 'Pending' | 'Approved' | 'Rejected';
+  status: string;
   created_at: string;
 }
 
@@ -47,16 +47,30 @@ export default function TukarShiftModal({
   const [staffList, setStaffList] = useState<StaffOption[]>([]);
   const [swapRequests, setSwapRequests] = useState<SwapRequest[]>([]);
   const [loading, setLoading] = useState(false);
+  const [fetchingShifts, setFetchingShifts] = useState(false);
 
   // Form State
   const [targetStaffId, setTargetStaffId] = useState('');
   const [weekNumber, setWeekNumber] = useState<number>(1);
   const [swapDay, setSwapDay] = useState('Senin');
-  const [myShift, setMyShift] = useState('Shift 1');
-  const [targetShift, setTargetShift] = useState('Shift 2');
+  
+  // Shift State (Otomatis dari Database)
+  const [myShift, setMyShift] = useState('Memuat...');
+  const [targetShift, setTargetShift] = useState('Memuat...');
   const [reason, setReason] = useState('');
 
   const isManagement = currentUser?.role === 'management' || currentUser?.role === 'owner';
+
+  // Ambil objek staf target berdasarkan ID yang dipilih
+  const selectedTargetStaff = staffList.find(s => String(s.staff_id) === String(targetStaffId));
+
+  // Deteksi jika shift asal dan shift tujuan persis sama
+  const isSameShift = 
+    !fetchingShifts && 
+    targetStaffId !== '' && 
+    myShift !== 'Memuat...' && 
+    targetShift !== 'Pilih Pasangan' && 
+    myShift === targetShift;
 
   useEffect(() => {
     if (isOpen) {
@@ -64,6 +78,13 @@ export default function TukarShiftModal({
       fetchSwapRequests();
     }
   }, [isOpen, currentUser]);
+
+  // Trigger pencarian shift otomatis setiap kali Minggu, Hari, atau Staf Pasangan berubah
+  useEffect(() => {
+    if (isOpen && currentUser) {
+      fetchAutoShifts();
+    }
+  }, [isOpen, currentUser, weekNumber, swapDay, targetStaffId]);
 
   const fetchStaffList = async () => {
     const { data } = await supabase
@@ -74,8 +95,7 @@ export default function TukarShiftModal({
       .not('role', 'ilike', 'management');
 
     if (data) {
-      // Filter agar tidak memilih dirinya sendiri
-      setStaffList(data.filter(s => s.staff_id !== currentUser?.staff_id));
+      setStaffList(data.filter(s => String(s.staff_id) !== String(currentUser?.staff_id)));
     }
   };
 
@@ -86,7 +106,6 @@ export default function TukarShiftModal({
       .select('*')
       .order('created_at', { ascending: false });
 
-    // Jika bukan management, hanya tampilkan request yang melibatkan dirinya
     if (!isManagement && currentUser) {
       query = query.or(
         `requester_staff_id.eq.${currentUser.staff_id},target_staff_id.eq.${currentUser.staff_id}`
@@ -98,6 +117,44 @@ export default function TukarShiftModal({
     setLoading(false);
   };
 
+  // 🤖 FUNGSI UNTUK OTOMATIS MEMBACA SHIFT DARI DATABASE 'schedules'
+  const fetchAutoShifts = async () => {
+    if (!currentUser) return;
+    setFetchingShifts(true);
+
+    try {
+      // 1. Ambil shift staf yang sedang login (requester)
+      const { data: mySchedule } = await supabase
+        .from('schedules')
+        .select('shift')
+        .eq('staff_id', currentUser.staff_id)
+        .eq('week_number', weekNumber)
+        .eq('day', swapDay)
+        .maybeSingle();
+
+      setMyShift(mySchedule?.shift || 'OFF');
+
+      // 2. Ambil shift staf pasangan (target) jika sudah dipilih
+      if (targetStaffId) {
+        const { data: targetSchedule } = await supabase
+          .from('schedules')
+          .select('shift')
+          .eq('staff_id', targetStaffId)
+          .eq('week_number', weekNumber)
+          .eq('day', swapDay)
+          .maybeSingle();
+
+        setTargetShift(targetSchedule?.shift || 'OFF');
+      } else {
+        setTargetShift('Pilih Pasangan');
+      }
+    } catch (err) {
+      console.error('Error fetching automatic shifts:', err);
+    } finally {
+      setFetchingShifts(false);
+    }
+  };
+
   const handleSubmitSwap = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentUser || !targetStaffId) {
@@ -105,17 +162,21 @@ export default function TukarShiftModal({
       return;
     }
 
-    const targetStaff = staffList.find(s => s.staff_id === targetStaffId);
-    if (!targetStaff) return;
+    if (isSameShift) {
+      alert('Tidak dapat mengajukan tukar shift karena kedua staf berada pada shift yang sama.');
+      return;
+    }
+
+    if (!selectedTargetStaff) return;
 
     setLoading(true);
 
     const newRequest = {
-      requester_staff_id: currentUser.staff_id,
+      requester_staff_id: String(currentUser.staff_id),
       requester_staff_name: currentUser.name,
-      target_staff_id: targetStaff.staff_id,
-      target_staff_name: targetStaff.staff_name,
-      week_number: weekNumber,
+      target_staff_id: String(selectedTargetStaff.staff_id),
+      target_staff_name: selectedTargetStaff.staff_name,
+      week_number: Number(weekNumber),
       swap_date: swapDay,
       requester_shift: myShift,
       target_shift: targetShift,
@@ -138,7 +199,7 @@ export default function TukarShiftModal({
   };
 
   const handleUpdateStatus = async (
-    swapId: number,
+    swapId: number | string,
     status: 'Approved' | 'Rejected',
     reqItem: SwapRequest
   ) => {
@@ -148,7 +209,6 @@ export default function TukarShiftModal({
 
     setLoading(true);
 
-    // 1. Update Status di shift_swaps
     const { error } = await supabase
       .from('shift_swaps')
       .update({ status })
@@ -160,9 +220,7 @@ export default function TukarShiftModal({
       return;
     }
 
-    // 2. Jika APPROVED, Tukar secara otomatis di tabel schedules Supabase!
     if (status === 'Approved') {
-      // Swapping shift pengaju -> target shift
       await supabase
         .from('schedules')
         .update({ shift: reqItem.target_shift })
@@ -172,7 +230,6 @@ export default function TukarShiftModal({
           day: reqItem.swap_date,
         });
 
-      // Swapping shift target -> requester shift
       await supabase
         .from('schedules')
         .update({ shift: reqItem.requester_shift })
@@ -185,7 +242,7 @@ export default function TukarShiftModal({
 
     setLoading(false);
     fetchSwapRequests();
-    onSuccess(); // Refresh roster utama
+    onSuccess();
   };
 
   if (!isOpen) return null;
@@ -285,33 +342,40 @@ export default function TukarShiftModal({
                 </div>
               </div>
 
+              {/* READ-ONLY / DISPLAY OTOMATIS SHIFT */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-neutral-700 mb-1">Shift Asal Anda:</label>
-                  <select
-                    value={myShift}
-                    onChange={e => setMyShift(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-bold focus:outline-none"
-                  >
-                    <option value="Shift 1">Shift 1 (Morning)</option>
-                    <option value="Shift 2">Shift 2 (Night)</option>
-                    <option value="OFF">OFF (Hari Libur)</option>
-                  </select>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Shift Asal Anda (Otomatis):
+                  </label>
+                  <div className="w-full px-3.5 py-2.5 bg-neutral-100 border border-neutral-200 rounded-xl text-xs font-black text-[#111111]">
+                    {fetchingShifts ? '⌛ Membaca...' : myShift}
+                  </div>
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-neutral-700 mb-1">Shift Tujuan Pasangan:</label>
-                  <select
-                    value={targetShift}
-                    onChange={e => setTargetShift(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-bold focus:outline-none"
-                  >
-                    <option value="Shift 2">Shift 2 (Night)</option>
-                    <option value="Shift 1">Shift 1 (Morning)</option>
-                    <option value="OFF">OFF (Hari Libur)</option>
-                  </select>
+                  <label className="block text-xs font-bold text-neutral-700 mb-1">
+                    Shift Tujuan Pasangan (Otomatis):
+                  </label>
+                  <div className={`w-full px-3.5 py-2.5 rounded-xl text-xs font-black border transition ${
+                    isSameShift 
+                      ? 'bg-amber-50 border-amber-300 text-amber-700' 
+                      : 'bg-neutral-100 border-neutral-200 text-[#d22027]'
+                  }`}>
+                    {fetchingShifts ? '⌛ Membaca...' : targetShift}
+                  </div>
                 </div>
               </div>
+
+              {/* ⚠️ NOTIFIKASI WARNING DENGAN NAMA STAF SPESIFIK */}
+                {isSameShift && (
+                <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-800 flex items-start gap-2">
+                    <span className="text-sm">⚠️</span>
+                    <span>
+                    <b>Kamu</b> dan <b>{selectedTargetStaff?.staff_name || 'pasangan'}</b> sama-sama dijadwalkan pada <b>{myShift}</b>. Pertukaran tidak dapat dilakukan, silakan pilih hari atau pasangan staf yang berbeda!
+                    </span>
+                </div>
+                )}
 
               <div>
                 <label className="block text-xs font-bold text-neutral-700 mb-1">Alasan Tukar Shift:</label>
@@ -324,12 +388,21 @@ export default function TukarShiftModal({
                 ></textarea>
               </div>
 
+              {/* TOMBOL SMART DISABLE BILA SHIFT SAMA */}
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full py-3 bg-[#d22027] hover:bg-[#b0181e] text-white font-extrabold text-xs rounded-xl shadow-md transition cursor-pointer active:scale-98 mt-2"
+                disabled={loading || fetchingShifts || isSameShift}
+                className={`w-full py-3 font-extrabold text-xs rounded-xl shadow-md transition cursor-pointer ${
+                  isSameShift
+                    ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed shadow-none'
+                    : 'bg-[#d22027] hover:bg-[#b0181e] text-white active:scale-98'
+                }`}
               >
-                {loading ? 'Kirim Pengajuan...' : '🚀 Kirim Permohonan Tukar Shift'}
+                {loading
+                  ? 'Kirim Pengajuan...'
+                  : isSameShift
+                  ? '🚫 Shift Sama (Tidak Bisa Ditukar)'
+                  : '🚀 Kirim Permohonan Tukar Shift'}
               </button>
             </form>
           ) : (
@@ -344,7 +417,7 @@ export default function TukarShiftModal({
                 </div>
               ) : (
                 swapRequests.map(req => {
-                  const isTargetUser = currentUser?.staff_id === req.target_staff_id;
+                  const isTargetUser = String(currentUser?.staff_id) === String(req.target_staff_id);
                   const canApprove = isManagement || isTargetUser;
 
                   return (
