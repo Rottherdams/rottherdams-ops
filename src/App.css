@@ -1,6 +1,5 @@
 /* Custom Utility Animations untuk Rottherdams Ops */
 
-/* Animasi Slide Up dari Bawah (Untuk Mobile Drawer / Modal) - 1s Ease-In-Out */
 @keyframes slideUp {
   0% {
     transform: translateY(100%);
@@ -12,7 +11,17 @@
   }
 }
 
-/* Animasi Fade In Background Overlay */
+@keyframes slideDown {
+  0% {
+    transform: translateY(-12px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 @keyframes fadeIn {
   0% {
     opacity: 0;
@@ -22,7 +31,6 @@
   }
 }
 
-/* Bounce Singkat untuk Notifikasi/Icon */
 @keyframes bounceShort {
   0%, 100% {
     transform: translateY(0);
@@ -33,13 +41,18 @@
 }
 
 .animate-slide-up {
-  animation: slideUp 1s cubic-bezier(0.25, 1, 0.5, 1) forwards !important;
+  animation: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
   will-change: transform, opacity;
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.8s ease-in-out forwards !important;
+  animation: fadeIn 0.5s ease-in-out forwards !important;
   will-change: opacity;
+}
+
+.animate-dropdown-down {
+  animation: slideDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  will-change: transform, opacity;
 }
 
 .animate-bounce-short {

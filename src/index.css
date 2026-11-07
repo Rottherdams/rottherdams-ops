@@ -23,7 +23,9 @@ body {
   font-family: var(--font-sans);
 }
 
-/* 2. Keyframes Animasi 1 Detik */
+/* 2. Keyframes Animasi Mobile & Desktop */
+
+/* Mobile: Slide Up dari Bawah ke Atas Perlahan */
 @keyframes slideUpDrawer {
   0% {
     transform: translateY(100%);
@@ -35,6 +37,19 @@ body {
   }
 }
 
+/* Desktop: Slide Down dari Atas ke Bawah Saat Hover Menu Dropdown */
+@keyframes slideDownDropdown {
+  0% {
+    transform: translateY(-12px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Background Overlay Fade In */
 @keyframes fadeInOverlay {
   0% {
     opacity: 0;
@@ -44,13 +59,18 @@ body {
   }
 }
 
-/* 3. Class CSS Standar (Bebas Warning di VS Code) */
+/* 3. Aturan Animasi Standar CSS (Bebas Warning di VS Code) */
 .animate-slide-up {
-  animation: slideUpDrawer 1s cubic-bezier(0.25, 1, 0.5, 1) forwards !important;
+  animation: slideUpDrawer 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
   will-change: transform, opacity;
 }
 
 .animate-fade-in {
-  animation: fadeInOverlay 0.8s ease-in-out forwards !important;
+  animation: fadeInOverlay 0.5s ease-in-out forwards !important;
   will-change: opacity;
+}
+
+.animate-dropdown-down {
+  animation: slideDownDropdown 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+  will-change: transform, opacity;
 }
