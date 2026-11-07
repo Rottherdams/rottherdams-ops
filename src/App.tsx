@@ -93,17 +93,49 @@ export default function App() {
     };
   }, [currentUser]);
 
+  // 🔄 INITIAL LOAD & AUTOMATIC PROFILE SYNC DARI SUPABASE
   useEffect(() => {
     const savedUser = localStorage.getItem('rottherdams_user');
     if (savedUser) {
       try {
-        setCurrentUser(JSON.parse(savedUser));
+        const parsedUser: CurrentUser = JSON.parse(savedUser);
+        setCurrentUser(parsedUser);
+
+        // Ambil data profil terbaru dari Supabase untuk sinkronisasi avatar antar device
+        if (parsedUser.staff_id) {
+          fetchUserProfile(parsedUser.staff_id, parsedUser);
+        }
       } catch (e) {
         console.error('Error parsing user session:', e);
       }
     }
     fetchOnDutyStaff();
   }, []);
+
+  // 🔍 FUNGSI FETCH DETAIL PROFIL TERBARU
+  const fetchUserProfile = async (staffId: string, localUser: CurrentUser) => {
+    try {
+      const { data, error } = await supabase
+        .from('staff')
+        .select('*')
+        .eq('staff_id', staffId)
+        .single();
+
+      if (!error && data) {
+        const updatedUser: CurrentUser = {
+          ...localUser,
+          name: data.staff_name || data.name || localUser.name,
+          avatar_url: data.avatar_url || '',
+          role: data.role || localUser.role,
+        };
+        
+        setCurrentUser(updatedUser);
+        localStorage.setItem('rottherdams_user', JSON.stringify(updatedUser));
+      }
+    } catch (err) {
+      console.error('Error syncing user profile from Supabase:', err);
+    }
+  };
 
   const fetchOnDutyStaff = async () => {
     const { data } = await supabase
@@ -588,7 +620,7 @@ export default function App() {
 
               <div 
                 onClick={() => setActiveNav('jadwal')}
-                className={`p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group ${
+                className={`p-5 rounded-2xl bg-[#ffffff] border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group ${
                   !currentUser ? 'col-span-2 md:col-span-4' : ''
                 }`}
               >
