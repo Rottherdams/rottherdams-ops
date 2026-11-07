@@ -56,7 +56,6 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
         'postgres_changes',
         { event: '*', schema: 'public', table: 'sop_checklists' },
         () => {
-          // Ketika ada perubahan centang/data dari staf lain, perbarui data secara otomatis
           fetchSopTasks();
         }
       )
@@ -85,7 +84,6 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
     } else if (data) {
       const todayStr = new Date().toDateString();
 
-      // Ambil data avatar untuk staf yang menyelesaikan tugas
       const completedNames = Array.from(new Set(data.map(item => item.completed_by).filter(Boolean)));
       let avatarMap: { [name: string]: string } = {};
 
@@ -100,8 +98,6 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
         });
       }
 
-      // MAPPING RESET OTOMATIS HARIAN:
-      // Jika completed_at BUKAN hari ini, anggap is_completed = false
       const formattedTasks: SopItem[] = data.map(item => {
         const isToday = item.completed_at && new Date(item.completed_at).toDateString() === todayStr;
         const completedName = isToday ? item.completed_by : null;
@@ -120,12 +116,19 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
     setLoading(false);
   };
 
+  // 🔒 LOGIKA HAK AKSES CHECKLIST & UN-CHECKLIST
   const toggleTask = async (id: number, currentStatus: boolean) => {
+    // PROTEKSI: Jika SOP sudah dicentang dan user BUKAN Management/Owner, tolak un-checklist
+    if (currentStatus && !isManagementOrOwner) {
+      alert('🔒 SOP yang sudah diselesaikan tidak dapat dibatalkan oleh Staf. Harap hubungi Management atau Owner.');
+      return;
+    }
+
     const nextStatus = !currentStatus;
     const actorName = currentUser?.name || 'Staf On-Duty';
     const actorAvatar = currentUser?.avatar_url;
 
-    // Optimistic UI Update biar responsif di layar lokal
+    // Optimistic UI Update
     setTasks(prev =>
       prev.map(t => (t.id === id ? {
         ...t,
@@ -204,71 +207,78 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
           </span>
         </div>
       )}
-      {taskList.map(task => (
-        <div
-          key={task.id}
-          onClick={() => toggleTask(task.id, task.is_completed)}
-          className={`p-3.5 rounded-2xl border transition cursor-pointer flex items-center justify-between gap-3 group ${
-            task.is_completed
-              ? 'bg-neutral-50 border-neutral-200 opacity-75'
-              : 'bg-white border-neutral-200 hover:border-[#d22027]'
-          }`}
-        >
-          <div className="flex items-center gap-3 flex-1 min-w-0">
-            <input
-              type="checkbox"
-              checked={task.is_completed}
-              onChange={() => {}}
-              className="w-4 h-4 accent-[#d22027] rounded cursor-pointer shrink-0"
-            />
-            <div className="min-w-0">
-              <p
-                className={`text-xs font-bold truncate ${
-                  task.is_completed ? 'line-through text-neutral-400' : 'text-[#111111]'
+      {taskList.map(task => {
+        const isLockedForStaff = task.is_completed && !isManagementOrOwner;
+
+        return (
+          <div
+            key={task.id}
+            onClick={() => toggleTask(task.id, task.is_completed)}
+            className={`p-3.5 rounded-2xl border transition flex items-center justify-between gap-3 group ${
+              isLockedForStaff
+                ? 'cursor-not-allowed bg-neutral-50/80 border-neutral-200 opacity-80'
+                : 'cursor-pointer ' + (task.is_completed ? 'bg-neutral-50 border-neutral-200' : 'bg-white border-neutral-200 hover:border-[#d22027]')
+            }`}
+          >
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <input
+                type="checkbox"
+                checked={task.is_completed}
+                disabled={isLockedForStaff}
+                onChange={() => {}}
+                className={`w-4 h-4 accent-[#d22027] rounded shrink-0 ${
+                  isLockedForStaff ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'
                 }`}
-              >
-                {task.task_name}
-              </p>
-              <p className="text-[10px] text-neutral-400 flex items-center gap-1.5 flex-wrap mt-0.5">
-                <span className="font-bold text-neutral-600">{task.category}</span>
-                <span>•</span>
-                <span className="uppercase font-medium">{task.shift}</span>
-                {task.completed_by && (
-                  <span className="text-emerald-600 font-semibold flex items-center gap-1 ml-1">
-                    • Oleh: 
-                    {task.completed_by_avatar ? (
-                      <img
-                        src={task.completed_by_avatar}
-                        alt={task.completed_by}
-                        className="w-3.5 h-3.5 rounded-full object-cover inline-block"
-                      />
-                    ) : null}
-                    <strong>{task.completed_by}</strong>
-                  </span>
-                )}
-              </p>
+              />
+              <div className="min-w-0">
+                <p
+                  className={`text-xs font-bold truncate ${
+                    task.is_completed ? 'line-through text-neutral-400' : 'text-[#111111]'
+                  }`}
+                >
+                  {task.task_name}
+                </p>
+                <p className="text-[10px] text-neutral-400 flex items-center gap-1.5 flex-wrap mt-0.5">
+                  <span className="font-bold text-neutral-600">{task.category}</span>
+                  <span>•</span>
+                  <span className="uppercase font-medium">{task.shift}</span>
+                  {task.completed_by && (
+                    <span className="text-emerald-600 font-semibold flex items-center gap-1 ml-1">
+                      • Oleh: 
+                      {task.completed_by_avatar ? (
+                        <img
+                          src={task.completed_by_avatar}
+                          alt={task.completed_by}
+                          className="w-3.5 h-3.5 rounded-full object-cover inline-block"
+                        />
+                      ) : null}
+                      <strong>{task.completed_by}</strong>
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {task.is_completed && (
+                <span className="text-[9px] bg-emerald-50 text-emerald-600 font-semibold px-2 py-0.5 rounded-md shrink-0 flex items-center gap-1">
+                  Selesai {isLockedForStaff && <span title="Terkunci untuk staf biasa">🔒</span>}
+                </span>
+              )}
+
+              {isManagementOrOwner && (
+                <button
+                  onClick={e => handleDeleteTask(task.id, task.task_name, e)}
+                  className="p-1 text-neutral-300 hover:text-red-500 rounded-lg transition opacity-0 group-hover:opacity-100 cursor-pointer"
+                  title="Hapus SOP"
+                >
+                  🗑️
+                </button>
+              )}
             </div>
           </div>
-
-          <div className="flex items-center gap-2">
-            {task.is_completed && (
-              <span className="text-[9px] bg-emerald-50 text-emerald-600 font-semibold px-2 py-0.5 rounded-md shrink-0">
-                Selesai
-              </span>
-            )}
-
-            {isManagementOrOwner && (
-              <button
-                onClick={e => handleDeleteTask(task.id, task.task_name, e)}
-                className="p-1 text-neutral-300 hover:text-red-500 rounded-lg transition opacity-0 group-hover:opacity-100 cursor-pointer"
-                title="Hapus SOP"
-              >
-                🗑️
-              </button>
-            )}
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 
