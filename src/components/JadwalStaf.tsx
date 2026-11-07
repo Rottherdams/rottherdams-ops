@@ -113,7 +113,9 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
     (currentUser?.staff_id || '').startsWith('OWN-');
 
   const currentWeekNow = getCurrentWeekKey();
-  const todayNameNow = getTodayName();
+  
+  // 🟢 Tanggal hari ini dalam format YYYY-MM-DD untuk validasi presisi
+  const todayDateStr = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
     fetchSchedulesFromDatabase();
@@ -236,6 +238,8 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
     }
   };
 
+  const { weekDates: currentSelectedWeekDates } = getWeekDateRange(selectedWeek);
+
   return (
     <div className="bg-white rounded-3xl p-5 md:p-6 border border-neutral-200 shadow-sm mb-8 text-left">
       {/* Header Roster */}
@@ -330,8 +334,9 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
 
       {/* Tab Filter Hari untuk Tampilan Mobile */}
       <div className="md:hidden flex gap-1 overflow-x-auto pb-3 scrollbar-none mb-3 border-b border-neutral-100">
-        {DAYS.map(day => {
-          const isToday = todayNameNow === day;
+        {DAYS.map((day, idx) => {
+          // 🟢 Indikator Hari Ini HANYA aktif jika tanggal hari di minggu terpilih persis sama dengan tanggal hari ini
+          const isToday = currentSelectedWeekDates[idx] === todayDateStr;
           const isActive = selectedDay === day;
 
           return (
@@ -380,14 +385,18 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
                   <th className="p-3 font-bold">Divisi</th>
 
                   {/* HEADER HARI + TANGGAL PRESISI */}
-                  {DAYS.map(day => (
-                    <th key={day} className="p-3 text-center font-bold">
-                      <div>{day}</div>
-                      <div className="text-[10px] font-normal opacity-80 mt-0.5">
-                        {dateLabels[day] || ''} {todayNameNow === day && ' (Hari Ini)'}
-                      </div>
-                    </th>
-                  ))}
+                  {DAYS.map((day, idx) => {
+                    const isTodayHeader = currentSelectedWeekDates[idx] === todayDateStr;
+
+                    return (
+                      <th key={day} className="p-3 text-center font-bold">
+                        <div>{day}</div>
+                        <div className="text-[10px] font-normal opacity-80 mt-0.5">
+                          {dateLabels[day] || ''} {isTodayHeader && ' (Hari Ini)'}
+                        </div>
+                      </th>
+                    );
+                  })}
                   
                   <th className={`p-3 text-center bg-neutral-800 font-bold ${!isManagement ? 'rounded-tr-xl' : ''}`}>
                     Tot. Shift
