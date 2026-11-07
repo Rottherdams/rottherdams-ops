@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 
 interface CurrentUser {
@@ -35,6 +35,14 @@ export default function EditProfileModal({
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
+  // --- STATE MODAL CROP FOTO ---
+  const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const imageRef = useRef<HTMLImageElement | null>(null);
+
   useEffect(() => {
     if (isOpen && currentUser.staff_id) {
       fetchStaffDetails();
@@ -63,41 +71,100 @@ export default function EditProfileModal({
     }
   };
 
-  // 📷 UPLOAD FOTO KE SUPABASE STORAGE
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 1. PILIH FILE FOTO (VALIDASI JPG/PNG & MAX 5MB)
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Batasi ukuran file max 3MB
-    if (file.size > 3 * 1024 * 1024) {
-      alert('Ukuran foto terlalu besar! Maksimal 3MB.');
+    // Validasi Tipe File (JPG & PNG saja)
+    const validTypes = ['image/jpeg', 'image/png', 'image/jpg'];
+    if (!validTypes.includes(file.type)) {
+      alert('Format file tidak didukung! Harap pilih gambar bertipe JPG atau PNG.');
+      e.target.value = '';
       return;
     }
+
+    // Validasi Ukuran Max 5MB
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Ukuran foto terlalu besar! Maksimal 5MB.');
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropImageSrc(reader.result as string);
+      setZoom(1);
+      setPan({ x: 0, y: 0 });
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
+  // 2. PROSES CROP & UPLOAD FOTO KE SUPABASE STORAGE
+  const handleCropAndUpload = async () => {
+    if (!cropImageSrc || !imageRef.current) return;
 
     setUploadingImage(true);
 
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${currentUser.staff_id}_${Date.now()}.${fileExt}`;
+      const img = imageRef.current;
+      const canvas = document.createElement('canvas');
+      const size = 300; // Output resolusi avatar (300x300px)
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) throw new Error('Gagal memproses gambar');
+
+      // Potong bentuk lingkaran di canvas
+      ctx.beginPath();
+      ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
+      ctx.clip();
+
+      // Hitung skala & posisi berdasarkan Zoom + Pan
+      const aspect = img.naturalWidth / img.naturalHeight;
+      let drawWidth = size * zoom;
+      let drawHeight = size * zoom;
+
+      if (aspect > 1) {
+        drawWidth = size * aspect * zoom;
+      } else {
+        drawHeight = (size / aspect) * zoom;
+      }
+
+      const drawX = (size - drawWidth) / 2 + pan.x;
+      const drawY = (size - drawHeight) / 2 + pan.y;
+
+      ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
+
+      // Konversi hasil Canvas ke Blob PNG
+      const blob = await new Promise<Blob | null>((resolve) =>
+        canvas.toBlob(resolve, 'image/png', 0.95)
+      );
+
+      if (!blob) throw new Error('Gagal memproses crop gambar');
+
+      const fileName = `${currentUser.staff_id}_${Date.now()}.png`;
       const filePath = `avatars/${fileName}`;
 
-      // 1. Upload file ke Supabase Storage (Bucket 'avatars')
+      // Upload ke Bucket 'avatars' Supabase
       const { error: uploadError } = await supabase.storage
         .from('avatars')
-        .upload(filePath, file, { upsert: true });
+        .upload(filePath, blob, { upsert: true, contentType: 'image/png' });
 
       if (uploadError) throw uploadError;
 
-      // 2. Ambil Public URL foto
       const { data: publicUrlData } = supabase.storage
         .from('avatars')
         .getPublicUrl(filePath);
 
       if (publicUrlData?.publicUrl) {
         setAvatarUrl(publicUrlData.publicUrl);
+        setCropImageSrc(null); // Tutup modal crop setelah berhasil
       }
     } catch (err: any) {
-      alert('Gagal mengunggah foto: ' + (err.message || 'Pastikan bucket "avatars" sudah publik di Supabase.'));
+      alert('Gagal mengunggah foto: ' + (err.message || 'Pastikan bucket "avatars" sudah publik.'));
     } finally {
       setUploadingImage(false);
     }
@@ -127,7 +194,7 @@ export default function EditProfileModal({
 
     const displayName = staffName.trim() || `${firstName.trim()} ${lastName.trim()}`.trim();
 
-    // Data yang akan di-update di database Supabase (Kolom 'name' dihapus karena tidak ada di tabel staff)
+    // Field 'name' tidak diikutsertakan karena tidak ada di schema DB
     const updateData: any = {
       first_name: firstName.trim(),
       last_name: lastName.trim(),
@@ -158,7 +225,6 @@ export default function EditProfileModal({
         avatar_url: avatarUrl.trim(),
       };
 
-      // Simpan ke localStorage & update state global
       localStorage.setItem('rottherdams_user', JSON.stringify(updatedUser));
       onUpdateSuccess(updatedUser);
       alert('Profil & PIN berhasil diperbarui!');
@@ -213,13 +279,13 @@ export default function EditProfileModal({
                 <span>📷 {uploadingImage ? 'Mengunggah...' : 'Pilih Foto'}</span>
                 <input
                   type="file"
-                  accept="image/*"
-                  onChange={handleFileUpload}
+                  accept="image/png, image/jpeg, image/jpg"
+                  onChange={handleFileSelect}
                   disabled={uploadingImage}
                   className="hidden"
                 />
               </label>
-              <p className="text-[9px] text-neutral-400">Format: JPG, PNG (Maks 3MB)</p>
+              <p className="text-[9px] text-neutral-400">Format: JPG, PNG (Maks 5MB)</p>
             </div>
           </div>
 
@@ -266,7 +332,7 @@ export default function EditProfileModal({
             />
           </div>
 
-          {/* KONTAK & TELEGRAM (TELEGRAM DISABLED) */}
+          {/* KONTAK & TELEGRAM (DISABLED) */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-bold text-neutral-600 mb-1">
@@ -376,6 +442,85 @@ export default function EditProfileModal({
           </div>
         </form>
       </div>
+
+      {/* ✂️ MODAL CROP FOTO PROFIL INTERAKTIF */}
+      {cropImageSrc && (
+        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-60 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-5 space-y-4 text-center shadow-2xl">
+            <div>
+              <h4 className="text-sm font-black text-[#111111]">Sesuaikan & Crop Foto</h4>
+              <p className="text-[11px] text-neutral-400">Geser atau zoom agar posisi foto pas di lingkaran</p>
+            </div>
+
+            {/* AREA CANVAS CROP LINGKARAN */}
+            <div
+              className="relative w-64 h-64 mx-auto rounded-full overflow-hidden border-4 border-[#d22027] bg-neutral-900 cursor-grab active:cursor-grabbing select-none"
+              onMouseDown={(e) => {
+                setIsDragging(true);
+                setDragStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+              }}
+              onMouseMove={(e) => {
+                if (!isDragging) return;
+                setPan({ x: e.clientX - dragStart.x, y: e.clientY - dragStart.y });
+              }}
+              onMouseUp={() => setIsDragging(false)}
+              onMouseLeave={() => setIsDragging(false)}
+              onTouchStart={(e) => {
+                setIsDragging(true);
+                setDragStart({ x: e.touches[0].clientX - pan.x, y: e.touches[0].clientY - pan.y });
+              }}
+              onTouchMove={(e) => {
+                if (!isDragging) return;
+                setPan({ x: e.touches[0].clientX - dragStart.x, y: e.touches[0].clientY - dragStart.y });
+              }}
+              onTouchEnd={() => setIsDragging(false)}
+            >
+              <img
+                ref={imageRef}
+                src={cropImageSrc}
+                alt="Crop preview"
+                className="max-w-none absolute top-1/2 left-1/2 transition-transform duration-75 pointer-events-none"
+                style={{
+                  transform: `translate(-50%, -50%) translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                }}
+              />
+            </div>
+
+            {/* SLIDER ZOOM */}
+            <div className="space-y-1 px-4">
+              <label className="text-[10px] font-bold text-neutral-500 block">Zoom</label>
+              <input
+                type="range"
+                min="0.8"
+                max="3"
+                step="0.1"
+                value={zoom}
+                onChange={(e) => setZoom(parseFloat(e.target.value))}
+                className="w-full accent-[#d22027]"
+              />
+            </div>
+
+            {/* ACTION BUTTONS CROP */}
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setCropImageSrc(null)}
+                className="flex-1 py-2 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl text-xs font-bold transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleCropAndUpload}
+                disabled={uploadingImage}
+                className="flex-1 py-2 bg-[#d22027] hover:bg-[#bb2026] text-white rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
+              >
+                {uploadingImage ? 'Mengunggah...' : 'Simpan Foto'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -359,8 +359,8 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
   return (
     <div className="space-y-6 text-left">
       <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm">
-        {/* Header & Filter Bulan */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b border-neutral-100">
+        {/* Header & Control Actions (Diperbaiki agar selalu simetris di kanan atas) */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-neutral-100">
           <div>
             <h2 className="text-lg font-black text-[#111111]">📌 Analytics & Rekap Presensi Staf</h2>
             <p className="text-xs text-neutral-400 mt-0.5">
@@ -370,9 +370,10 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
             </p>
           </div>
 
-          <div className="flex items-center gap-2 flex-wrap">
+          {/* Akses Kontrol di Kanan Atas */}
+          <div className="flex items-center gap-3 shrink-0">
             {/* Filter Bulan & Tahun */}
-            <div className="flex items-center gap-2 bg-neutral-50 p-1.5 rounded-2xl border border-neutral-200">
+            <div className="flex items-center gap-1.5 bg-neutral-50 p-1.5 rounded-2xl border border-neutral-200">
               <select
                 value={selectedMonth}
                 onChange={e => setSelectedMonth(Number(e.target.value))}
@@ -393,7 +394,7 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
               </select>
             </div>
 
-            {/* SWITCH VIEW MODE */}
+            {/* SWITCH VIEW MODE (Satu Baris Sejajar dengan Filter Bulan) */}
             <div className="bg-neutral-100 p-1 rounded-2xl flex border border-neutral-200">
               <button
                 onClick={() => setViewMode('pribadi')}
