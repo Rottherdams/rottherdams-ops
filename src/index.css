@@ -24,31 +24,34 @@ body {
   font-family: var(--font-sans);
 }
 
-/* 3. Keyframes Global (Fallback untuk Tailwind v4) */
-@keyframes slideUp {
-  from {
+/* 3. Keyframes Ease-In-Out (Muncul & Masuk 0.5s) */
+@keyframes slideUpDrawer {
+  0% {
     transform: translateY(100%);
     opacity: 0;
   }
-  to {
+  100% {
     transform: translateY(0);
     opacity: 1;
   }
 }
 
-@keyframes fadeIn {
-  from {
+@keyframes fadeInOverlay {
+  0% {
     opacity: 0;
   }
-  to {
+  100% {
     opacity: 1;
   }
 }
 
-.animate-slide-up {
-  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+/* 4. Utility Classes Tailwind CSS v4 */
+@utility animate-slide-up {
+  animation: slideUpDrawer 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
 }
 
-.animate-fade-in {
-  animation: fadeIn 0.25s ease-out forwards;
+@utility animate-fade-in {
+  animation: fadeInOverlay 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  will-change: opacity;
 }
