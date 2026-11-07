@@ -271,7 +271,7 @@ export default function App() {
               </span>
             </div>
 
-            {/* Desktop Navbar Clean (Hover Dropdown) */}
+            {/* Desktop Navbar Clean (Hover Dropdown dengan Animasi Slide Down) */}
             <nav className="hidden lg:flex items-center gap-2 bg-black/15 p-1 rounded-xl border border-white/10">
               <button
                 onClick={() => setActiveNav('home')}
@@ -298,7 +298,7 @@ export default function App() {
                     <button className="px-3 py-1.5 text-xs font-bold text-white/80 group-hover:text-white flex items-center gap-1">
                       Operasional ▾
                     </button>
-                    <div className="absolute top-full left-0 hidden group-hover:flex flex-col bg-white text-[#111111] rounded-2xl shadow-xl border border-neutral-100 p-2 min-w-[160px] z-50 animate-in fade-in duration-150">
+                    <div className="absolute top-full left-0 hidden group-hover:flex flex-col bg-white text-[#111111] rounded-2xl shadow-xl border border-neutral-100 p-2 min-w-[160px] z-50 animate-dropdown-down">
                       <button onClick={() => setActiveNav('sop')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">📋 SOP Checklist</button>
                       <button onClick={() => setActiveNav('resep')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">☕ Buku Resep</button>
                       <button onClick={() => setActiveNav('handover')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">📝 Handover Log</button>
@@ -321,7 +321,7 @@ export default function App() {
                   <button className="px-3 py-1.5 text-xs font-bold text-white/80 group-hover:text-white flex items-center gap-1">
                     Management ▾
                   </button>
-                  <div className="absolute top-full left-0 hidden group-hover:flex flex-col bg-white text-[#111111] rounded-2xl shadow-xl border border-neutral-100 p-2 min-w-[160px] z-50 animate-in fade-in duration-150">
+                  <div className="absolute top-full left-0 hidden group-hover:flex flex-col bg-white text-[#111111] rounded-2xl shadow-xl border border-neutral-100 p-2 min-w-[160px] z-50 animate-dropdown-down">
                     <button onClick={() => setActiveNav('dashboard')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">📊 Analytics</button>
                     <button onClick={() => setActiveNav('karyawan')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">👥 Daftar Staf</button>
                   </div>
@@ -366,7 +366,7 @@ export default function App() {
 
               {/* Dropdown Menu User */}
               {isUserMenuOpen && currentUser && (
-                <div className="absolute right-0 mt-2 w-56 bg-white text-[#111111] rounded-2xl shadow-2xl border border-neutral-100 py-2 z-50">
+                <div className="absolute right-0 mt-2 w-56 bg-white text-[#111111] rounded-2xl shadow-2xl border border-neutral-100 py-2 z-50 animate-dropdown-down">
                   <div className="px-4 py-2 border-b border-neutral-100">
                     <p className="text-xs font-bold">{currentUser.name}</p>
                     <p className="text-[10px] text-neutral-400 font-mono uppercase mt-0.5">
@@ -695,15 +695,15 @@ export default function App() {
         </div>
       </nav>
 
-      {/* ⚡ Mobile Slide-Up Drawer Menu "Lainnya" */}
+      {/* ⚡ Mobile Slide-Up Drawer Menu "Lainnya" (Dengan Animasi Slide-Up & Fade-In) */}
       {isMoreMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end animate-in fade-in duration-200">
-          <div className="w-full bg-white rounded-t-3xl p-6 space-y-4 animate-in slide-in-from-bottom duration-250 border-t border-neutral-100">
+        <div className="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end animate-fade-in">
+          <div className="w-full bg-white rounded-t-3xl p-6 space-y-4 animate-slide-up border-t border-neutral-100 shadow-2xl">
             <div className="flex justify-between items-center pb-2 border-b border-neutral-100">
               <h3 className="font-extrabold text-sm text-[#111111]">Menu & Fitur Lainnya</h3>
               <button 
                 onClick={() => setIsMoreMenuOpen(false)}
-                className="w-7 h-7 bg-neutral-100 text-neutral-500 rounded-full font-bold flex items-center justify-center text-xs"
+                className="w-7 h-7 bg-neutral-100 text-neutral-500 rounded-full font-bold flex items-center justify-center text-xs cursor-pointer active:scale-90 transition-transform"
               >
                 ✕
               </button>
@@ -712,7 +712,7 @@ export default function App() {
             <div className="grid grid-cols-3 gap-3 pt-2 text-left">
               <button 
                 onClick={() => { setActiveNav('jadwal'); setIsMoreMenuOpen(false); }}
-                className="p-3 bg-neutral-50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:bg-red-50 transition border border-neutral-100"
+                className="p-3 bg-neutral-50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:bg-red-50 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
               >
                 <span className="text-2xl">📅</span>
                 <span className="text-[11px] font-bold text-neutral-800">Jadwal Staf</span>
@@ -721,7 +721,7 @@ export default function App() {
               {currentUser && (
                 <button 
                   onClick={() => { setActiveNav('handover'); setIsMoreMenuOpen(false); }}
-                  className="p-3 bg-neutral-50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:bg-red-50 transition border border-neutral-100"
+                  className="p-3 bg-neutral-50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:bg-red-50 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
                 >
                   <span className="text-2xl">📝</span>
                   <span className="text-[11px] font-bold text-neutral-800">Handover Log</span>
@@ -732,7 +732,7 @@ export default function App() {
                 <>
                   <button 
                     onClick={() => { setActiveNav('dashboard'); setIsMoreMenuOpen(false); }}
-                    className="p-3 bg-neutral-50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:bg-red-50 transition border border-neutral-100"
+                    className="p-3 bg-neutral-50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:bg-red-50 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
                   >
                     <span className="text-2xl">📊</span>
                     <span className="text-[11px] font-bold text-neutral-800">Analytics</span>
@@ -740,7 +740,7 @@ export default function App() {
 
                   <button 
                     onClick={() => { setActiveNav('karyawan'); setIsMoreMenuOpen(false); }}
-                    className="p-3 bg-neutral-50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:bg-red-50 transition border border-neutral-100"
+                    className="p-3 bg-neutral-50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:bg-red-50 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
                   >
                     <span className="text-2xl">👥</span>
                     <span className="text-[11px] font-bold text-neutral-800">Daftar Staf</span>
