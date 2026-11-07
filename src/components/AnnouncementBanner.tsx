@@ -5,6 +5,7 @@ interface CurrentUser {
   staff_id: string;
   name: string;
   role: string;
+  avatar_url?: string;
 }
 
 interface Announcement {
@@ -14,6 +15,14 @@ interface Announcement {
   priority: 'Normal' | 'Urgent';
   author_name: string;
   created_at: string;
+  author_avatar?: string;
+}
+
+interface ReadAuditItem {
+  staff_id: string;
+  staff_name?: string;
+  avatar_url?: string;
+  read_at: string;
 }
 
 interface AnnouncementBannerProps {
@@ -34,7 +43,7 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
 
   // State Modal Audit Staf yang Sudah Membaca
   const [auditAnnouncementId, setAuditAnnouncementId] = useState<number | null>(null);
-  const [readAuditList, setReadAuditList] = useState<{ staff_id: string; read_at: string }[]>([]);
+  const [readAuditList, setReadAuditList] = useState<ReadAuditItem[]>([]);
 
   const rawRole = (currentUser?.role || '').toLowerCase();
   const isManagementOrOwner =
@@ -47,14 +56,13 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
     fetchAnnouncements();
     fetchReadLogs();
 
-    // ⚡ 1. SUBSCRIBER REALTIME SUPABASE UNTUK ANNOUNCEMENTS
+    // ⚡ SUBSCRIBER REALTIME SUPABASE UNTUK ANNOUNCEMENTS
     const announcementChannel = supabase
       .channel('public:announcements')
       .on(
         'postgres_changes',
         { event: 'INSERT', schema: 'public', table: 'announcements' },
         (payload) => {
-          // Tambahkan pengumuman baru langsung ke paling atas state
           const newAnn = payload.new as Announcement;
           setAnnouncements((prev) => [newAnn, ...prev]);
         }
@@ -74,7 +82,28 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
       .order('created_at', { ascending: false })
       .limit(5);
 
-    if (data) setAnnouncements(data);
+    if (data && data.length > 0) {
+      // Ambil avatar penulis dari tabel staff jika ada
+      const authorNames = Array.from(new Set(data.map((a: any) => a.author_name).filter(Boolean)));
+      const { data: staffData } = await supabase
+        .from('staff')
+        .select('staff_name, first_name, avatar_url')
+        .in('staff_name', authorNames);
+
+      const avatarMap: { [name: string]: string } = {};
+      (staffData || []).forEach((s: any) => {
+        if (s.avatar_url) avatarMap[s.staff_name] = s.avatar_url;
+      });
+
+      const enriched = data.map((item: any) => ({
+        ...item,
+        author_avatar: avatarMap[item.author_name] || undefined,
+      }));
+
+      setAnnouncements(enriched);
+    } else {
+      setAnnouncements([]);
+    }
     setLoading(false);
   };
 
@@ -112,8 +141,8 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
     setSubmitting(true);
     const { error } = await supabase.from('announcements').insert([
       {
-        title: newTitle,
-        content: newContent,
+        title: newTitle.trim(),
+        content: newContent.trim(),
         priority: newPriority,
         author_name: currentUser.name,
       },
@@ -125,12 +154,13 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
       setNewContent('');
       setNewPriority('Normal');
       setShowCreateModal(false);
+      fetchAnnouncements();
     } else {
       alert('Gagal membuat pengumuman: ' + error.message);
     }
   };
 
-  // Handler Lihat Audit Staf yang Sudah Membaca
+  // Handler Lihat Audit Staf yang Sudah Membaca (Lengkap Foto & Nama)
   const handleOpenAuditModal = async (announcementId: number) => {
     setAuditAnnouncementId(announcementId);
     const { data } = await supabase
@@ -139,7 +169,29 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
       .eq('announcement_id', announcementId)
       .order('read_at', { ascending: false });
 
-    if (data) setReadAuditList(data);
+    if (data && data.length > 0) {
+      const staffIds = data.map((item: any) => item.staff_id);
+      const { data: staffProfiles } = await supabase
+        .from('staff')
+        .select('staff_id, staff_name, first_name, last_name, avatar_url')
+        .in('staff_id', staffIds);
+
+      const staffMap: { [id: string]: { name: string; avatar?: string } } = {};
+      (staffProfiles || []).forEach((s: any) => {
+        const name = s.staff_name || `${s.first_name || ''} ${s.last_name || ''}`.trim() || s.staff_id;
+        staffMap[s.staff_id] = { name, avatar: s.avatar_url };
+      });
+
+      const enrichedAudit = data.map((item: any) => ({
+        ...item,
+        staff_name: staffMap[item.staff_id]?.name || item.staff_id,
+        avatar_url: staffMap[item.staff_id]?.avatar,
+      }));
+
+      setReadAuditList(enrichedAudit);
+    } else {
+      setReadAuditList([]);
+    }
   };
 
   if (loading && announcements.length === 0) {
@@ -195,15 +247,25 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
                       >
                         {isUrgent ? '⚠️ URGENT BROADCAST' : '📢 INFO'}
                       </span>
-                      <span className="text-[10px] text-neutral-400 font-mono">
-                        Oleh: <strong>{item.author_name}</strong> •{' '}
-                        {new Date(item.created_at).toLocaleDateString('id-ID', {
-                          day: 'numeric',
-                          month: 'short',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })} WITA
-                      </span>
+
+                      <div className="flex items-center gap-1.5">
+                        {item.author_avatar ? (
+                          <img
+                            src={item.author_avatar}
+                            alt={item.author_name}
+                            className="w-4 h-4 rounded-full object-cover"
+                          />
+                        ) : null}
+                        <span className="text-[10px] text-neutral-400 font-mono">
+                          Oleh: <strong>{item.author_name}</strong> •{' '}
+                          {new Date(item.created_at).toLocaleDateString('id-ID', {
+                            day: 'numeric',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })} WITA
+                        </span>
+                      </div>
                     </div>
 
                     <h4 className="font-extrabold text-sm text-[#111111] mt-1">{item.title}</h4>
@@ -306,12 +368,12 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
         </div>
       )}
 
-      {/* MODAL AUDIT STATUS MEMBACA STAF */}
+      {/* MODAL AUDIT STATUS MEMBACA STAF (LENGKAP FOTO & NAMA) */}
       {auditAnnouncementId && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white p-5 rounded-3xl max-w-sm w-full space-y-3 relative shadow-2xl border border-neutral-100">
+          <div className="bg-white p-5 rounded-3xl max-w-sm w-full space-y-3 relative shadow-2xl border border-neutral-100 text-left">
             <div className="flex justify-between items-center pb-2 border-b border-neutral-100">
-              <h4 className="font-black text-xs text-[#111111]">📋 Staf yang Sudah Membaca</h4>
+              <h4 className="font-black text-xs text-[#111111]">📋 Audit Staf yang Sudah Membaca</h4>
               <button
                 onClick={() => setAuditAnnouncementId(null)}
                 className="text-neutral-400 hover:text-black font-bold text-xs cursor-pointer"
@@ -329,9 +391,26 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
                 {readAuditList.map((item, idx) => (
                   <div
                     key={idx}
-                    className="p-2.5 bg-neutral-50 rounded-xl border border-neutral-200 flex justify-between items-center text-xs"
+                    className="p-2.5 bg-neutral-50 rounded-2xl border border-neutral-200 flex justify-between items-center text-xs"
                   >
-                    <span className="font-mono font-bold text-[#111111]">{item.staff_id}</span>
+                    <div className="flex items-center gap-2">
+                      {item.avatar_url ? (
+                        <img
+                          src={item.avatar_url}
+                          alt={item.staff_name}
+                          className="w-6 h-6 rounded-full object-cover border border-neutral-200"
+                        />
+                      ) : (
+                        <div className="w-6 h-6 rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-bold text-[9px]">
+                          {item.staff_name?.[0] || '👤'}
+                        </div>
+                      )}
+                      <div>
+                        <p className="font-extrabold text-[#111111] text-[11px]">{item.staff_name}</p>
+                        <p className="text-[9px] text-neutral-400 font-mono">{item.staff_id}</p>
+                      </div>
+                    </div>
+
                     <span className="text-[10px] text-neutral-400 font-mono">
                       {new Date(item.read_at).toLocaleTimeString('id-ID', {
                         hour: '2-digit',

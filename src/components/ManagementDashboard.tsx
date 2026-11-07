@@ -69,6 +69,7 @@ interface OnDutyItem {
   role: string;
   shift: string;
   clock_in: string;
+  avatar_url?: string;
 }
 
 export default function ManagementDashboard({ currentUser }: ManagementDashboardProps) {
@@ -114,12 +115,32 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
         .select('*', { count: 'exact', head: true })
         .eq('status', 'Aktif');
 
-      // 2. Staf On Duty Hari Ini
+      // 2. Staf On Duty Hari Ini (Sertakan Foto Avatar jika Tersedia)
       const { data: attendanceData } = await supabase
         .from('attendances')
         .select('*')
         .eq('status', 'On Duty')
         .order('clock_in', { ascending: false });
+
+      // Ambil foto avatar untuk staf yang sedang On-Duty
+      let enrichedOnDuty: OnDutyItem[] = [];
+      if (attendanceData && attendanceData.length > 0) {
+        const staffIds = attendanceData.map((a) => a.staff_id).filter(Boolean);
+        const { data: staffProfiles } = await supabase
+          .from('staff')
+          .select('staff_id, avatar_url, first_name, last_name, staff_name')
+          .in('staff_id', staffIds);
+
+        const avatarMap: { [id: string]: string } = {};
+        (staffProfiles || []).forEach((s) => {
+          if (s.avatar_url) avatarMap[s.staff_id] = s.avatar_url;
+        });
+
+        enrichedOnDuty = attendanceData.map((item) => ({
+          ...item,
+          avatar_url: avatarMap[item.staff_id] || undefined,
+        }));
+      }
 
       // 3. Rekap SOP Checklist
       const { data: sopData } = await supabase.from('sop_checklists').select('*');
@@ -165,7 +186,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
       }
 
       setTotalStaff(staffCount || 0);
-      setOnDutyList(attendanceData || []);
+      setOnDutyList(enrichedOnDuty);
       setHandoverLogs(handoverData || []);
       setSecurityLogs(secData || []);
       setSwapRequests(swapData || []);
@@ -204,8 +225,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
     }
   };
 
-  // 🚀 LOGIKA COUNTER PENDING ACC YANG SUDAH DIPERBAIKI:
-  // Hanya hitung butuh ACC jika persetujuan Manajemen 'pending' DAN belum ditolak oleh Staf Pengganti
+  // LOGIKA COUNTER PENDING ACC:
   const pendingSwapCount = swapRequests.filter((s) => {
     const mgmtStatus = (s.management_status || s.status || 'pending').toLowerCase();
     const targetStatusRaw = (s.target_status && s.target_status !== 'pending' ? s.target_status : s.status) || '';
@@ -223,7 +243,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
 
   const totalPendingApproval = pendingSwapCount + pendingLeaveCount;
 
-  // 🚀 LOGIKA SMART AUTO-SWITCH TAB
+  // SMART AUTO-SWITCH TAB
   useEffect(() => {
     if (!loading) {
       if (pendingLeaveCount > 0 && pendingSwapCount === 0) {
@@ -234,7 +254,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
     }
   }, [pendingSwapCount, pendingLeaveCount, loading]);
 
-  // 🚀 UPDATE DENGAN DYNAMIC FALLBACK
+  // UPDATE DENGAN DYNAMIC FALLBACK
   const handleApproveSwap = async (swapId: number, status: 'approved' | 'rejected') => {
     try {
       const { error: primaryError } = await supabase
@@ -263,7 +283,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
     }
   };
 
-  // 🚀 ACC / TOLAK IZIN / CUTI
+  // ACC / TOLAK IZIN / CUTI
   const handleApproveLeave = async (leaveItem: LeaveRequest, status: 'approved' | 'rejected') => {
     if (status === 'approved') {
       try {
@@ -320,16 +340,16 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
       if (leaveItem.leave_type === 'Cuti') {
         const { data: staffData } = await supabase
           .from('staff')
-          .select('leave_quota')
+          .select('annual_leave_quota')
           .eq('staff_id', leaveItem.staff_id)
           .single();
 
-        const currentQuota = staffData?.leave_quota ?? 12;
+        const currentQuota = staffData?.annual_leave_quota ?? 12;
         const newQuota = Math.max(0, currentQuota - 1);
 
         await supabase
           .from('staff')
-          .update({ leave_quota: newQuota })
+          .update({ annual_leave_quota: newQuota })
           .eq('staff_id', leaveItem.staff_id);
       }
     }
@@ -345,11 +365,9 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
 
   const screenshotAttemptsCount = securityLogs.filter((l) => l.action_type.includes('SCREENSHOT')).length;
 
-  // 🚀 SMART HELPER: MENGHITUNG HARI MENDATANG TERDEKAT DARI CREATED_AT
   const formatFullDate = (rawDateStr?: string, createdAtStr?: string) => {
     if (!rawDateStr && !createdAtStr) return '-';
 
-    // 1. Jika rawDateStr sudah berbentuk format tanggal valid YYYY-MM-DD / ISO
     if (rawDateStr && rawDateStr.match(/\d{4}-\d{2}-\d{2}|\d{2}\/\d{2}\/\d{4}/)) {
       try {
         const d = new Date(rawDateStr);
@@ -366,7 +384,6 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
       }
     }
 
-    // 2. Jika rawDateStr berupa NAMA HARI (misal "Selasa")
     const dayNames = ['minggu', 'senin', 'selasa', 'rabu', 'kamis', 'jumat', 'sabtu'];
     const cleanDayInput = (rawDateStr || '').trim().toLowerCase();
     const targetDayIndex = dayNames.indexOf(cleanDayInput);
@@ -378,8 +395,6 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
           const currentDayIndex = baseDate.getDay();
           let diff = targetDayIndex - currentDayIndex;
 
-          // 💡 JIKA HARI TERSEBUT SUDAH LEWAT DI MINGGU INI (misal: buat Sabtu, minta Selasa),
-          // TAMBAHKAN 7 HARI agar menunjuk ke HARI SELASA MENDATANG (Selasa Depan)!
           if (diff <= 0) {
             diff += 7;
           }
@@ -395,14 +410,12 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
           });
         }
       } catch {
-        // Fallback jika terjadi error
+        // Fallback
       }
     }
 
-    // 3. Fallback jika rawDateStr teks biasa
     if (rawDateStr) return rawDateStr;
 
-    // 4. Fallback ke created_at jika rawDateStr kosong
     if (createdAtStr) {
       try {
         const d = new Date(createdAtStr);
@@ -521,7 +534,6 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
                           const formattedDateDisplay = formatFullDate(rawSwapDate, item.created_at);
                           const shiftInfo = item.requester_shift || item.shift_type || 'Shift';
 
-                          // Status Staf Pengganti
                           const targetStatusRaw = (item.target_status && item.target_status !== 'pending' ? item.target_status : item.status) || '';
                           const targetStatusLower = targetStatusRaw.toLowerCase();
 
@@ -550,7 +562,6 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
                               </td>
                               <td className="p-3 text-neutral-600 max-w-xs">{item.reason || '-'}</td>
                               
-                              {/* Status Staf Pengganti */}
                               <td className="p-3">
                                 <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
                                   isAcceptedByStaff
@@ -567,7 +578,6 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
                                 </span>
                               </td>
 
-                              {/* Action ACC Management */}
                               <td className="p-3 text-center">
                                 {isRejectedByStaff ? (
                                   <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-neutral-100 text-neutral-400">
@@ -803,7 +813,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
             </div>
           </div>
 
-          {/* LIVE SECURITY AUDIT & ON-DUTY MONITOR */}
+          {/* LIVE SECURITY AUDIT & ON-DUTY MONITOR (DENGAN TAMPILAN FOTO AVATAR) */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-[#111111] text-white rounded-3xl p-6 shadow-xl border border-neutral-800 space-y-4">
               <div className="flex justify-between items-center pb-3 border-b border-neutral-800">
@@ -869,9 +879,17 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {onDutyList.map((staf) => (
                     <div key={staf.id} className="p-3 bg-neutral-50 rounded-2xl border border-neutral-200 flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-[#111111] text-[#ffffff] flex items-center justify-center text-xs font-black shrink-0">
-                        {staf.staff_name.substring(0, 2).toUpperCase()}
-                      </div>
+                      {staf.avatar_url ? (
+                        <img
+                          src={staf.avatar_url}
+                          alt={staf.staff_name}
+                          className="w-9 h-9 rounded-xl object-cover border border-neutral-200 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-9 h-9 rounded-xl bg-[#111111] text-[#ffffff] flex items-center justify-center text-xs font-black shrink-0">
+                          {staf.staff_name.substring(0, 2).toUpperCase()}
+                        </div>
+                      )}
                       <div className="overflow-hidden">
                         <p className="font-extrabold text-xs text-[#111111] truncate">{staf.staff_name}</p>
                         <p className="text-[10px] text-neutral-400 capitalize">

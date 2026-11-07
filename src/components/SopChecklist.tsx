@@ -5,6 +5,7 @@ interface CurrentUser {
   name: string;
   role: 'management' | 'kasir' | 'bar' | 'dapur' | 'owner' | string;
   staff_id: string;
+  avatar_url?: string;
 }
 
 interface SopItem {
@@ -15,6 +16,7 @@ interface SopItem {
   is_completed: boolean;
   completed_by?: string | null;
   completed_at?: string | null;
+  completed_by_avatar?: string | null;
 }
 
 interface SopChecklistProps {
@@ -36,7 +38,12 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const rawRole = (currentUser?.role || '').toLowerCase();
-  const isManagementOrOwner = currentUser && (rawRole.includes('management') || rawRole.includes('owner'));
+  const isManagementOrOwner = currentUser && (
+    rawRole.includes('management') || 
+    rawRole.includes('owner') ||
+    currentUser.staff_id?.startsWith('MNG-') ||
+    currentUser.staff_id?.startsWith('OWN-')
+  );
   const currentShift = activeShift.toLowerCase().includes('night') ? 'night' : 'morning';
 
   useEffect(() => {
@@ -78,15 +85,33 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
     } else if (data) {
       const todayStr = new Date().toDateString();
 
+      // Ambil data avatar untuk staf yang menyelesaikan tugas
+      const completedNames = Array.from(new Set(data.map(item => item.completed_by).filter(Boolean)));
+      let avatarMap: { [name: string]: string } = {};
+
+      if (completedNames.length > 0) {
+        const { data: staffData } = await supabase
+          .from('staff')
+          .select('staff_name, first_name, avatar_url')
+          .in('staff_name', completedNames);
+
+        (staffData || []).forEach((s: any) => {
+          if (s.avatar_url) avatarMap[s.staff_name] = s.avatar_url;
+        });
+      }
+
       // MAPPING RESET OTOMATIS HARIAN:
       // Jika completed_at BUKAN hari ini, anggap is_completed = false
       const formattedTasks: SopItem[] = data.map(item => {
         const isToday = item.completed_at && new Date(item.completed_at).toDateString() === todayStr;
+        const completedName = isToday ? item.completed_by : null;
+
         return {
           ...item,
           is_completed: isToday ? Boolean(item.is_completed) : false,
-          completed_by: isToday ? item.completed_by : null,
+          completed_by: completedName,
           completed_at: isToday ? item.completed_at : null,
+          completed_by_avatar: completedName ? avatarMap[completedName] : undefined,
         };
       });
 
@@ -97,17 +122,24 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
 
   const toggleTask = async (id: number, currentStatus: boolean) => {
     const nextStatus = !currentStatus;
+    const actorName = currentUser?.name || 'Staf On-Duty';
+    const actorAvatar = currentUser?.avatar_url;
 
     // Optimistic UI Update biar responsif di layar lokal
     setTasks(prev =>
-      prev.map(t => (t.id === id ? { ...t, is_completed: nextStatus, completed_by: nextStatus ? (currentUser?.name || 'Staf On-Duty') : null } : t))
+      prev.map(t => (t.id === id ? {
+        ...t,
+        is_completed: nextStatus,
+        completed_by: nextStatus ? actorName : null,
+        completed_by_avatar: nextStatus ? actorAvatar : null,
+      } : t))
     );
 
     const { error } = await supabase
       .from('sop_checklists')
       .update({
         is_completed: nextStatus,
-        completed_by: nextStatus ? (currentUser?.name || 'Staf On-Duty') : null,
+        completed_by: nextStatus ? actorName : null,
         completed_at: nextStatus ? new Date().toISOString() : null,
       })
       .eq('id', id);
@@ -197,13 +229,21 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
               >
                 {task.task_name}
               </p>
-              <p className="text-[10px] text-neutral-400 flex items-center gap-1 flex-wrap mt-0.5">
+              <p className="text-[10px] text-neutral-400 flex items-center gap-1.5 flex-wrap mt-0.5">
                 <span className="font-bold text-neutral-600">{task.category}</span>
                 <span>•</span>
                 <span className="uppercase font-medium">{task.shift}</span>
                 {task.completed_by && (
-                  <span className="text-emerald-600 font-medium ml-1">
-                    • Oleh: {task.completed_by}
+                  <span className="text-emerald-600 font-semibold flex items-center gap-1 ml-1">
+                    • Oleh: 
+                    {task.completed_by_avatar ? (
+                      <img
+                        src={task.completed_by_avatar}
+                        alt={task.completed_by}
+                        className="w-3.5 h-3.5 rounded-full object-cover inline-block"
+                      />
+                    ) : null}
+                    <strong>{task.completed_by}</strong>
                   </span>
                 )}
               </p>

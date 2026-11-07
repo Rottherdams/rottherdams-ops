@@ -1,3 +1,18 @@
+/* Custom Utility Animations untuk Rottherdams Ops */
+@keyframes bounceShort {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+.animate-bounce-short {
+  animation: bounceShort 1.5s infinite;
+}
+
+/* Style Bawaan (Vite Boilerplate) */
 .counter {
   font-size: 16px;
   padding: 5px 10px;

@@ -1,14 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+
+interface CurrentUser {
+  staff_id: string;
+  name: string;
+  role: string;
+  avatar_url?: string;
+}
 
 interface LeaveRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  currentUser: {
-    id: string;
-    name: string;
-  };
+  currentUser: CurrentUser | null;
 }
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
@@ -20,13 +24,34 @@ export default function LeaveRequestModal({
   onSuccess,
   currentUser,
 }: LeaveRequestModalProps) {
-  const [leaveType, setLeaveType] = useState<'Izin' | 'Sakit' | 'Cuti'>('Izin');
+  const [leaveType, setLeaveType] = useState<'Cuti' | 'Sakit' | 'Izin Unpaid'>('Cuti');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [reason, setReason] = useState('');
   const [file, setFile] = useState<File | null>(null);
+  const [leaveQuota, setLeaveQuota] = useState<number>(12);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  useEffect(() => {
+    if (isOpen && currentUser?.staff_id) {
+      fetchLeaveQuota();
+    }
+  }, [isOpen, currentUser]);
+
+  // Ambil sisa kuota cuti tahunan staf dari Supabase
+  const fetchLeaveQuota = async () => {
+    if (!currentUser?.staff_id) return;
+    const { data } = await supabase
+      .from('staff')
+      .select('annual_leave_quota')
+      .eq('staff_id', currentUser.staff_id)
+      .single();
+
+    if (data && data.annual_leave_quota !== undefined && data.annual_leave_quota !== null) {
+      setLeaveQuota(data.annual_leave_quota);
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -59,16 +84,18 @@ export default function LeaveRequestModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!currentUser) return;
+
     setLoading(true);
     setErrorMessage('');
 
     try {
       let attachmentUrl = null;
 
-      // 1. Upload lampiran ke Supabase Storage (bucket leave-attachments)
+      // 1. Upload lampiran ke Supabase Storage (bucket leave-attachments) jika ada
       if (file) {
         const fileExt = file.name.split('.').pop();
-        const fileName = `${Date.now()}_${currentUser.id}.${fileExt}`;
+        const fileName = `${Date.now()}_${currentUser.staff_id}.${fileExt}`;
         const filePath = `leave_attachments/${fileName}`;
 
         const { error: uploadError } = await supabase.storage
@@ -86,18 +113,29 @@ export default function LeaveRequestModal({
         attachmentUrl = publicUrlData.publicUrl;
       }
 
-      // 2. Insert data ke tabel leave_requests
+      // 2. Ambil nama profil resmi staf dari Supabase
+      const { data: staffData } = await supabase
+        .from('staff')
+        .select('first_name, last_name, staff_name')
+        .eq('staff_id', currentUser.staff_id)
+        .single();
+
+      const displayName = staffData?.staff_name || 
+        (staffData?.first_name ? `${staffData.first_name} ${staffData.last_name || ''}`.trim() : currentUser.name);
+
+      // 3. Insert data ke tabel leave_requests
       const { error: insertError } = await supabase
         .from('leave_requests')
         .insert([
           {
-            staff_id: currentUser.id,
-            staff_name: currentUser.name,
+            staff_id: currentUser.staff_id,
+            staff_name: displayName,
+            role: currentUser.role,
             leave_type: leaveType,
             start_date: startDate,
             end_date: endDate,
-            reason: reason,
-            status: 'pending',
+            reason: reason.trim(),
+            status: 'Pending',
             attachment_url: attachmentUrl,
           },
         ]);
@@ -107,7 +145,7 @@ export default function LeaveRequestModal({
       }
 
       // Reset Form & Trigger Callback Sukses
-      setLeaveType('Izin');
+      setLeaveType('Cuti');
       setStartDate('');
       setEndDate('');
       setReason('');
@@ -122,59 +160,75 @@ export default function LeaveRequestModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-xl">
-        <div className="flex items-center justify-between border-b pb-3">
-          <h3 className="text-lg font-bold text-gray-800">📩 Form Pengajuan Izin / Sakit / Cuti</h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4">
+      <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-neutral-100 text-left animate-in fade-in zoom-in-95 duration-150">
+        <div className="flex justify-between items-center mb-4 pb-3 border-b border-neutral-100">
+          <div>
+            <span className="text-[10px] uppercase font-extrabold text-[#d22027] tracking-wider">
+              Form Pengajuan Resmi
+            </span>
+            <h3 className="text-lg font-black text-[#111111]">Pengajuan Cuti / Izin / Sakit</h3>
+          </div>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 font-semibold text-xl"
+            className="w-8 h-8 rounded-full bg-neutral-100 text-neutral-400 font-bold hover:bg-neutral-200 transition cursor-pointer flex items-center justify-center text-xs"
           >
             ✕
           </button>
         </div>
 
+        {/* Info Kuota Cuti */}
+        <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-2xl flex justify-between items-center">
+          <div>
+            <p className="text-[10px] uppercase font-bold text-purple-600">Sisa Kuota Cuti Tahunan</p>
+            <p className="text-xs font-black text-purple-900">{currentUser?.name}</p>
+          </div>
+          <span className="text-sm font-black text-purple-700 bg-purple-100 px-3 py-1 rounded-xl">
+            {leaveQuota} Hari
+          </span>
+        </div>
+
         {errorMessage && (
-          <div className="mt-3 rounded-md bg-red-50 p-3 text-sm text-red-600 font-medium">
+          <div className="mb-3 rounded-2xl bg-red-50 p-3 text-xs text-red-600 font-bold border border-red-200">
             ⚠️ {errorMessage}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
           {/* Tipe Pengajuan */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">Tipe Pengajuan</label>
+            <label className="block font-bold text-neutral-700 mb-1">Jenis Pengajuan:</label>
             <select
               value={leaveType}
               onChange={(e) => setLeaveType(e.target.value as any)}
-              className="mt-1 block w-full rounded-lg border border-gray-300 p-2 text-sm focus:border-emerald-500 focus:outline-none"
+              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2.5 font-bold text-neutral-800 focus:outline-none focus:border-[#d22027]"
               required
             >
-              <option value="Izin">Izin</option>
-              <option value="Sakit">Sakit</option>
-              <option value="Cuti">Cuti</option>
+              <option value="Cuti">🟣 Cuti Resmi Tahunan (Memotong Kuota)</option>
+              <option value="Sakit">🔵 Sakit (Memerlukan Surat Dokter)</option>
+              <option value="Izin Unpaid">🟡 Izin Unpaid (Tanpa Gaji)</option>
             </select>
           </div>
 
           {/* Tanggal Mulai & Selesai */}
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Tanggal Mulai</label>
+              <label className="block font-bold text-neutral-700 mb-1">Tanggal Mulai</label>
               <input
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-300 p-2 text-sm focus:border-emerald-500 focus:outline-none"
+                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 font-medium text-neutral-800 focus:outline-none focus:border-[#d22027]"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700">Tanggal Selesai</label>
+              <label className="block font-bold text-neutral-700 mb-1">Tanggal Selesai</label>
               <input
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className="mt-1 block w-full rounded-lg border border-gray-300 p-2 text-sm focus:border-emerald-500 focus:outline-none"
+                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 font-medium text-neutral-800 focus:outline-none focus:border-[#d22027]"
                 required
               />
             </div>
@@ -182,49 +236,49 @@ export default function LeaveRequestModal({
 
           {/* Alasan */}
           <div>
-            <label className="block text-sm font-medium text-gray-700">Alasan / Keterangan</label>
+            <label className="block font-bold text-neutral-700 mb-1">Alasan / Keterangan</label>
             <textarea
               rows={3}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Berikan alasan singkat..."
-              className="mt-1 block w-full rounded-lg border border-gray-300 p-2 text-sm focus:border-emerald-500 focus:outline-none"
+              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 font-medium text-neutral-800 focus:outline-none focus:border-[#d22027]"
               required
             />
           </div>
 
           {/* Upload Lampiran (Dengan Restriksi Extension & Size) */}
           <div>
-            <div className="flex justify-between items-center">
-              <label className="block text-sm font-medium text-gray-700">
-                Lampiran (Opsional - Surat Dokter / Bukti)
+            <div className="flex justify-between items-center mb-1">
+              <label className="block font-bold text-neutral-700">
+                Lampiran (Surat Dokter / Bukti)
               </label>
-              <span className="text-[10px] font-bold text-gray-400">Max 5MB</span>
+              <span className="text-[10px] font-bold text-neutral-400">Max 5MB</span>
             </div>
             <input
               type="file"
               accept=".jpg,.jpeg,.png,.webp,.pdf"
               onChange={handleFileChange}
-              className="mt-1 block w-full text-sm text-gray-500 file:mr-3 file:rounded-lg file:border-0 file:bg-emerald-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer"
+              className="w-full text-xs text-neutral-500 file:mr-3 file:rounded-xl file:border-0 file:bg-neutral-100 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-neutral-700 hover:file:bg-neutral-200 cursor-pointer"
             />
-            <p className="mt-1 text-[11px] text-gray-400">
+            <p className="mt-1 text-[10px] text-neutral-400">
               Format yang didukung: JPG, PNG, WEBP, PDF
             </p>
           </div>
 
           {/* Tombol Akses */}
-          <div className="mt-6 flex justify-end space-x-3 border-t pt-4">
+          <div className="pt-2 flex gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              className="flex-1 py-3 bg-neutral-100 text-neutral-600 font-bold rounded-xl hover:bg-neutral-200 transition cursor-pointer text-xs"
               disabled={loading}
             >
               Batal
             </button>
             <button
               type="submit"
-              className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:bg-emerald-300"
+              className="flex-1 py-3 bg-[#d22027] text-white font-bold rounded-xl hover:bg-[#b81b21] transition cursor-pointer shadow-md disabled:opacity-50 text-xs"
               disabled={loading}
             >
               {loading ? 'Mengirim...' : 'Kirim Pengajuan'}

@@ -8,12 +8,14 @@ interface LogItem {
   description: string;
   shift: string;
   created_by: string;
+  staff_id?: string;
+  avatar_url?: string;
   status: 'Pending' | 'Resolved';
   created_at: string;
 }
 
 interface HandoverLogProps {
-  currentUser: { name: string; role: string; staff_id: string } | null;
+  currentUser: { name: string; role: string; staff_id: string; avatar_url?: string } | null;
   onRequireLogin: () => void;
 }
 
@@ -36,14 +38,46 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
 
   const fetchLogs = async () => {
     setIsLoading(true);
-    const { data, error } = await supabase
+    
+    // 1. Ambil data catatan handover
+    const { data: logData, error } = await supabase
       .from('handover_logs')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (!error && data) {
-      setLogs(data);
+    if (error) {
+      console.error('Error fetching handover logs:', error.message);
+      setIsLoading(false);
+      return;
     }
+
+    if (logData && logData.length > 0) {
+      // 2. Ambil ID Staf unik dari log untuk mengambil avatar_url
+      const staffIds = Array.from(new Set(logData.map((l: any) => l.staff_id || l.created_by).filter(Boolean)));
+      
+      const { data: staffProfiles } = await supabase
+        .from('staff')
+        .select('staff_id, avatar_url, staff_name, first_name')
+        .or(`staff_id.in.(${staffIds.join(',')}),staff_name.in.(${staffIds.join(',')})`);
+
+      const avatarMap: { [key: string]: string } = {};
+      (staffProfiles || []).forEach((s: any) => {
+        if (s.avatar_url) {
+          avatarMap[s.staff_id] = s.avatar_url;
+          avatarMap[s.staff_name] = s.avatar_url;
+        }
+      });
+
+      const enrichedLogs = logData.map((item: any) => ({
+        ...item,
+        avatar_url: avatarMap[item.staff_id] || avatarMap[item.created_by] || undefined,
+      }));
+
+      setLogs(enrichedLogs);
+    } else {
+      setLogs([]);
+    }
+
     setIsLoading(false);
   };
 
@@ -60,16 +94,18 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
     if (!title.trim()) return;
 
     setIsSubmitting(true);
-    const { error } = await supabase.from('handover_logs').insert([
-      {
-        category,
-        title: title.trim(),
-        description: description.trim(),
-        shift,
-        created_by: currentUser?.name || 'Staff On-Duty',
-        status: 'Pending',
-      },
-    ]);
+
+    const newLogPayload = {
+      category,
+      title: title.trim(),
+      description: description.trim(),
+      shift,
+      created_by: currentUser?.name || 'Staff On-Duty',
+      staff_id: currentUser?.staff_id || null,
+      status: 'Pending',
+    };
+
+    const { error } = await supabase.from('handover_logs').insert([newLogPayload]);
 
     setIsSubmitting(false);
 
@@ -195,8 +231,21 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
               </div>
 
               <div className="pt-3 mt-2 border-t border-neutral-100 flex items-center justify-between">
-                <div className="text-[10px] text-neutral-500">
-                  <span className="font-bold text-neutral-700">{item.created_by}</span> • <span className="italic">{item.shift}</span>
+                <div className="flex items-center gap-2">
+                  {item.avatar_url ? (
+                    <img
+                      src={item.avatar_url}
+                      alt={item.created_by}
+                      className="w-6 h-6 rounded-full object-cover border border-neutral-200"
+                    />
+                  ) : (
+                    <div className="w-6 h-6 rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-bold text-[9px]">
+                      {item.created_by[0] || '👤'}
+                    </div>
+                  )}
+                  <div className="text-[10px] text-neutral-500">
+                    <span className="font-bold text-neutral-700">{item.created_by}</span> • <span className="italic">{item.shift}</span>
+                  </div>
                 </div>
 
                 <button

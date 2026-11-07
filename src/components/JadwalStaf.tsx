@@ -9,6 +9,7 @@ interface CurrentUser {
   name: string;
   role: 'management' | 'kasir' | 'bar' | 'dapur' | 'owner' | string;
   staff_id: string;
+  avatar_url?: string;
 }
 
 interface JadwalStafProps {
@@ -19,6 +20,9 @@ interface JadwalStafProps {
 interface StaffSummary {
   staff_id: string;
   staff_name: string;
+  first_name?: string;
+  last_name?: string;
+  avatar_url?: string;
   role: string;
   status: string;
   shifts: { [day: string]: string };
@@ -51,7 +55,13 @@ const getWeekDateRange = (weekNum: number) => {
   for (let i = 0; i < 7; i++) {
     const d = new Date(startDate);
     d.setDate(startDate.getDate() + i);
-    const dateStr = d.toISOString().split('T')[0];
+    
+    // Format YYYY-MM-DD Lokal
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    const dateStr = `${year}-${month}-${day}`;
+    
     weekDates.push(dateStr);
 
     const dayName = DAYS[i];
@@ -61,9 +71,17 @@ const getWeekDateRange = (weekNum: number) => {
     });
   }
 
+  // Format YYYY-MM-DD Lokal untuk start & end
+  const formatLocalIso = (dateObj: Date) => {
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  };
+
   return {
-    start: startDate.toISOString().split('T')[0],
-    end: endDate.toISOString().split('T')[0],
+    start: formatLocalIso(startDate),
+    end: formatLocalIso(endDate),
     weekDates,
     dateFormattedLabels
   };
@@ -91,6 +109,16 @@ const getTodayName = (): string => {
   return dayMap[dayIndex] || 'Senin';
 };
 
+// 🎯 HELPER VALIDASI PRESISI HARI INI
+const isSameDate = (dateString: string) => {
+  const today = new Date();
+  const y = today.getFullYear();
+  const m = String(today.getMonth() + 1).padStart(2, '0');
+  const d = String(today.getDate()).padStart(2, '0');
+  const todayFormatted = `${y}-${m}-${d}`;
+  return dateString === todayFormatted;
+};
+
 export default function JadwalStaf({ userRole = 'management', currentUser }: JadwalStafProps) {
   const [staffSummaries, setStaffSummaries] = useState<StaffSummary[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -113,9 +141,6 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
     (currentUser?.staff_id || '').startsWith('OWN-');
 
   const currentWeekNow = getCurrentWeekKey();
-  
-  // 🟢 Tanggal hari ini dalam format YYYY-MM-DD untuk validasi presisi
-  const todayDateStr = new Date().toISOString().split('T')[0];
 
   useEffect(() => {
     fetchSchedulesFromDatabase();
@@ -147,17 +172,17 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
       const { start, end, dateFormattedLabels } = getWeekDateRange(selectedWeek);
       setDateLabels(dateFormattedLabels);
 
-      // 2. Ambil Data Staf Operasional (Kecualikan Owner & Management)
+      // 2. Ambil Data Staf Operasional (Termasuk First Name, Last Name & Avatar URL)
       const { data: staffData, error: staffError } = await supabase
         .from('staff')
-        .select('staff_id, staff_name, role, status')
+        .select('staff_id, staff_name, first_name, last_name, avatar_url, role, status')
         .neq('status', 'Resign')
         .not('role', 'ilike', 'owner')
         .not('role', 'ilike', 'management');
 
       if (staffError) throw staffError;
 
-      // 3. Ambil Data Jadwal dari Tabel 'schedules' Berdasarkan Range Tanggal (start - end) & Filter Minggu
+      // 3. Ambil Data Jadwal dari Tabel 'schedules' Berdasarkan Range Tanggal & Filter Minggu
       const { data: scheduleData, error: scheduleError } = await supabase
         .from('schedules')
         .select('staff_id, staff_name, day, date, shift, week_number')
@@ -165,7 +190,7 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
 
       if (scheduleError) throw scheduleError;
 
-      // Map untuk Pencarian Jadwal Cepat (Penyamaan via Tanggal atau Nama Hari)
+      // Map untuk Pencarian Jadwal Cepat
       const scheduleMap: { [key: string]: string } = {};
       (scheduleData || []).forEach(item => {
         if (item.date) {
@@ -186,9 +211,12 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
         let total_off = 0;
         let hasAnyRestWarning = false;
 
+        const displayName = staf.staff_name || 
+          (staf.first_name ? `${staf.first_name} ${staf.last_name || ''}`.trim() : 'Staf');
+
         DAYS.forEach((day, idx) => {
           const shift = scheduleMap[`${staf.staff_id}_${day}`] 
-            || scheduleMap[`${staf.staff_name.toLowerCase()}_${day}`] 
+            || scheduleMap[`${displayName.toLowerCase()}_${day}`] 
             || 'OFF';
             
           shifts[day] = shift;
@@ -217,7 +245,10 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
 
         return {
           staff_id: staf.staff_id,
-          staff_name: staf.staff_name,
+          staff_name: displayName,
+          first_name: staf.first_name,
+          last_name: staf.last_name,
+          avatar_url: staf.avatar_url,
           role: staf.role,
           status: staf.status || 'Aktif',
           shifts,
@@ -335,8 +366,8 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
       {/* Tab Filter Hari untuk Tampilan Mobile */}
       <div className="md:hidden flex gap-1 overflow-x-auto pb-3 scrollbar-none mb-3 border-b border-neutral-100">
         {DAYS.map((day, idx) => {
-          // 🟢 Indikator Hari Ini HANYA aktif jika tanggal hari di minggu terpilih persis sama dengan tanggal hari ini
-          const isToday = currentSelectedWeekDates[idx] === todayDateStr;
+          // 🔴 Indikator Hari Ini HANYA aktif jika tanggal hari di minggu terpilih presisi hari ini
+          const isToday = isSameDate(currentSelectedWeekDates[idx]);
           const isActive = selectedDay === day;
 
           return (
@@ -386,7 +417,7 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
 
                   {/* HEADER HARI + TANGGAL PRESISI */}
                   {DAYS.map((day, idx) => {
-                    const isTodayHeader = currentSelectedWeekDates[idx] === todayDateStr;
+                    const isTodayHeader = isSameDate(currentSelectedWeekDates[idx]);
 
                     return (
                       <th key={day} className="p-3 text-center font-bold">
@@ -432,31 +463,46 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
                       )}
 
                       <td className="p-3 font-bold text-[#111111]">
-                        <div className="flex flex-col">
-                          <span className="flex items-center gap-1.5">
-                            {staff.staff_name}
-                            {isLoggedUser && (
-                              <span className="bg-[#d22027] text-white text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase">
-                                Anda
+                        <div className="flex items-center gap-2">
+                          {/* AVATAR PROFIL STAF */}
+                          {staff.avatar_url ? (
+                            <img
+                              src={staff.avatar_url}
+                              alt={staff.staff_name}
+                              className="w-6 h-6 rounded-full object-cover border border-neutral-200 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-neutral-200 text-neutral-600 flex items-center justify-center font-bold text-[9px] shrink-0">
+                              {staff.first_name?.[0] || staff.staff_name[0]}
+                            </div>
+                          )}
+
+                          <div className="flex flex-col">
+                            <span className="flex items-center gap-1.5">
+                              {staff.staff_name}
+                              {isLoggedUser && (
+                                <span className="bg-[#d22027] text-white text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase">
+                                  Anda
+                                </span>
+                              )}
+                            </span>
+
+                            {/* 🔒 PERINGATAN REST TIME HANYA UTK OWNER/MANAGEMENT */}
+                            {isManagement && staff.hasAnyRestWarning && (
+                              <span
+                                className="mt-0.5 text-[9px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded font-semibold w-max"
+                                title="Terdeteksi jadwal Shift 2 (Malam) disambung Shift 1 (Pagi)"
+                              >
+                                ⚠️ Rest Time &lt; 8 Jam
                               </span>
                             )}
-                          </span>
 
-                          {/* 🔒 PERINGATAN REST TIME HANYA UTK OWNER/MANAGEMENT */}
-                          {isManagement && staff.hasAnyRestWarning && (
-                            <span
-                              className="mt-0.5 text-[9px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded font-semibold w-max"
-                              title="Terdeteksi jadwal Shift 2 (Malam) disambung Shift 1 (Pagi)"
-                            >
-                              ⚠️ Rest Time &lt; 8 Jam
-                            </span>
-                          )}
-
-                          {isManagement && staff.status && staff.status !== 'Aktif' && (
-                            <span className="mt-0.5 inline-block px-1.5 py-0.5 text-[9px] rounded font-semibold bg-amber-100 text-amber-700 w-max">
-                              {staff.status}
-                            </span>
-                          )}
+                            {isManagement && staff.status && staff.status !== 'Aktif' && (
+                              <span className="mt-0.5 inline-block px-1.5 py-0.5 text-[9px] rounded font-semibold bg-amber-100 text-amber-700 w-max">
+                                {staff.status}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="p-3 text-neutral-500 capitalize">{staff.role}</td>
@@ -529,23 +575,39 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
                       : 'bg-neutral-50 border-neutral-200'
                   }`}
                 >
-                  <div>
-                    <h3 className="font-bold text-xs text-[#111111] flex items-center gap-1.5">
-                      {staff.staff_name}
-                      {isLoggedUser && (
-                        <span className="bg-[#d22027] text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase">
-                          Anda
+                  <div className="flex items-center gap-3">
+                    {/* AVATAR PROFIL MOBILE */}
+                    {staff.avatar_url ? (
+                      <img
+                        src={staff.avatar_url}
+                        alt={staff.staff_name}
+                        className="w-9 h-9 rounded-full object-cover border border-neutral-200 shrink-0"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-bold text-xs shrink-0">
+                        {staff.first_name?.[0] || staff.staff_name[0]}
+                      </div>
+                    )}
+
+                    <div>
+                      <h3 className="font-bold text-xs text-[#111111] flex items-center gap-1.5">
+                        {staff.staff_name}
+                        {isLoggedUser && (
+                          <span className="bg-[#d22027] text-white text-[9px] font-bold px-1.5 py-0.2 rounded-full uppercase">
+                            Anda
+                          </span>
+                        )}
+                      </h3>
+                      <p className="text-[10px] text-neutral-400 capitalize">{staff.role}</p>
+
+                      {isRestWarningToday && (
+                        <span className="mt-1 inline-block text-[9px] bg-amber-100 text-amber-800 border border-amber-300 font-bold px-2 py-0.5 rounded-full">
+                          ⚠️ Rest Time &lt; 8 Jam
                         </span>
                       )}
-                    </h3>
-                    <p className="text-[10px] text-neutral-400 capitalize">{staff.role}</p>
-
-                    {isRestWarningToday && (
-                      <span className="mt-1 inline-block text-[9px] bg-amber-100 text-amber-800 border border-amber-300 font-bold px-2 py-0.5 rounded-full">
-                        ⚠️ Rest Time &lt; 8 Jam
-                      </span>
-                    )}
+                    </div>
                   </div>
+
                   <span
                     className={`px-3 py-1 rounded-xl font-bold text-xs ${
                       isRestWarningToday
@@ -588,11 +650,9 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
         onClose={() => setIsLeaveModalOpen(false)}
         onSuccess={() => {
           alert('Pengajuan izin berhasil dikirim!');
+          fetchSchedulesFromDatabase();
         }}
-        currentUser={{
-          id: currentUser?.staff_id || '',
-          name: currentUser?.name || '',
-        }}
+        currentUser={currentUser || null}
       />
 
       {/* Modal Kotak Masuk & Status Notifikasi Karyawan */}

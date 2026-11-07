@@ -6,6 +6,7 @@ interface CurrentUser {
   name: string;
   role: 'management' | 'kasir' | 'bar' | 'dapur' | 'owner' | string;
   staff_id: string;
+  avatar_url?: string;
 }
 
 interface AttendanceRecord {
@@ -22,12 +23,14 @@ interface AttendanceRecord {
   photo_url?: string | null;
   is_fake_gps?: boolean | null;
   work_hours?: number;
+  avatar_url?: string;
 }
 
 interface StaffSummary {
   staff_id: string;
   staff_name: string;
   role: string;
+  avatar_url?: string;
   totalHadir: number;
   totalJamKerja: number;
   totalAlpha: number;
@@ -66,7 +69,7 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
     rawRole.includes('management') || 
     currentUser.staff_id?.startsWith('MNG-');
 
-  // 🚀 DEFAULT UNTUK OWNER: Otomatis pilih tab 'semua_staf' (Audit Tim) saat pertama kali buka
+  // DEFAULT UNTUK OWNER: Otomatis pilih tab 'semua_staf' (Audit Tim) saat pertama kali buka
   useEffect(() => {
     if (isOwner) {
       setViewMode('semua_staf');
@@ -83,36 +86,60 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
     if (!currentUser?.staff_id) return;
     const { data } = await supabase
       .from('staff')
-      .select('leave_quota')
+      .select('annual_leave_quota')
       .eq('staff_id', currentUser.staff_id)
       .single();
 
-    if (data && data.leave_quota !== undefined && data.leave_quota !== null) {
-      setMyLeaveQuota(data.leave_quota);
+    if (data && data.annual_leave_quota !== undefined && data.annual_leave_quota !== null) {
+      setMyLeaveQuota(data.annual_leave_quota);
     }
   };
 
   const fetchAttendances = async () => {
     setLoading(true);
 
-    const { data, error } = await supabase
+    // Ambil riwayat presensi & gabungkan dengan avatar staf dari tabel 'staff'
+    const { data: attendanceData, error } = await supabase
       .from('attendances')
       .select('*')
       .order('clock_in', { ascending: false });
 
     if (error) {
       console.error('Error fetching attendances:', error.message);
-    } else if (data) {
-      const processed = data.map((item: any) => {
+      setLoading(false);
+      return;
+    }
+
+    if (attendanceData && attendanceData.length > 0) {
+      const staffIds = Array.from(new Set(attendanceData.map((a: any) => a.staff_id).filter(Boolean)));
+      
+      // Ambil avatar_url dari tabel staff
+      const { data: staffProfiles } = await supabase
+        .from('staff')
+        .select('staff_id, avatar_url, first_name, last_name, staff_name')
+        .in('staff_id', staffIds);
+
+      const avatarMap: { [id: string]: string } = {};
+      (staffProfiles || []).forEach((s: any) => {
+        if (s.avatar_url) avatarMap[s.staff_id] = s.avatar_url;
+      });
+
+      const processed = attendanceData.map((item: any) => {
         let workHours = 0;
         if (item.clock_in && item.clock_out) {
           const start = new Date(item.clock_in).getTime();
           const end = new Date(item.clock_out).getTime();
           workHours = Math.max(0, parseFloat(((end - start) / (1000 * 60 * 60)).toFixed(2)));
         }
-        return { ...item, work_hours: workHours };
+        return {
+          ...item,
+          work_hours: workHours,
+          avatar_url: avatarMap[item.staff_id] || undefined,
+        };
       });
       setAttendances(processed);
+    } else {
+      setAttendances([]);
     }
     setLoading(false);
   };
@@ -199,6 +226,7 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
             staff_id: curr.staff_id,
             staff_name: curr.staff_name,
             role: curr.role,
+            avatar_url: curr.avatar_url,
             totalHadir: 0,
             totalJamKerja: 0,
             totalAlpha: 0,
@@ -217,7 +245,7 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
 
   const maxWorkHours = Math.max(...staffSummaries.map(s => s.totalJamKerja), 1);
 
-  // GAMIFIKASI PERSENTIL: Hitung berapa % staf operasional yang jam kerjanya lebih rendah dari pengguna saat ini
+  // GAMIFIKASI PERSENTIL
   useEffect(() => {
     if (staffSummaries.length > 1) {
       const otherStaff = staffSummaries.filter(s => s.staff_id !== currentUser.staff_id);
@@ -365,7 +393,7 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
               </select>
             </div>
 
-            {/* 🟢 SWITCH VIEW MODE: DUA TAB TETAP TAMPIL UNTUK SEMUA ROLE (Karyawan, Management, dan Owner) */}
+            {/* SWITCH VIEW MODE */}
             <div className="bg-neutral-100 p-1 rounded-2xl flex border border-neutral-200">
               <button
                 onClick={() => setViewMode('pribadi')}
@@ -390,10 +418,10 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
           </div>
         </div>
 
-        {/* TAMPILAN 1: AUDIT TIM & LEADERBOARD (Ditampilkan jika viewMode === 'semua_staf') */}
+        {/* TAMPILAN 1: AUDIT TIM & LEADERBOARD */}
         {viewMode === 'semua_staf' && isManagementOrOwner ? (
           <div className="space-y-6">
-            {/* 🏆 KOMPONEN LEADERBOARD & GAMIFICATION STAF */}
+            {/* LEADERBOARD & GAMIFICATION STAF */}
             <StaffLeaderboard />
 
             {/* AUDIT AKUMULASI JAM KERJA STAF */}
@@ -425,6 +453,13 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
                         <div className="flex justify-between items-center text-xs">
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-neutral-400 text-[11px]">#{idx + 1}</span>
+                            {staf.avatar_url ? (
+                              <img src={staf.avatar_url} alt={staf.staff_name} className="w-5 h-5 rounded-full object-cover" />
+                            ) : (
+                              <div className="w-5 h-5 rounded-full bg-neutral-700 text-white flex items-center justify-center text-[9px] font-bold">
+                                {staf.staff_name[0]}
+                              </div>
+                            )}
                             <span className="font-extrabold text-white">{staf.staff_name}</span>
                             <span className="text-[9px] px-2 py-0.5 bg-neutral-800 text-neutral-400 rounded-md uppercase font-mono">
                               {staf.role}
@@ -470,7 +505,7 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
 
             {renderPieChart(myStats)}
 
-            {/* KOTAK SKOR KEHADIRAN & BADGE GAMIFIKASI KEAKTIFAN */}
+            {/* KOTAK SKOR KEHADIRAN & BADGE GAMIFIKASI */}
             <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
               <div>
                 <div className="flex items-center gap-2">
@@ -568,8 +603,19 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
                       </td>
 
                       <td className="p-3.5">
-                        <p className="font-extrabold text-[#111111]">{item.staff_name}</p>
-                        <p className="text-[10px] text-neutral-400 font-mono">{item.staff_id}</p>
+                        <div className="flex items-center gap-2">
+                          {item.avatar_url ? (
+                            <img src={item.avatar_url} alt={item.staff_name} className="w-6 h-6 rounded-full object-cover shrink-0" />
+                          ) : (
+                            <div className="w-6 h-6 rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-bold text-[9px] shrink-0">
+                              {item.staff_name[0]}
+                            </div>
+                          )}
+                          <div>
+                            <p className="font-extrabold text-[#111111]">{item.staff_name}</p>
+                            <p className="text-[10px] text-neutral-400 font-mono">{item.staff_id}</p>
+                          </div>
+                        </div>
                       </td>
 
                       <td className="p-3.5 capitalize">
@@ -609,7 +655,6 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
                                   📍 Map ({Number(item.latitude).toFixed(3)}, {Number(item.longitude).toFixed(3)})
                                 </a>
 
-                                {/* INDIKATOR FAKE GPS / AUDIT GEOFENCING */}
                                 {item.is_fake_gps ? (
                                   <span className="text-[9px] bg-red-600 text-white font-black px-2 py-0.5 rounded-full animate-bounce">
                                     🚨 Fake GPS Detected

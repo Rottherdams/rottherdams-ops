@@ -2,10 +2,13 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 
 interface StaffMember {
-  id: number;
+  id?: number;
   staff_id: string;
   name?: string;
   staff_name?: string;
+  first_name?: string;
+  last_name?: string;
+  avatar_url?: string;
   role: string;
   points?: number;
   status?: string;
@@ -34,10 +37,10 @@ export default function StaffLeaderboard() {
   const fetchLeaderboardData = async () => {
     setLoading(true);
 
-    // 1. Ambil Data Staf Aktif
+    // 1. Ambil Data Staf Aktif (Termasuk Avatar, First Name, dan Last Name)
     const { data: staffData } = await supabase
       .from('staff')
-      .select('*')
+      .select('staff_id, staff_name, first_name, last_name, avatar_url, role, points, status')
       .order('points', { ascending: false });
 
     // 2. Ambil Data Presensi Bulan Ini
@@ -59,7 +62,7 @@ export default function StaffLeaderboard() {
       const filteredStaff = staffData.filter(staf => {
         const roleLower = String(staf.role || '').toLowerCase().trim();
         const idUpper = String(staf.staff_id || '').toUpperCase().trim();
-        const nameLower = String(staf.staff_name || staf.name || '').toLowerCase().trim();
+        const nameLower = String(staf.staff_name || staf.first_name || '').toLowerCase().trim();
 
         const isManagement = 
           roleLower.includes('management') || 
@@ -73,7 +76,7 @@ export default function StaffLeaderboard() {
           idUpper.startsWith('OWN');
 
         // Hanya masukkan staf jika BUKAN management & BUKAN owner
-        return !isManagement && !isOwner;
+        return !isManagement && !isOwner && staf.status !== 'Resign';
       });
 
       setStaffList(filteredStaff);
@@ -88,7 +91,8 @@ export default function StaffLeaderboard() {
   // Kalkulasi Skor Dinamis per Staf Lapangan
   const calculateCalculatedPoints = (staf: StaffMember) => {
     const basePoints = staf.points || 100;
-    const displayName = staf.staff_name || staf.name || staf.staff_id;
+    const displayName = staf.staff_name || 
+      (staf.first_name ? `${staf.first_name} ${staf.last_name || ''}`.trim() : staf.name || staf.staff_id);
 
     // Presensi
     const myAttendances = attendances.filter(a => a.staff_id === staf.staff_id);
@@ -182,6 +186,19 @@ export default function StaffLeaderboard() {
                   >
                     {isTop1 ? '🥇' : isTop2 ? '🥈' : isTop3 ? '🥉' : `#${rank}`}
                   </div>
+
+                  {/* Avatar Profil Staf */}
+                  {staf.avatar_url ? (
+                    <img
+                      src={staf.avatar_url}
+                      alt={staf.stats.displayName}
+                      className="w-10 h-10 rounded-full object-cover border-2 border-white shadow-xs shrink-0"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-bold text-xs shrink-0">
+                      {staf.first_name?.[0] || staf.stats.displayName[0]}
+                    </div>
+                  )}
 
                   {/* Informasi Staf */}
                   <div>

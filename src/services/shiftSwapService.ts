@@ -15,6 +15,8 @@ export interface ShiftSwapInput {
 export interface ShiftSwapRecord extends ShiftSwapInput {
   id: number;
   status: 'Pending' | 'Approved' | 'Rejected' | string;
+  target_status?: 'pending' | 'accepted' | 'rejected' | string;
+  management_status?: 'pending' | 'approved' | 'rejected' | string;
   created_at: string;
 }
 
@@ -24,7 +26,7 @@ export interface ShiftSwapRecord extends ShiftSwapInput {
 export const getActiveStaffOptions = async (currentStaffId: string) => {
   const { data, error } = await supabase
     .from('staff')
-    .select('staff_id, staff_name, role')
+    .select('staff_id, staff_name, first_name, last_name, avatar_url, role')
     .neq('status', 'Resign')
     .not('role', 'ilike', 'owner')
     .not('role', 'ilike', 'management');
@@ -33,8 +35,13 @@ export const getActiveStaffOptions = async (currentStaffId: string) => {
     throw new Error(`Gagal mengambil data staf: ${error.message}`);
   }
 
+  const formatted = data.map(s => ({
+    ...s,
+    staff_name: s.staff_name || (s.first_name ? `${s.first_name} ${s.last_name || ''}`.trim() : s.staff_id)
+  }));
+
   // Filter agar staf tidak memilih dirinya sendiri
-  return data.filter(s => String(s.staff_id) !== String(currentStaffId));
+  return formatted.filter(s => String(s.staff_id) !== String(currentStaffId));
 };
 
 /**
@@ -55,6 +62,8 @@ export const createShiftSwapRequest = async (input: ShiftSwapInput) => {
         target_shift: input.target_shift,
         reason: input.reason || 'Tukar shift operasional',
         status: 'Pending',
+        target_status: 'pending',
+        management_status: 'pending',
       },
     ])
     .select();
@@ -91,17 +100,47 @@ export const getShiftSwapRequests = async (staffId?: string, isManagement: boole
 };
 
 /**
- * Memperbarui status tukar shift (Approved / Rejected)
+ * Memperbarui respon permohonan dari Staf Target (Pintu 1)
+ */
+export const respondShiftSwapByTarget = async (
+  swapId: number,
+  response: 'accepted' | 'rejected'
+) => {
+  const targetStatusVal = response === 'accepted' ? 'accepted' : 'rejected';
+  const legacyStatusVal = response === 'accepted' ? 'Approved' : 'Rejected';
+
+  const { error } = await supabase
+    .from('shift_swaps')
+    .update({
+      target_status: targetStatusVal,
+      status: legacyStatusVal,
+    })
+    .eq('id', swapId);
+
+  if (error) {
+    throw new Error(`Gagal merespons tukar shift: ${error.message}`);
+  }
+
+  return true;
+};
+
+/**
+ * Memperbarui status tukar shift oleh Manajemen (Pintu 2)
  * Jika Approved, otomatis melakukan pertukaran jadwal di tabel schedules
  */
 export const updateShiftSwapStatus = async (
   swapItem: ShiftSwapRecord,
   newStatus: 'Approved' | 'Rejected'
 ) => {
+  const mgmtStatus = newStatus === 'Approved' ? 'approved' : 'rejected';
+
   // 1. Update status pengajuan di tabel shift_swaps
   const { error: updateError } = await supabase
     .from('shift_swaps')
-    .update({ status: newStatus })
+    .update({ 
+      status: newStatus,
+      management_status: mgmtStatus,
+    })
     .eq('id', swapItem.id);
 
   if (updateError) {

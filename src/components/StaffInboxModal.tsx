@@ -5,6 +5,7 @@ interface CurrentUser {
   name: string;
   role: string;
   staff_id: string;
+  avatar_url?: string;
 }
 
 interface StaffInboxModalProps {
@@ -24,6 +25,30 @@ export default function StaffInboxModal({ currentUser, isOpen, onClose, onUpdate
   useEffect(() => {
     if (isOpen) {
       fetchStaffInbox();
+
+      // ⚡ Realtime Listener untuk Update Status Inbox
+      const swapChannel = supabase
+        .channel('public:shift_swaps_inbox')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'shift_swaps' },
+          () => fetchStaffInbox()
+        )
+        .subscribe();
+
+      const leaveChannel = supabase
+        .channel('public:leave_requests_inbox')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'leave_requests' },
+          () => fetchStaffInbox()
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(swapChannel);
+        supabase.removeChannel(leaveChannel);
+      };
     }
   }, [isOpen]);
 
@@ -51,8 +76,41 @@ export default function StaffInboxModal({ currentUser, isOpen, onClose, onUpdate
         .eq('staff_id', currentUser.staff_id)
         .order('created_at', { ascending: false });
 
-      setIncomingSwaps(incomingData || []);
-      setMySwaps(mySwapData || []);
+      // Enrich Data Avatar
+      const allStaffIds = Array.from(
+        new Set([
+          ...(incomingData || []).map((i: any) => i.requester_staff_id),
+          ...(mySwapData || []).map((m: any) => m.target_staff_id),
+        ].filter(Boolean))
+      );
+
+      let avatarMap: { [id: string]: string } = {};
+
+      if (allStaffIds.length > 0) {
+        const { data: staffProfiles } = await supabase
+          .from('staff')
+          .select('staff_id, avatar_url')
+          .in('staff_id', allStaffIds);
+
+        (staffProfiles || []).forEach((s: any) => {
+          if (s.avatar_url) avatarMap[s.staff_id] = s.avatar_url;
+        });
+      }
+
+      setIncomingSwaps(
+        (incomingData || []).map((item: any) => ({
+          ...item,
+          requester_avatar: avatarMap[item.requester_staff_id],
+        }))
+      );
+
+      setMySwaps(
+        (mySwapData || []).map((item: any) => ({
+          ...item,
+          target_avatar: avatarMap[item.target_staff_id],
+        }))
+      );
+
       setMyLeaves(myLeaveData || []);
     } catch (err) {
       console.error('Error fetching staff inbox:', err);
@@ -61,7 +119,7 @@ export default function StaffInboxModal({ currentUser, isOpen, onClose, onUpdate
     }
   };
 
-  // 🚀 PERBAIKAN: Update target_status dan status sekaligus agar sinkron ke ManagementDashboard
+  // 🚀 Update target_status dan status sekaligus agar sinkron ke ManagementDashboard
   const handleRespondSwap = async (swapId: number, response: 'accepted' | 'rejected') => {
     try {
       const targetStatusVal = response === 'accepted' ? 'accepted' : 'rejected';
@@ -152,16 +210,30 @@ export default function StaffInboxModal({ currentUser, isOpen, onClose, onUpdate
 
                 return (
                   <div key={item.id} className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200 space-y-2">
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <p className="font-extrabold text-xs text-[#111111]">
-                          {item.requester_staff_name || item.requester_name} <span className="text-neutral-400 font-normal">minta tukar shift</span>
-                        </p>
-                        <p className="text-[11px] font-bold text-[#d22027] mt-0.5">
-                          📅 Jadwal: {item.swap_date || item.shift_date} ({item.requester_shift || item.shift_type})
-                        </p>
+                    <div className="flex justify-between items-start gap-2">
+                      <div className="flex items-center gap-2.5">
+                        {item.requester_avatar ? (
+                          <img
+                            src={item.requester_avatar}
+                            alt={item.requester_staff_name}
+                            className="w-8 h-8 rounded-full object-cover border border-neutral-200"
+                          />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-bold text-xs">
+                            {(item.requester_staff_name || item.requester_name)?.[0] || '👤'}
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-extrabold text-xs text-[#111111]">
+                            {item.requester_staff_name || item.requester_name} <span className="text-neutral-400 font-normal">minta tukar shift</span>
+                          </p>
+                          <p className="text-[11px] font-bold text-[#d22027] mt-0.5">
+                            📅 Jadwal: {item.swap_date || item.shift_date} ({item.requester_shift || item.shift_type})
+                          </p>
+                        </div>
                       </div>
-                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black ${
+
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-black shrink-0 ${
                         isAccepted ? 'bg-emerald-100 text-emerald-700' : isRejected ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
                       }`}>
                         {isAccepted ? '🟢 Kamu Setujui' : isRejected ? '❌ Kamu Tolak' : '⏳ Butuh Responmu'}
@@ -205,10 +277,20 @@ export default function StaffInboxModal({ currentUser, isOpen, onClose, onUpdate
                   <div className="space-y-2">
                     {mySwaps.map((sw) => (
                       <div key={sw.id} className="p-3 bg-neutral-50 rounded-2xl border border-neutral-200 text-xs flex justify-between items-center">
-                        <div>
-                          <p className="font-bold text-[#111111]">Tukar dengan: {sw.target_staff_name}</p>
-                          <p className="text-[10px] text-neutral-400">{sw.swap_date || sw.shift_date}</p>
+                        <div className="flex items-center gap-2">
+                          {sw.target_avatar ? (
+                            <img
+                              src={sw.target_avatar}
+                              alt={sw.target_staff_name}
+                              className="w-7 h-7 rounded-full object-cover border border-neutral-200"
+                            />
+                          ) : null}
+                          <div>
+                            <p className="font-bold text-[#111111]">Tukar dengan: {sw.target_staff_name}</p>
+                            <p className="text-[10px] text-neutral-400">{sw.swap_date || sw.shift_date}</p>
+                          </div>
                         </div>
+
                         <div className="text-right space-y-0.5">
                           <span className={`block px-2 py-0.5 rounded text-[9px] font-bold ${
                             (sw.target_status || '').toLowerCase().includes('accept') || (sw.status || '').toLowerCase() === 'approved' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'

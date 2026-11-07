@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 
-const TIMEOUT_MS = 5 * 60 * 1000; // 15 Menit
+const TIMEOUT_MS = 5 * 60 * 1000; // 5 Menit Idle Timeout
 
 export function useIdleLogout(onLogout: () => void, isLoggedIn: boolean) {
   // ✅ Menggunakan ReturnType<typeof setTimeout> agar ramah browser/Vite TypeScript
@@ -20,7 +20,7 @@ export function useIdleLogout(onLogout: () => void, isLoggedIn: boolean) {
     if (!isLoggedIn) return;
 
     // Event listener pendeteksi interaksi staf
-    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
+    const events = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart', 'visibilitychange'];
 
     events.forEach((event) => window.addEventListener(event, resetTimer));
     resetTimer(); // Jalankan timer awal

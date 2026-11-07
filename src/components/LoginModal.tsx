@@ -2,10 +2,17 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { recordLoginLog } from '../lib/security';
 
+interface UserSession {
+  name: string;
+  role: 'management' | 'kasir' | 'bar' | 'dapur' | string;
+  staff_id: string;
+  avatar_url?: string;
+}
+
 interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLoginSuccess: (user: { name: string; role: 'management' | 'kasir' | 'bar' | 'dapur'; staff_id: string }) => void;
+  onLoginSuccess: (user: UserSession) => void;
 }
 
 export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginModalProps) {
@@ -62,8 +69,10 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
 
   const handleLogin = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!username.trim()) {
-      setErrorMsg('Masukkan username terlebih dahulu!');
+    const queryTerm = username.trim();
+
+    if (!queryTerm) {
+      setErrorMsg('Masukkan username atau ID Staf terlebih dahulu!');
       return;
     }
     if (pin.length !== 4) {
@@ -74,16 +83,16 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
     setIsLoading(true);
     setErrorMsg('');
 
-    // Query ke Supabase mencocokkan Nama/Username (Case-Insensitive)
+    // Query ke Supabase: Cek staff_name, first_name, atau staff_id
     const { data, error } = await supabase
       .from('staff')
-      .select('staff_id, staff_name, role, pin, status')
-      .ilike('staff_name', username.trim())
-      .single();
+      .select('staff_id, staff_name, first_name, last_name, avatar_url, role, pin, status')
+      .or(`staff_name.ilike.${queryTerm},first_name.ilike.${queryTerm},staff_id.ilike.${queryTerm}`)
+      .maybeSingle();
 
     if (error || !data) {
       setIsLoading(false);
-      setErrorMsg('Username tidak ditemukan!');
+      setErrorMsg('Username atau ID Staf tidak ditemukan!');
       setPin('');
       return;
     }
@@ -109,10 +118,14 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
         ? 'management' 
         : (data.role.toLowerCase() as any) || 'bar';
 
-      const userSession = {
-        name: data.staff_name,
+      const displayName = data.staff_name || 
+        (data.first_name ? `${data.first_name} ${data.last_name || ''}`.trim() : data.staff_id);
+
+      const userSession: UserSession = {
+        name: displayName,
         role: mappedRole,
         staff_id: data.staff_id,
+        avatar_url: data.avatar_url || undefined,
       };
 
       // 🔐 REKAM LOG LOGIN KE SUPABASE (IP, GPS, DEVICE INFO)
@@ -151,7 +164,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
           <div>
             <h2 className="text-xl font-black text-[#111111]">Masuk Sistem Staf</h2>
             <p className="text-xs text-neutral-400 mt-0.5">
-              Masukkan Username dan 4 Digit PIN Anda
+              Masukkan Username / ID Staf dan 4 Digit PIN Anda
             </p>
           </div>
         </div>
@@ -163,11 +176,11 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
           <div className="space-y-4 text-left">
             <div>
               <label className="block text-xs font-bold text-neutral-700 mb-1.5">
-                Username / Nama Staf:
+                Username / ID Staf:
               </label>
               <input
                 type="text"
-                placeholder="Misal: Iqbal, Gilang, Renal"
+                placeholder="Misal: Yusuf, Rico, STF-001"
                 value={username}
                 onChange={e => {
                   setUsername(e.target.value);

@@ -4,7 +4,7 @@ import { supabase } from '../lib/supabase';
 interface ClockInModalProps {
   isOpen: boolean;
   onClose: () => void;
-  currentUser: { name: string; role: string; staff_id: string } | null;
+  currentUser: { name: string; role: string; staff_id: string; avatar_url?: string } | null;
   activeShift: 'morning' | 'night';
   onSuccess: () => void;
 }
@@ -244,7 +244,7 @@ export default function ClockInModal({
 
   if (!isOpen) return null;
 
-  // ☁️ 3. Proses Clock In + Upload Foto Selfie & Audit Metadata (TERSEDIA DETEKSI FAKE GPS)
+  // ☁️ 3. Proses Clock In + Upload Foto Selfie & Audit Metadata
   const handleClockIn = async () => {
     if (!currentUser) return;
     if (!photoBlob) {
@@ -255,6 +255,16 @@ export default function ClockInModal({
     setIsLoading(true);
 
     try {
+      // Ambil nama profil resmi dari Supabase staff
+      const { data: staffData } = await supabase
+        .from('staff')
+        .select('first_name, last_name, staff_name')
+        .eq('staff_id', currentUser.staff_id)
+        .single();
+
+      const staffDisplayName = staffData?.staff_name || 
+        (staffData?.first_name ? `${staffData.first_name} ${staffData.last_name || ''}`.trim() : currentUser.name);
+
       // A. Upload Foto ke Supabase Storage
       const fileName = `${currentUser.staff_id}_${Date.now()}.jpg`;
       const { data: storageData, error: storageError } = await supabase.storage
@@ -278,7 +288,7 @@ export default function ClockInModal({
       const { error } = await supabase.from('attendances').insert([
         {
           staff_id: currentUser.staff_id,
-          staff_name: currentUser.name,
+          staff_name: staffDisplayName,
           role: currentUser.role,
           shift: currentShiftLabel,
           latitude: location?.lat || null,

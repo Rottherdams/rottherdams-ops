@@ -3,7 +3,8 @@ import { supabase } from '../lib/supabase';
 export interface LeaveRequestInput {
   staff_id: string;
   staff_name: string;
-  leave_type: 'Izin' | 'Sakit' | 'Cuti';
+  role?: string;
+  leave_type: 'Cuti' | 'Sakit' | 'Izin Unpaid' | 'Izin' | string;
   start_date: string;
   end_date: string;
   reason: string;
@@ -12,10 +13,24 @@ export interface LeaveRequestInput {
 
 export interface LeaveRequestRecord extends LeaveRequestInput {
   id: number;
-  status: 'pending' | 'approved' | 'rejected' | string;
+  status: 'Pending' | 'approved' | 'rejected' | string;
   created_at: string;
   attachment_url: string | null;
 }
+
+/**
+ * Mengambil sisa kuota cuti tahunan staf dari Supabase
+ */
+export const getStaffLeaveQuota = async (staffId: string): Promise<number> => {
+  const { data, error } = await supabase
+    .from('staff')
+    .select('annual_leave_quota')
+    .eq('staff_id', String(staffId))
+    .single();
+
+  if (error || !data) return 12;
+  return data.annual_leave_quota ?? 12;
+};
 
 /**
  * Mengirimkan pengajuan izin/sakit/cuti baru ke Supabase
@@ -45,18 +60,29 @@ export const createLeaveRequest = async (input: LeaveRequestInput) => {
     attachmentUrl = publicUrlData.publicUrl;
   }
 
-  // 2. Insert record ke tabel leave_requests
+  // 2. Ambil nama resmi staf dari Supabase (Fallback)
+  const { data: staffData } = await supabase
+    .from('staff')
+    .select('first_name, last_name, staff_name')
+    .eq('staff_id', String(input.staff_id))
+    .single();
+
+  const displayName = staffData?.staff_name || 
+    (staffData?.first_name ? `${staffData.first_name} ${staffData.last_name || ''}`.trim() : input.staff_name);
+
+  // 3. Insert record ke tabel leave_requests
   const { data, error } = await supabase
     .from('leave_requests')
     .insert([
       {
         staff_id: String(input.staff_id),
-        staff_name: input.staff_name,
+        staff_name: displayName,
+        role: input.role || 'Staf',
         leave_type: input.leave_type,
         start_date: input.start_date,
         end_date: input.end_date,
-        reason: input.reason,
-        status: 'pending',
+        reason: input.reason.trim(),
+        status: 'Pending',
         attachment_url: attachmentUrl,
       },
     ])
@@ -107,11 +133,13 @@ export const getAllLeaveRequests = async () => {
  */
 export const updateLeaveStatus = async (
   requestId: number,
-  status: 'approved' | 'rejected'
+  status: 'approved' | 'rejected' | 'Approved' | 'Rejected'
 ) => {
+  const formattedStatus = status.toLowerCase() === 'approved' ? 'approved' : 'rejected';
+
   const { data, error } = await supabase
     .from('leave_requests')
-    .update({ status })
+    .update({ status: formattedStatus })
     .eq('id', requestId)
     .select();
 

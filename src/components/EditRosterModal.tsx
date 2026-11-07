@@ -11,6 +11,8 @@ interface EditRosterModalProps {
 interface StaffOption {
   staff_id: string;
   staff_name: string;
+  first_name?: string;
+  last_name?: string;
   role: string;
   status?: string;
 }
@@ -20,13 +22,13 @@ const SHIFTS = ['Shift 1', 'Shift 2', 'OFF'];
 
 // Data Staf Fallback jika di Supabase belum ada record tabel staff (Hanya Staf Operasional)
 const INITIAL_STAFF_OPTIONS: StaffOption[] = [
-  { staff_id: 'STF-001', staff_name: 'Yusuf', role: 'Dapur', status: 'Aktif' },
-  { staff_id: 'STF-002', staff_name: 'Indah', role: 'Dapur', status: 'Aktif' },
-  { staff_id: 'STF-003', staff_name: 'Tika', role: 'Dapur', status: 'Aktif' },
-  { staff_id: 'STF-004', staff_name: 'Rico', role: 'Bar & Server', status: 'Aktif' },
-  { staff_id: 'STF-005', staff_name: 'Jamil', role: 'Bar & Server', status: 'Aktif' },
-  { staff_id: 'STF-006', staff_name: 'Opang', role: 'Bar & Server', status: 'Aktif' },
-  { staff_id: 'STF-007', staff_name: 'Cece', role: 'Kasir', status: 'Aktif' },
+  { staff_id: 'STF-001', staff_name: 'Yusuf', first_name: 'Yusuf', role: 'Dapur', status: 'Aktif' },
+  { staff_id: 'STF-002', staff_name: 'Indah', first_name: 'Indah', role: 'Dapur', status: 'Aktif' },
+  { staff_id: 'STF-003', staff_name: 'Tika', first_name: 'Tika', role: 'Dapur', status: 'Aktif' },
+  { staff_id: 'STF-004', staff_name: 'Rico', first_name: 'Rico', role: 'Bar & Server', status: 'Aktif' },
+  { staff_id: 'STF-005', staff_name: 'Jamil', first_name: 'Jamil', role: 'Bar & Server', status: 'Aktif' },
+  { staff_id: 'STF-006', staff_name: 'Opang', first_name: 'Opang', role: 'Bar & Server', status: 'Aktif' },
+  { staff_id: 'STF-007', staff_name: 'Cece', first_name: 'Cece', role: 'Kasir', status: 'Aktif' },
 ];
 
 // Helper Function: Cek apakah role termasuk manajemen/owner
@@ -53,18 +55,23 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
   const fetchStaffList = async () => {
     const { data, error } = await supabase
       .from('staff')
-      .select('staff_id, staff_name, role, status')
+      .select('staff_id, staff_name, first_name, last_name, role, status')
       .order('staff_id', { ascending: true });
 
     if (!error && data && data.length > 0) {
-      // 🟢 Filter: Pegawai status Aktif / Izin (bukan Resign) DAN HANYA OPERASIONAL (Bukan Management & Owner)
+      // Filter: Pegawai status Aktif / Izin (bukan Resign) DAN HANYA OPERASIONAL (Bukan Management & Owner)
       const operationalStaff = data.filter(
         s => s.status !== 'Resign' && isOperationalStaff(s.role)
       );
 
       if (operationalStaff.length > 0) {
-        setStaffList(operationalStaff);
-        setSelectedStaffId(operationalStaff[0].staff_id);
+        const formattedStaff = operationalStaff.map(s => ({
+          ...s,
+          staff_name: s.staff_name || (s.first_name ? `${s.first_name} ${s.last_name || ''}`.trim() : s.staff_id),
+        }));
+
+        setStaffList(formattedStaff);
+        setSelectedStaffId(formattedStaff[0].staff_id);
         return;
       }
     }
@@ -86,11 +93,14 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
       return;
     }
 
+    const displayName = staffObj.staff_name || 
+      (staffObj.first_name ? `${staffObj.first_name} ${staffObj.last_name || ''}`.trim() : staffObj.staff_id);
+
     // Simpan / Update jadwal ke database Supabase
     const { error } = await supabase.from('schedules').upsert(
       {
         staff_id: staffObj.staff_id,
-        staff_name: staffObj.staff_name,
+        staff_name: displayName,
         role: staffObj.role,
         week_number: week,
         day: day,
@@ -137,11 +147,14 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
               onChange={e => setSelectedStaffId(e.target.value)}
               className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-bold text-neutral-800 focus:outline-none focus:border-[#d22027]"
             >
-              {staffList.map(s => (
-                <option key={s.staff_id} value={s.staff_id}>
-                  {s.staff_id} - {s.staff_name} ({s.role})
-                </option>
-              ))}
+              {staffList.map(s => {
+                const nameDisplay = s.staff_name || `${s.first_name || ''} ${s.last_name || ''}`.trim();
+                return (
+                  <option key={s.staff_id} value={s.staff_id}>
+                    {s.staff_id} - {nameDisplay} ({s.role})
+                  </option>
+                );
+              })}
             </select>
           </div>
 

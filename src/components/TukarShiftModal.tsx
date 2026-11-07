@@ -5,11 +5,15 @@ interface CurrentUser {
   name: string;
   role: string;
   staff_id: string;
+  avatar_url?: string;
 }
 
 interface StaffOption {
   staff_id: string;
   staff_name: string;
+  first_name?: string;
+  last_name?: string;
+  avatar_url?: string;
   role: string;
 }
 
@@ -25,6 +29,8 @@ interface SwapRequest {
   target_shift: string;
   reason: string;
   status: string;
+  target_status?: string;
+  management_status?: string;
   created_at: string;
 }
 
@@ -75,7 +81,10 @@ export default function TukarShiftModal({
   const [targetShift, setTargetShift] = useState('Memuat...');
   const [reason, setReason] = useState('');
 
-  const isManagement = currentUser?.role === 'management' || currentUser?.role === 'owner';
+  const isManagement = currentUser?.role?.toLowerCase().includes('management') || 
+                       currentUser?.role?.toLowerCase().includes('owner') ||
+                       currentUser?.staff_id?.startsWith('MNG-') ||
+                       currentUser?.staff_id?.startsWith('OWN-');
 
   // Ambil objek staf target berdasarkan ID yang dipilih
   const selectedTargetStaff = staffList.find(s => String(s.staff_id) === String(targetStaffId));
@@ -105,13 +114,17 @@ export default function TukarShiftModal({
   const fetchStaffList = async () => {
     const { data } = await supabase
       .from('staff')
-      .select('staff_id, staff_name, role')
+      .select('staff_id, staff_name, first_name, last_name, avatar_url, role')
       .neq('status', 'Resign')
       .not('role', 'ilike', 'owner')
       .not('role', 'ilike', 'management');
 
     if (data) {
-      setStaffList(data.filter(s => String(s.staff_id) !== String(currentUser?.staff_id)));
+      const formatted = data.map(s => ({
+        ...s,
+        staff_name: s.staff_name || (s.first_name ? `${s.first_name} ${s.last_name || ''}`.trim() : s.staff_id)
+      }));
+      setStaffList(formatted.filter(s => String(s.staff_id) !== String(currentUser?.staff_id)));
     }
   };
 
@@ -204,6 +217,8 @@ export default function TukarShiftModal({
       target_shift: targetShift,
       reason: reason || 'Tukar shift operasional',
       status: 'Pending',
+      target_status: 'pending',
+      management_status: 'pending',
     };
 
     const { error } = await supabase.from('shift_swaps').insert([newRequest]);
@@ -231,9 +246,14 @@ export default function TukarShiftModal({
 
     setLoading(true);
 
+    const mgmtStatus = status === 'Approved' ? 'approved' : 'rejected';
+
     const { error } = await supabase
       .from('shift_swaps')
-      .update({ status })
+      .update({ 
+        status,
+        management_status: mgmtStatus
+      })
       .eq('id', swapId);
 
     if (error) {

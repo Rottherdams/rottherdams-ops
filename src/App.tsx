@@ -18,6 +18,7 @@ export interface CurrentUser {
   name: string;
   role: 'management' | 'kasir' | 'bar' | 'dapur' | 'owner' | string;
   staff_id: string;
+  avatar_url?: string;
   status?: string;
 }
 
@@ -28,6 +29,7 @@ interface OnDutyStaff {
   role: string;
   shift: string;
   clock_in: string;
+  avatar_url?: string;
 }
 
 // ⏱️ Batas waktu idle auto-logout (5 Menit)
@@ -111,7 +113,24 @@ export default function App() {
       .order('clock_in', { ascending: false });
 
     if (data) {
-      setOnDutyList(data);
+      const staffIds = data.map(d => d.staff_id);
+      let avatarMap: { [id: string]: string } = {};
+
+      if (staffIds.length > 0) {
+        const { data: staffProfiles } = await supabase
+          .from('staff')
+          .select('staff_id, avatar_url')
+          .in('staff_id', staffIds);
+
+        (staffProfiles || []).forEach((s: any) => {
+          if (s.avatar_url) avatarMap[s.staff_id] = s.avatar_url;
+        });
+      }
+
+      setOnDutyList(data.map(d => ({
+        ...d,
+        avatar_url: avatarMap[d.staff_id],
+      })));
     }
   };
 
@@ -286,14 +305,23 @@ export default function App() {
                 >
                   <div className="text-right hidden sm:block">
                     <p className="text-xs font-bold leading-none">{currentUser.name}</p>
-                    {/* 🟢 MODIFIKASI: Menampilkan 'OWNER' secara spesifik jika role/staff_id Owner */}
                     <p className="text-[10px] text-white/80 mt-0.5 uppercase tracking-wider font-bold">
                       {formatDisplayRole(currentUser.role, currentUser.staff_id)}
                     </p>
                   </div>
-                  <div className="w-8 h-8 rounded-full bg-white/20 border border-white/40 flex items-center justify-center text-xs font-black shadow-inner">
-                    {currentUser.name.substring(0, 2).toUpperCase()}
-                  </div>
+
+                  {/* 🟢 AVATAR PROFIL STAF PADA NAVBAR */}
+                  {currentUser.avatar_url ? (
+                    <img
+                      src={currentUser.avatar_url}
+                      alt={currentUser.name}
+                      className="w-8 h-8 rounded-full object-cover border border-white/40 shadow-inner"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-white/20 border border-white/40 flex items-center justify-center text-xs font-black shadow-inner">
+                      {currentUser.name.substring(0, 2).toUpperCase()}
+                    </div>
+                  )}
                 </button>
               ) : (
                 <button
@@ -480,14 +508,27 @@ export default function App() {
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
                   {onDutyList.map(staf => (
-                    <div key={staf.id} className="bg-white p-3 rounded-2xl border border-neutral-200 shadow-2xs">
-                      <p className="text-xs font-black text-[#111111]">{staf.staff_name}</p>
-                      <p className="text-[10px] text-neutral-400 capitalize">
-                        {staf.role} • {staf.shift}
-                      </p>
-                      <p className="text-[9px] font-mono text-emerald-600 font-bold mt-1">
-                        In: {new Date(staf.clock_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA
-                      </p>
+                    <div key={staf.id} className="bg-white p-3 rounded-2xl border border-neutral-200 shadow-2xs flex items-center gap-2.5">
+                      {staf.avatar_url ? (
+                        <img
+                          src={staf.avatar_url}
+                          alt={staf.staff_name}
+                          className="w-7 h-7 rounded-full object-cover border border-neutral-200 shrink-0"
+                        />
+                      ) : (
+                        <div className="w-7 h-7 rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-bold text-[10px] shrink-0">
+                          {staf.staff_name[0]}
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-xs font-black text-[#111111] leading-tight">{staf.staff_name}</p>
+                        <p className="text-[10px] text-neutral-400 capitalize">
+                          {staf.role} • {staf.shift}
+                        </p>
+                        <p className="text-[9px] font-mono text-emerald-600 font-bold mt-0.5">
+                          In: {new Date(staf.clock_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA
+                        </p>
+                      </div>
                     </div>
                   ))}
                 </div>

@@ -1,7 +1,14 @@
 import { supabase } from './supabase';
 
+interface UserSessionPayload {
+  staff_id: string;
+  name: string;
+  role: string;
+  avatar_url?: string;
+}
+
 export const recordLoginLog = async (
-  user: { staff_id: string; name: string; role: string },
+  user: UserSessionPayload,
   actionType: 'LOGIN' | 'LOGOUT' | 'AUTO_LOGOUT_IDLE' = 'LOGIN'
 ) => {
   try {
@@ -45,7 +52,7 @@ export const recordLoginLog = async (
         staff_id: user.staff_id,
         staff_name: user.name,
         role: user.role,
-        action_type: actionType, // 📝 Kolom aksi baru
+        action_type: actionType, // 📝 Kolom aksi (LOGIN, LOGOUT, AUTO_LOGOUT_IDLE)
         ip_address: ipAddress,
         location_city: locationCity,
         latitude,

@@ -6,6 +6,7 @@ interface CurrentUser {
   role: string;
   staff_id: string;
   status?: string;
+  avatar_url?: string;
 }
 
 interface RecipeItem {
