@@ -52,9 +52,24 @@ export default function ScheduleGrid({
   const selectedDayIndex = days.indexOf(selectedDay);
 
   return (
-    <div className="text-left">
-      {/* Sliding Tab Hari Mobile */}
-      <div className="md:hidden relative flex gap-1 overflow-x-auto pb-3 scrollbar-none mb-3 border-b border-neutral-100">
+    <div className="text-left relative">
+      {/* 🌟 CSS GLOBAL MENYEMBUNYIKAN SCROLLBAR HORIZONTAL & VERTIKAL */}
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar,
+        .scrollbar-none::-webkit-scrollbar {
+          display: none !important;
+          width: 0px !important;
+          height: 0px !important;
+        }
+        .no-scrollbar,
+        .scrollbar-none {
+          -ms-overflow-style: none !important;
+          scrollbar-width: none !important;
+        }
+      `}</style>
+
+      {/* Sliding Tab Hari Mobile (Disembunyikan Scrollbar-nya) */}
+      <div className="md:hidden relative flex gap-1 overflow-x-auto pb-3 no-scrollbar scrollbar-none mb-3 border-b border-neutral-100">
         <div
           className="absolute top-0 h-[32px] bg-[#111111] rounded-xl transition-all duration-300 ease-out"
           style={{
@@ -91,11 +106,11 @@ export default function ScheduleGrid({
         })}
       </div>
 
-      {/* Tabel Desktop */}
-      <div key={`anim-${animKey}`} className="hidden md:block overflow-x-auto">
-        <table className="w-full text-left text-xs border-collapse">
+      {/* Tabel Desktop (Disembunyikan Scrollbar Horizontal & Vertikal) */}
+      <div key={`anim-${animKey}`} className="hidden md:block overflow-auto no-scrollbar scrollbar-none rounded-2xl max-h-[70vh]">
+        <table className="w-full text-left text-xs border-collapse min-w-[700px]">
           <thead>
-            <tr className="bg-[#111111] text-white">
+            <tr className="bg-[#111111] text-white sticky top-0 z-20">
               <th className="p-3 font-bold rounded-tl-xl animate-col-fade" style={{ animationDelay: '0ms' }}>
                 Nama Staf
               </th>

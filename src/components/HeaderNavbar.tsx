@@ -74,7 +74,7 @@ export default function HeaderNavbar({
                 <button
                   onClick={() => onNavChange('presensi')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    activeNav === 'presensi' ? 'bg-white text-[#d22027] shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'
+                    activeNav === 'presensi' ? 'bg-[#white] bg-white text-[#d22027] shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'
                   }`}
                 >
                   Presensi
@@ -118,9 +118,10 @@ export default function HeaderNavbar({
           <div className="relative shrink-0">
             {currentUser ? (
               <div className="flex items-center gap-2">
+                {/* Tombol Utama Profil: Mengklik area ini di HP / Desktop akan membuka User Menu */}
                 <button 
                   onClick={onToggleUserMenu}
-                  className="flex items-center gap-2.5 cursor-pointer hover:opacity-90 transition p-1 rounded-full md:rounded-xl hover:bg-black/10"
+                  className="flex items-center gap-2.5 cursor-pointer hover:opacity-90 transition p-1 rounded-full md:rounded-xl hover:bg-black/10 active:scale-95"
                 >
                   <div className="text-right hidden sm:block">
                     <p className="text-xs font-bold leading-none">{currentUser.name}</p>
@@ -133,19 +134,11 @@ export default function HeaderNavbar({
                     <img
                       src={currentUser.avatar_url}
                       alt={currentUser.name}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenAvatarPreview();
-                      }}
-                      className="w-8 h-8 rounded-full object-cover border border-white/40 shadow-inner hover:scale-105 transition transform cursor-pointer"
+                      className="w-8 h-8 rounded-full object-cover border border-white/40 shadow-inner hover:scale-105 transition transform pointer-events-none"
                     />
                   ) : (
                     <div 
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onOpenAvatarPreview();
-                      }}
-                      className="w-8 h-8 rounded-full bg-white/20 border border-white/40 flex items-center justify-center text-xs font-black shadow-inner cursor-pointer"
+                      className="w-8 h-8 rounded-full bg-white/20 border border-white/40 flex items-center justify-center text-xs font-black shadow-inner pointer-events-none"
                     >
                       {currentUser.name.substring(0, 2).toUpperCase()}
                     </div>
@@ -161,17 +154,36 @@ export default function HeaderNavbar({
               </button>
             )}
 
+            {/* Menu Dropdown Profil & Logout */}
             {isUserMenuOpen && currentUser && (
               <div
                 className={`absolute right-0 mt-2 w-56 bg-white text-[#111111] rounded-2xl shadow-2xl border border-neutral-100 py-2 z-50 ${
                   isClosingUserMenu ? 'user-dropdown-out' : 'user-dropdown-in'
                 }`}
               >
-                <div className="px-4 py-2 border-b border-neutral-100">
-                  <p className="text-xs font-bold">{currentUser.name}</p>
-                  <p className="text-[10px] text-neutral-400 font-mono uppercase mt-0.5">
-                    {currentUser.staff_id} • {formatDisplayRole(currentUser.role, currentUser.staff_id)}
-                  </p>
+                <div 
+                  onClick={() => {
+                    onOpenAvatarPreview();
+                  }}
+                  className="px-4 py-2.5 border-b border-neutral-100 flex items-center gap-3 hover:bg-neutral-50 transition cursor-pointer group"
+                >
+                  {currentUser.avatar_url ? (
+                    <img
+                      src={currentUser.avatar_url}
+                      alt={currentUser.name}
+                      className="w-9 h-9 rounded-full object-cover border border-neutral-200 shrink-0 group-hover:scale-105 transition"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-neutral-100 text-neutral-700 flex items-center justify-center text-xs font-black shrink-0">
+                      {currentUser.name.substring(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="overflow-hidden">
+                    <p className="text-xs font-bold text-[#111111] truncate">{currentUser.name}</p>
+                    <p className="text-[10px] text-neutral-400 font-mono uppercase truncate mt-0.5">
+                      {currentUser.staff_id} • {formatDisplayRole(currentUser.role, currentUser.staff_id)}
+                    </p>
+                  </div>
                 </div>
 
                 <button

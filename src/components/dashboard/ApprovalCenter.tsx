@@ -58,9 +58,24 @@ export default function ApprovalCenter({
 }: ApprovalCenterProps) {
   return (
     <div 
-      className="animate-section-fade bg-white rounded-3xl p-6 border-2 border-[#d22027]/20 shadow-md space-y-4"
+      className="animate-section-fade bg-white rounded-3xl p-6 border-2 border-[#d22027]/20 shadow-md space-y-4 text-left"
       style={{ animationDelay: '100ms' }}
     >
+      {/* 🌟 CSS SEMBUNYIKAN SCROLLBAR PUSAT PERSETUJUAN */}
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar,
+        .scrollbar-none::-webkit-scrollbar {
+          display: none !important;
+          width: 0px !important;
+          height: 0px !important;
+        }
+        .no-scrollbar,
+        .scrollbar-none {
+          -ms-overflow-style: none !important;
+          scrollbar-width: none !important;
+        }
+      `}</style>
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-neutral-100">
         <div>
           <h3 className="font-black text-base text-[#111111] flex items-center gap-2">
@@ -106,8 +121,8 @@ export default function ApprovalCenter({
             {sortedSwapRequests.length === 0 ? (
               <p className="text-xs text-neutral-400 italic py-6 text-center">Belum ada pengajuan tukar shift.</p>
             ) : (
-              <div className="overflow-x-auto max-h-[340px] overflow-y-auto pr-1">
-                <table className="w-full text-left text-xs relative border-collapse">
+              <div className="overflow-auto no-scrollbar scrollbar-none max-h-[340px] rounded-2xl border border-neutral-200/80">
+                <table className="w-full text-left text-xs border-collapse min-w-[650px]">
                   <thead className="sticky top-0 bg-neutral-100 text-neutral-700 font-bold border-b border-neutral-200 z-10">
                     <tr>
                       <th className="p-3">Pemohon</th>
@@ -226,8 +241,8 @@ export default function ApprovalCenter({
             {sortedLeaveRequests.length === 0 ? (
               <p className="text-xs text-neutral-400 italic py-6 text-center">Belum ada pengajuan izin atau sakit.</p>
             ) : (
-              <div className="overflow-x-auto max-h-[340px] overflow-y-auto pr-1">
-                <table className="w-full text-left text-xs relative border-collapse">
+              <div className="overflow-auto no-scrollbar scrollbar-none max-h-[340px] rounded-2xl border border-neutral-200/80">
+                <table className="w-full text-left text-xs border-collapse min-w-[650px]">
                   <thead className="sticky top-0 bg-neutral-100 text-neutral-700 font-bold border-b border-neutral-200 z-10">
                     <tr>
                       <th className="p-3">Nama Staf</th>
