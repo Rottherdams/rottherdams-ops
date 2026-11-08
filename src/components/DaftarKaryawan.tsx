@@ -100,7 +100,7 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     if (!error && data && data.length > 0) {
       const normalizedData = data.map((item: any) => ({
         ...item,
-        staff_name: item.staff_name || item.first_name || item.name || '',
+        staff_name: item.staff_name || item.first_name || '',
       }));
       setStaffList(normalizedData as StaffItem[]);
     }
@@ -117,7 +117,7 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     return `${prefix}${String(nextNum).padStart(3, '0')}`;
   };
 
-  // Tambah Karyawan Baru ke Supabase
+  // Tambah Karyawan Baru ke Supabase (FIX: Tanpa kolom 'name')
   const handleAddStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFirstName.trim() || !newStaffPin.trim()) {
@@ -142,7 +142,6 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
         first_name: newFirstName.trim(),
         last_name: newLastName.trim(),
         staff_name: displayName,
-        name: displayName,
         phone_number: newPhoneNumber.trim(),
         email: newEmail.trim(),
         telegram_chat_id: newTelegramId.trim(),
@@ -163,7 +162,7 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     setSaving(false);
   };
 
-  // Update Detail Karyawan
+  // Update Detail Karyawan (FIX: Tanpa kolom 'name')
   const handleUpdateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingStaff) return;
@@ -177,7 +176,6 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
         first_name: editingStaff.first_name,
         last_name: editingStaff.last_name,
         staff_name: displayName,
-        name: displayName,
         phone_number: editingStaff.phone_number,
         email: editingStaff.email,
         telegram_chat_id: editingStaff.telegram_chat_id,
