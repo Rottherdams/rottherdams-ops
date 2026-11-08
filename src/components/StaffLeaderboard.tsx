@@ -28,7 +28,13 @@ export default function StaffLeaderboard() {
   const [staffList, setStaffList] = useState<StaffMember[]>([]);
   const [attendances, setAttendances] = useState<AttendanceRecord[]>([]);
   const [sopLogs, setSopLogs] = useState<SopRecord[]>([]);
+  
+  // State Kontrol Animasi
   const [loading, setLoading] = useState(true);
+  const [isLoaderFadingOut, setIsLoaderFadingOut] = useState(false);
+  
+  // State untuk menghitung jumlah item yang sudah muncul satu per satu
+  const [visibleCount, setVisibleCount] = useState<number>(0);
 
   useEffect(() => {
     fetchLeaderboardData();
@@ -36,8 +42,10 @@ export default function StaffLeaderboard() {
 
   const fetchLeaderboardData = async () => {
     setLoading(true);
+    setIsLoaderFadingOut(false);
+    setVisibleCount(0);
 
-    // 1. Ambil Data Staf Aktif (Termasuk Avatar, First Name, dan Last Name)
+    // 1. Ambil Data Staf Aktif
     const { data: staffData } = await supabase
       .from('staff')
       .select('staff_id, staff_name, first_name, last_name, avatar_url, role, points, status')
@@ -57,6 +65,8 @@ export default function StaffLeaderboard() {
       .select('completed_by, status')
       .gte('created_at', startOfMonth);
 
+    let countStaff = 0;
+
     if (staffData) {
       // 🚫 FILTER KETAT: EXCLUDE MANAGEMENT & OWNER DARI LEADERBOARD STAF
       const filteredStaff = staffData.filter(staf => {
@@ -72,24 +82,45 @@ export default function StaffLeaderboard() {
           roleLower.includes('hrd') ||
           roleLower.includes('finance') ||
           idUpper.startsWith('MNG') ||
-          nameLower.includes('renal'); // Safety check tambahan
+          nameLower.includes('renal');
 
         const isOwner = 
           roleLower.includes('owner') || 
           roleLower.includes('own') || 
           idUpper.startsWith('OWN');
 
-        // Hanya masukkan staf jika BUKAN management & BUKAN owner
         return !isManagementOrExecutive && !isOwner && staf.status !== 'Resign';
       });
 
       setStaffList(filteredStaff);
+      countStaff = filteredStaff.length;
     }
 
     if (attData) setAttendances(attData);
     if (sopData) setSopLogs(sopData);
 
-    setLoading(false);
+    // 🚀 ALUR ANIMASI BERURUTAN
+    // Step 1: Loader fade-out menghilang mendatar
+    setTimeout(() => {
+      setIsLoaderFadingOut(true);
+
+      // Step 2: Unmount loader
+      setTimeout(() => {
+        setLoading(false);
+
+        // Step 3: Munculkan item Karyawan 1 per 1 dari atas ke bawah
+        if (countStaff > 0) {
+          let current = 0;
+          const interval = setInterval(() => {
+            current += 1;
+            setVisibleCount(current);
+            if (current >= countStaff) {
+              clearInterval(interval);
+            }
+          }, 120); // Efek jeda 120ms per karyawan (Karyawan A ➔ B ➔ C)
+        }
+      }, 300);
+    }, 400);
   };
 
   // Kalkulasi Skor Dinamis per Staf Lapangan
@@ -146,17 +177,26 @@ export default function StaffLeaderboard() {
         </span>
       </div>
 
+      {/* 🚀 1. ANIMASI FADE-OUT PADA TEKS MENGIUTKAN KONTEN */}
       {loading ? (
-        <div className="py-8 text-center text-xs text-neutral-400 animate-pulse">
-          Menghitung perolehan poin tim...
+        <div
+          className={`py-12 flex flex-col items-center justify-center gap-3 transition-all duration-300 ease-in-out transform ${
+            isLoaderFadingOut ? 'opacity-0 scale-95 -translate-y-2' : 'opacity-100 scale-100 translate-y-0'
+          }`}
+        >
+          <div className="w-7 h-7 border-3 border-amber-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-xs font-bold text-neutral-500 animate-pulse">
+            Menghitung perolehan poin tim...
+          </p>
         </div>
       ) : rankedStaff.length === 0 ? (
         <div className="py-8 text-center text-xs text-neutral-400">
           Belum ada data aktivitas staf lapangan bulan ini.
         </div>
       ) : (
+        /* 🚀 2. ITEM POP-UP BERURUTAN SATU PER SATU DENGAN SEQUENTIAL INTERVAL */
         <div className="space-y-3">
-          {rankedStaff.map((staf, rankIdx) => {
+          {rankedStaff.slice(0, visibleCount).map((staf, rankIdx) => {
             const rank = rankIdx + 1;
             const isTop1 = rank === 1;
             const isTop2 = rank === 2;
@@ -165,7 +205,7 @@ export default function StaffLeaderboard() {
             return (
               <div
                 key={staf.staff_id}
-                className={`p-4 rounded-2xl border transition flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 ${
+                className={`p-4 rounded-2xl border transition-all duration-500 ease-out flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 transform animate-in fade-in slide-in-from-bottom-5 ${
                   isTop1
                     ? 'bg-amber-50/60 border-amber-300 shadow-xs'
                     : isTop2

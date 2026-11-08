@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 
 interface CurrentUser {
@@ -32,14 +33,23 @@ export default function LeaveRequestModal({
   const [leaveQuota, setLeaveQuota] = useState<number>(12);
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isClosing, setIsClosing] = useState(false);
 
   useEffect(() => {
     if (isOpen && currentUser?.staff_id) {
+      setIsClosing(false);
       fetchLeaveQuota();
     }
   }, [isOpen, currentUser]);
 
-  // Ambil sisa kuota cuti tahunan staf dari Supabase
+  const handleAnimatedClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      onClose();
+      setIsClosing(false);
+    }, 250);
+  };
+
   const fetchLeaveQuota = async () => {
     if (!currentUser?.staff_id) return;
     const { data } = await supabase
@@ -60,7 +70,6 @@ export default function LeaveRequestModal({
     setErrorMessage('');
 
     if (selectedFile) {
-      // 1. Validasi Tipe File (MIME Type)
       if (!ALLOWED_TYPES.includes(selectedFile.type)) {
         setErrorMessage('Format file tidak didukung! Gunakan format JPG, PNG, WEBP, atau PDF.');
         e.target.value = '';
@@ -68,7 +77,6 @@ export default function LeaveRequestModal({
         return;
       }
 
-      // 2. Validasi Ukuran File (Maksimal 5 MB)
       if (selectedFile.size > MAX_FILE_SIZE) {
         setErrorMessage('Ukuran file terlalu besar! Maksimal ukuran file adalah 5 MB.');
         e.target.value = '';
@@ -92,7 +100,6 @@ export default function LeaveRequestModal({
     try {
       let attachmentUrl = null;
 
-      // 1. Upload lampiran ke Supabase Storage (bucket leave-attachments) jika ada
       if (file) {
         const fileExt = file.name.split('.').pop();
         const fileName = `${Date.now()}_${currentUser.staff_id}.${fileExt}`;
@@ -113,7 +120,6 @@ export default function LeaveRequestModal({
         attachmentUrl = publicUrlData.publicUrl;
       }
 
-      // 2. Ambil nama profil resmi staf dari Supabase
       const { data: staffData } = await supabase
         .from('staff')
         .select('first_name, last_name, staff_name')
@@ -123,7 +129,6 @@ export default function LeaveRequestModal({
       const displayName = staffData?.staff_name || 
         (staffData?.first_name ? `${staffData.first_name} ${staffData.last_name || ''}`.trim() : currentUser.name);
 
-      // 3. Insert data ke tabel leave_requests dengan role terstruktur
       const { error: insertError } = await supabase
         .from('leave_requests')
         .insert([
@@ -144,14 +149,18 @@ export default function LeaveRequestModal({
         throw new Error(insertError.message);
       }
 
-      // Reset Form & Trigger Callback Sukses
       setLeaveType('Cuti');
       setStartDate('');
       setEndDate('');
       setReason('');
       setFile(null);
-      onSuccess();
-      onClose();
+
+      setIsClosing(true);
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+        setIsClosing(false);
+      }, 250);
     } catch (err: any) {
       setErrorMessage(err.message || 'Terjadi kesalahan saat mengajukan izin.');
     } finally {
@@ -159,9 +168,34 @@ export default function LeaveRequestModal({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4">
-      <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-neutral-100 text-left animate-in fade-in zoom-in-95 duration-150">
+  return createPortal(
+    <div
+      className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 ${
+        isClosing ? 'animate-backdrop-out' : 'animate-backdrop-in'
+      }`}
+    >
+      <style>{`
+        @keyframes modalBackdropIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+        @keyframes modalBackdropOut { 0% { opacity: 1; } 100% { opacity: 0; } }
+        @keyframes modalContentIn {
+          0% { opacity: 0; transform: scale(0.92) translateY(12px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes modalContentOut {
+          0% { opacity: 1; transform: scale(1) translateY(0); }
+          100% { opacity: 0; transform: scale(0.95) translateY(8px); }
+        }
+        .animate-backdrop-in { animation: modalBackdropIn 0.3s ease-out forwards; }
+        .animate-backdrop-out { animation: modalBackdropOut 0.25s ease-in forwards; }
+        .animate-modal-in { animation: modalContentIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .animate-modal-out { animation: modalContentOut 0.25s ease-in forwards; }
+      `}</style>
+
+      <div
+        className={`bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-neutral-100 text-left my-auto ${
+          isClosing ? 'animate-modal-out' : 'animate-modal-in'
+        }`}
+      >
         <div className="flex justify-between items-center mb-4 pb-3 border-b border-neutral-100">
           <div>
             <span className="text-[10px] uppercase font-extrabold text-[#d22027] tracking-wider">
@@ -170,8 +204,8 @@ export default function LeaveRequestModal({
             <h3 className="text-lg font-black text-[#111111]">Pengajuan Cuti / Izin / Sakit</h3>
           </div>
           <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-neutral-100 text-neutral-400 font-bold hover:bg-neutral-200 transition cursor-pointer flex items-center justify-center text-xs"
+            onClick={handleAnimatedClose}
+            className="w-8 h-8 rounded-full bg-neutral-100 text-neutral-400 font-bold hover:bg-neutral-200 transition cursor-pointer flex items-center justify-center text-xs active:scale-90"
           >
             ✕
           </button>
@@ -200,7 +234,6 @@ export default function LeaveRequestModal({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs">
-          {/* Tipe Pengajuan */}
           <div>
             <label className="block font-bold text-neutral-700 mb-1">Jenis Pengajuan:</label>
             <select
@@ -215,7 +248,6 @@ export default function LeaveRequestModal({
             </select>
           </div>
 
-          {/* Tanggal Mulai & Selesai */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block font-bold text-neutral-700 mb-1">Tanggal Mulai</label>
@@ -239,7 +271,6 @@ export default function LeaveRequestModal({
             </div>
           </div>
 
-          {/* Alasan */}
           <div>
             <label className="block font-bold text-neutral-700 mb-1">Alasan / Keterangan</label>
             <textarea
@@ -252,7 +283,6 @@ export default function LeaveRequestModal({
             />
           </div>
 
-          {/* Upload Lampiran (Dengan Restriksi Extension & Size) */}
           <div>
             <div className="flex justify-between items-center mb-1">
               <label className="block font-bold text-neutral-700">
@@ -271,19 +301,18 @@ export default function LeaveRequestModal({
             </p>
           </div>
 
-          {/* Tombol Akses */}
           <div className="pt-2 flex gap-2">
             <button
               type="button"
-              onClick={onClose}
-              className="flex-1 py-3 bg-neutral-100 text-neutral-600 font-bold rounded-xl hover:bg-neutral-200 transition cursor-pointer text-xs"
+              onClick={handleAnimatedClose}
+              className="flex-1 py-3 bg-neutral-100 text-neutral-600 font-bold rounded-xl hover:bg-neutral-200 transition cursor-pointer text-xs active:scale-95"
               disabled={loading}
             >
               Batal
             </button>
             <button
               type="submit"
-              className="flex-1 py-3 bg-[#d22027] text-white font-bold rounded-xl hover:bg-[#b81b21] transition cursor-pointer shadow-md disabled:opacity-50 text-xs"
+              className="flex-1 py-3 bg-[#d22027] text-white font-bold rounded-xl hover:bg-[#b81b21] transition cursor-pointer shadow-md disabled:opacity-50 text-xs active:scale-95"
               disabled={loading}
             >
               {loading ? 'Mengirim...' : 'Kirim Pengajuan'}
@@ -291,6 +320,7 @@ export default function LeaveRequestModal({
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

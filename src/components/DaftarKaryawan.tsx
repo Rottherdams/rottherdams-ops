@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 
 interface CurrentUser {
@@ -29,7 +30,6 @@ interface DaftarKaryawanProps {
 type SortField = 'staff_id' | 'staff_name' | 'role' | 'status';
 type SortOrder = 'asc' | 'desc';
 
-// Daftar Role Resmi Rottherdams Ops
 const ROLE_OPTIONS = [
   { group: 'Executive & Management', options: [
     { value: 'owner', label: 'Owner / Co-Founder' },
@@ -102,6 +102,15 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
 
   const [editingStaff, setEditingStaff] = useState<StaffItem | null>(null);
 
+  // 🌟 State Nilai Animasi Counter
+  const [animatedTotal, setAnimatedTotal] = useState(0);
+  const [animatedActive, setAnimatedActive] = useState(0);
+  const [animatedResign, setAnimatedResign] = useState(0);
+
+  // 🌟 State Kontrol Kemunculan Card 2 & 3
+  const [showCard2, setShowCard2] = useState(false);
+  const [showCard3, setShowCard3] = useState(false);
+
   const rawRole = (currentUser?.role || '').toLowerCase();
   const isManagementOrOwner = 
     !currentUser || 
@@ -113,6 +122,81 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
   useEffect(() => {
     fetchStaff();
   }, []);
+
+  const totalTarget = staffList.length;
+  const activeTarget = staffList.filter(s => s.status === 'Aktif').length;
+  const resignTarget = staffList.filter(s => s.status === 'Resign').length;
+
+  // 🎬 RANTAI ANIMASI SEQUENTIAL PERFECT
+  useEffect(() => {
+    if (loading || totalTarget === 0) return;
+
+    // Reset State Awal
+    setAnimatedTotal(0);
+    setAnimatedActive(totalTarget);
+    setAnimatedResign(0);
+    setShowCard2(false);
+    setShowCard3(false);
+
+    // --- STEP 1: Card 1 (0 ➔ Total Target) [0ms - 500ms] ---
+    let start1: number | null = null;
+    const duration1 = 500;
+
+    const animateTotal = (ts: number) => {
+      if (!start1) start1 = ts;
+      const progress = Math.min((ts - start1) / duration1, 1);
+      setAnimatedTotal(Math.floor(progress * totalTarget));
+
+      if (progress < 1) {
+        requestAnimationFrame(animateTotal);
+      } else {
+        setAnimatedTotal(totalTarget);
+
+        // --- STEP 2: Card 2 (Total Karyawan ➔ Total Aktif) [500ms - 1000ms] ---
+        setShowCard2(true);
+        setTimeout(() => {
+          let start2: number | null = null;
+          const duration2 = 500;
+
+          const animateActive = (ts2: number) => {
+            if (!start2) start2 = ts2;
+            const p2 = Math.min((ts2 - start2) / duration2, 1);
+            const currentVal = Math.round(totalTarget - p2 * (totalTarget - activeTarget));
+            setAnimatedActive(currentVal);
+
+            if (p2 < 1) {
+              requestAnimationFrame(animateActive);
+            } else {
+              setAnimatedActive(activeTarget);
+
+              // --- STEP 3: Card 3 (0 ➔ Total Resign) [1000ms - 1400ms] ---
+              setShowCard3(true);
+              setTimeout(() => {
+                let start3: number | null = null;
+                const duration3 = 400;
+
+                const animateResign = (ts3: number) => {
+                  if (!start3) start3 = ts3;
+                  const p3 = Math.min((ts3 - start3) / duration3, 1);
+                  setAnimatedResign(Math.floor(p3 * resignTarget));
+
+                  if (p3 < 1) {
+                    requestAnimationFrame(animateResign);
+                  } else {
+                    setAnimatedResign(resignTarget);
+                  }
+                };
+                requestAnimationFrame(animateResign);
+              }, 50);
+            }
+          };
+          requestAnimationFrame(animateActive);
+        }, 50);
+      }
+    };
+
+    requestAnimationFrame(animateTotal);
+  }, [loading, totalTarget, activeTarget, resignTarget]);
 
   const fetchStaff = async () => {
     setLoading(true);
@@ -322,35 +406,54 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     return 0;
   });
 
-  const activeCount = staffList.filter(s => s.status === 'Aktif').length;
-  const resignCount = staffList.filter(s => s.status === 'Resign').length;
-
   return (
     <div className="space-y-6 text-left">
-      {/* CARD RINGKASAN SDM */}
+      {/* 🌟 KEYFRAMES ANIMASI SEQUENTIAL */}
+      <style>{`
+        @keyframes cardPopIn {
+          0% { opacity: 0; transform: scale(0.88) translateY(12px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes tableRowSlideIn {
+          0% { opacity: 0; transform: translateY(14px); }
+          100% { opacity: 1; transform: translateY(0); }
+        }
+        .animate-card-pop { animation: cardPopIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .animate-table-box { animation: cardPopIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) 1.4s forwards; opacity: 0; }
+      `}</style>
+
+      {/* CARD RINGKASAN SDM DENGAN SEQUENTIAL ANIMATION */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        <div className="bg-white p-5 rounded-3xl border border-neutral-100 shadow-sm">
+        {/* Card 1: Muncul Duluan (0 ➔ Total Target) */}
+        <div className="bg-white p-5 rounded-3xl border border-neutral-100 shadow-sm animate-card-pop">
           <span className="text-2xl">👥</span>
-          <p className="text-2xl font-black text-[#111111] mt-1">{staffList.length}</p>
+          <p className="text-2xl font-black text-[#111111] mt-1 font-mono">{animatedTotal}</p>
           <p className="text-xs font-bold text-neutral-400">Total Karyawan</p>
         </div>
 
-        <div className="bg-white p-5 rounded-3xl border border-neutral-100 shadow-sm">
-          <span className="text-2xl">🟢</span>
-          <p className="text-2xl font-black text-emerald-600 mt-1">{activeCount}</p>
-          <p className="text-xs font-bold text-neutral-400">Status Aktif</p>
-        </div>
+        {/* Card 2: Muncul setelah Card 1 selesai (Total Karyawan ➔ Total Aktif) */}
+        {showCard2 && (
+          <div className="bg-white p-5 rounded-3xl border border-neutral-100 shadow-sm animate-card-pop">
+            <span className="text-2xl">🟢</span>
+            <p className="text-2xl font-black text-emerald-600 mt-1 font-mono">{animatedActive}</p>
+            <p className="text-xs font-bold text-neutral-400">Status Aktif</p>
+          </div>
+        )}
 
-        <div className="bg-white p-5 rounded-3xl border border-neutral-100 shadow-sm col-span-2 sm:col-span-1">
-          <span className="text-2xl">🔴</span>
-          <p className="text-2xl font-black text-red-600 mt-1">{resignCount}</p>
-          <p className="text-xs font-bold text-neutral-400">Resign / Non-Aktif</p>
-        </div>
+        {/* Card 3: Muncul setelah Card 2 selesai (0 ➔ Total Resign) */}
+        {showCard3 && (
+          <div className="bg-white p-5 rounded-3xl border border-neutral-100 shadow-sm col-span-2 sm:col-span-1 animate-card-pop">
+            <span className="text-2xl">🔴</span>
+            <p className="text-2xl font-black text-red-600 mt-1 font-mono">{animatedResign}</p>
+            <p className="text-xs font-bold text-neutral-400">Resign / Non-Aktif</p>
+          </div>
+        )}
       </div>
 
-      <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-neutral-100">
+      {/* TABEL DATA KARYAWAN */}
+      <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-neutral-100 animate-table-box">
         {/* Header & Controls */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 pb-4 border-b border-neutral-100">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-6 pb-4 border-b border-neutral-100">
           <div>
             <h2 className="text-xl font-black text-[#111111]">Daftar & Data Karyawan Rottherdams</h2>
             <p className="text-xs text-neutral-400 mt-0.5">
@@ -358,7 +461,7 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
             </p>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap w-full sm:w-auto">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
             {/* Dropdown Sorting */}
             <div className="flex items-center gap-2 bg-neutral-50 p-1.5 rounded-2xl border border-neutral-200">
               <span className="text-[11px] font-bold text-neutral-500 pl-2">Urutkan:</span>
@@ -385,7 +488,7 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
             {isManagementOrOwner && (
               <button
                 onClick={() => setIsAddModalOpen(true)}
-                className="px-4 py-2 bg-[#d22027] hover:bg-red-700 text-white rounded-2xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 flex items-center gap-1.5"
+                className="px-4 py-2.5 bg-[#d22027] hover:bg-red-700 text-white rounded-2xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 flex items-center justify-center gap-1.5 whitespace-nowrap"
               >
                 <span>➕</span> Tambah Staf Baru
               </button>
@@ -430,13 +533,22 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-100">
-                {sortedStaffList.map(staff => {
+                {sortedStaffList.map((staff, index) => {
                   const fullName = staff.first_name 
                     ? `${staff.first_name} ${staff.last_name || ''}`.trim()
                     : staff.staff_name;
 
+                  const delay = 1500 + index * 60;
+
                   return (
-                    <tr key={staff.staff_id} className="hover:bg-neutral-50 transition">
+                    <tr
+                      key={staff.staff_id}
+                      className="hover:bg-neutral-50 transition"
+                      style={{
+                        animation: `tableRowSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms forwards`,
+                        opacity: 0,
+                      }}
+                    >
                       <td className="p-3.5 font-mono text-neutral-400 font-bold">{staff.staff_id}</td>
                       <td className="p-3.5">
                         <div className="flex items-center gap-2.5">
@@ -537,10 +649,10 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
         )}
       </div>
 
-      {/* MODAL TAMBAH KARYAWAN */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-neutral-200 space-y-4 text-left my-8">
+      {/* 🌟 MODAL TAMBAH KARYAWAN (Dirennder lewat Portal) */}
+      {isAddModalOpen && createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-neutral-200 space-y-4 text-left my-8 animate-card-pop">
             <div className="flex justify-between items-center pb-3 border-b border-neutral-100">
               <h3 className="font-black text-base text-[#111111]">➕ Tambah Karyawan Baru</h3>
               <button onClick={() => setIsAddModalOpen(false)} className="text-neutral-400 hover:text-black font-bold text-sm cursor-pointer">
@@ -677,13 +789,14 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* MODAL EDIT KARYAWAN */}
-      {editingStaff && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-neutral-200 space-y-4 text-left my-8">
+      {/* 🌟 MODAL EDIT KARYAWAN (Dirennder lewat Portal) */}
+      {editingStaff && createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-neutral-200 space-y-4 text-left my-8 animate-card-pop">
             <div className="flex justify-between items-center pb-3 border-b border-neutral-100">
               <h3 className="font-black text-base text-[#111111]">✏️ Edit Data Staf ({editingStaff.staff_id})</h3>
               <button onClick={() => setEditingStaff(null)} className="text-neutral-400 hover:text-black font-bold text-sm cursor-pointer">
@@ -789,7 +902,8 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

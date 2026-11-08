@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 
 interface EditRosterModalProps {
@@ -20,7 +21,6 @@ interface StaffOption {
 const DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 const SHIFTS = ['Shift 1', 'Shift 2', 'OFF'];
 
-// Data Staf Fallback jika di Supabase belum ada record tabel staff (Hanya Staf Operasional)
 const INITIAL_STAFF_OPTIONS: StaffOption[] = [
   { staff_id: 'STF-001', staff_name: 'Yusuf', first_name: 'Yusuf', role: 'dapur', status: 'Aktif' },
   { staff_id: 'STF-002', staff_name: 'Indah', first_name: 'Indah', role: 'dapur', status: 'Aktif' },
@@ -31,7 +31,6 @@ const INITIAL_STAFF_OPTIONS: StaffOption[] = [
   { staff_id: 'STF-007', staff_name: 'Cece', first_name: 'Cece', role: 'kasir', status: 'Aktif' },
 ];
 
-// Helper Function: Cek apakah role termasuk manajemen/owner/eksekutif
 const isOperationalStaff = (roleStr: string) => {
   const r = (roleStr || '').toLowerCase();
   return (
@@ -52,13 +51,23 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
   const [day, setDay] = useState<string>('Senin');
   const [shift, setShift] = useState<string>('Shift 1');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [isClosing, setIsClosing] = useState<boolean>(false);
 
   useEffect(() => {
     setWeek(selectedWeek);
     if (isOpen) {
+      setIsClosing(false);
       fetchStaffList();
     }
   }, [isOpen, selectedWeek]);
+
+  const handleAnimatedClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      onClose();
+      setIsClosing(false);
+    }, 250);
+  };
 
   const fetchStaffList = async () => {
     const { data, error } = await supabase
@@ -67,7 +76,6 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
       .order('staff_id', { ascending: true });
 
     if (!error && data && data.length > 0) {
-      // Filter: Pegawai status Aktif / Izin (bukan Resign) DAN HANYA OPERASIONAL (Bukan Executive/Management/Owner)
       const operationalStaff = data.filter(
         s => s.status !== 'Resign' && isOperationalStaff(s.role)
       );
@@ -84,7 +92,6 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
       }
     }
 
-    // Jika tabel staff di Supabase belum dibuat/kosong, gunakan data fallback operasional
     setStaffList(INITIAL_STAFF_OPTIONS);
     setSelectedStaffId(INITIAL_STAFF_OPTIONS[0].staff_id);
   };
@@ -104,7 +111,6 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
     const displayName = staffObj.staff_name || 
       (staffObj.first_name ? `${staffObj.first_name} ${staffObj.last_name || ''}`.trim() : staffObj.staff_id);
 
-    // Simpan / Update jadwal ke database Supabase
     const { error } = await supabase.from('schedules').upsert(
       {
         staff_id: staffObj.staff_id,
@@ -122,14 +128,43 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
     if (error) {
       alert('Gagal memperbarui roster: ' + error.message);
     } else {
-      onSuccess();
-      onClose();
+      setIsClosing(true);
+      setTimeout(() => {
+        onSuccess();
+        onClose();
+        setIsClosing(false);
+      }, 250);
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-      <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-neutral-100 animate-in fade-in zoom-in-95 duration-150">
+  return createPortal(
+    <div
+      className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 ${
+        isClosing ? 'animate-backdrop-out' : 'animate-backdrop-in'
+      }`}
+    >
+      <style>{`
+        @keyframes modalBackdropIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+        @keyframes modalBackdropOut { 0% { opacity: 1; } 100% { opacity: 0; } }
+        @keyframes modalContentIn {
+          0% { opacity: 0; transform: scale(0.92) translateY(12px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes modalContentOut {
+          0% { opacity: 1; transform: scale(1) translateY(0); }
+          100% { opacity: 0; transform: scale(0.95) translateY(8px); }
+        }
+        .animate-backdrop-in { animation: modalBackdropIn 0.3s ease-out forwards; }
+        .animate-backdrop-out { animation: modalBackdropOut 0.25s ease-in forwards; }
+        .animate-modal-in { animation: modalContentIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .animate-modal-out { animation: modalContentOut 0.25s ease-in forwards; }
+      `}</style>
+
+      <div
+        className={`bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-neutral-100 my-auto ${
+          isClosing ? 'animate-modal-out' : 'animate-modal-in'
+        }`}
+      >
         <div className="flex justify-between items-center mb-5 pb-3 border-b border-neutral-100">
           <div>
             <span className="text-[10px] uppercase font-bold text-[#d22027] tracking-wider">
@@ -138,16 +173,15 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
             <h3 className="text-lg font-bold text-[#111111]">Update Roster Kerja</h3>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleAnimatedClose}
             type="button"
-            className="w-8 h-8 rounded-full bg-neutral-100 text-neutral-500 font-bold hover:bg-neutral-200 transition cursor-pointer flex items-center justify-center text-sm"
+            className="w-8 h-8 rounded-full bg-neutral-100 text-neutral-500 font-bold hover:bg-neutral-200 transition cursor-pointer flex items-center justify-center text-sm active:scale-90"
           >
             ✕
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs text-left">
-          {/* Pilih Karyawan (Hanya Staf Operasional FOH & BOH) */}
           <div>
             <label className="block font-bold text-neutral-700 mb-1">Pilih Staf Operasional:</label>
             <select
@@ -168,7 +202,6 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
           </div>
 
           <div className="grid grid-cols-2 gap-3">
-            {/* Pilih Minggu */}
             <div>
               <label className="block font-bold text-neutral-700 mb-1">Minggu Ke-:</label>
               <select
@@ -184,7 +217,6 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
               </select>
             </div>
 
-            {/* Pilih Hari */}
             <div>
               <label className="block font-bold text-neutral-700 mb-1">Hari:</label>
               <select
@@ -201,7 +233,6 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
             </div>
           </div>
 
-          {/* Pilih Shift */}
           <div>
             <label className="block font-bold text-neutral-700 mb-1">Shift Kerja:</label>
             <div className="grid grid-cols-3 gap-2">
@@ -226,25 +257,25 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
             </div>
           </div>
 
-          {/* Action Buttons */}
           <div className="pt-3 flex gap-2">
             <button
               type="button"
-              onClick={onClose}
-              className="flex-1 py-3 bg-neutral-100 text-neutral-600 font-bold rounded-xl hover:bg-neutral-200 transition cursor-pointer"
+              onClick={handleAnimatedClose}
+              className="flex-1 py-3 bg-neutral-100 text-neutral-600 font-bold rounded-xl hover:bg-neutral-200 transition cursor-pointer active:scale-95"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 py-3 bg-[#d22027] text-white font-bold rounded-xl hover:bg-[#b81b21] transition cursor-pointer shadow-md disabled:opacity-50"
+              className="flex-1 py-3 bg-[#d22027] text-white font-bold rounded-xl hover:bg-[#b81b21] transition cursor-pointer shadow-md disabled:opacity-50 active:scale-95"
             >
               {isSubmitting ? 'Menyimpan...' : 'Simpan Shift'}
             </button>
           </div>
         </form>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

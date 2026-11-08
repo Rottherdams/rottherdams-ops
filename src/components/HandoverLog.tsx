@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 
 interface LogItem {
@@ -154,6 +155,24 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
 
   return (
     <div className="space-y-6 text-left">
+      {/* 🌟 CSS Keyframes Animasi Staggered Entrance Per Kartu */}
+      <style>{`
+        @keyframes handoverCardSlideUp {
+          0% {
+            opacity: 0;
+            transform: translateY(14px) scale(0.98);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        .handover-card-fade {
+          animation: handoverCardSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          opacity: 0;
+        }
+      `}</style>
+
       {/* Header section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-neutral-50 p-5 rounded-3xl border border-neutral-200">
         <div>
@@ -199,11 +218,12 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
           <p className="text-[11px] text-neutral-400 mt-0.5">Klik "Buat Catatan" untuk menambah pesan baru.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredLogs.map(item => (
+        <div key={filterCategory} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filteredLogs.map((item, index) => (
             <div
               key={item.id}
-              className={`p-5 rounded-3xl border transition shadow-2xs relative flex flex-col justify-between ${
+              style={{ animationDelay: `${index * 60}ms` }}
+              className={`handover-card-fade p-5 rounded-3xl border transition duration-200 shadow-2xs relative flex flex-col justify-between ${
                 item.status === 'Resolved'
                   ? 'bg-neutral-50/70 border-neutral-200 opacity-75'
                   : 'bg-white border-neutral-200 hover:border-neutral-300'
@@ -259,7 +279,7 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
 
                 <button
                   onClick={() => handleToggleStatus(item.id, item.status)}
-                  className={`px-3 py-1 rounded-xl text-[10px] font-bold transition cursor-pointer ${
+                  className={`px-3 py-1 rounded-xl text-[10px] font-bold transition cursor-pointer active:scale-95 ${
                     item.status === 'Resolved'
                       ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
                       : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
@@ -273,10 +293,10 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
         </div>
       )}
 
-      {/* Modal Buat Catatan Handover */}
-      {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-neutral-100 animate-in fade-in zoom-in-95 duration-200 relative">
+      {/* Modal Buat Catatan Handover (Portal ke document.body) */}
+      {isModalOpen && createPortal(
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-neutral-100 animate-in fade-in zoom-in-95 duration-150 relative text-left my-auto">
             <button
               onClick={() => setIsModalOpen(false)}
               className="absolute right-4 top-4 w-8 h-8 rounded-full bg-neutral-100 text-neutral-400 font-bold hover:bg-neutral-200 transition cursor-pointer flex items-center justify-center text-xs"
@@ -356,7 +376,8 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

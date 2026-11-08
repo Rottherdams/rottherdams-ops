@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 
 interface CurrentUser {
@@ -31,8 +32,9 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
   const [unlockedRecipeId, setUnlockedRecipeId] = useState<number | null>(null);
   const [screenshotWarning, setScreenshotWarning] = useState(false);
 
-  // State Pop-Up Peringatan Kerahasiaan
+  // State Pop-Up Peringatan Kerahasiaan dengan Animasi Out
   const [showWarningModal, setShowWarningModal] = useState(true);
+  const [isClosingModal, setIsClosingModal] = useState(false);
 
   // State Modal Tambah Resep
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -196,6 +198,15 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
     setUnlockedRecipeId(null); // Langsung Blur seketika saat jari terlepas dari layar HP
   };
 
+  // 🚪 FUNGSI DENGAN ANIMASI CLOSE MODAL PERINGATAN KERAHASIAAN
+  const handleCloseWarningModal = () => {
+    setIsClosingModal(true);
+    setTimeout(() => {
+      setShowWarningModal(false);
+      setIsClosingModal(false);
+    }, 300); // Tunda 300ms agar animasi exit selesaikan tugasnya
+  };
+
   const handleAddRecipe = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
@@ -284,6 +295,50 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
       onCopy={(e) => e.preventDefault()}
       onContextMenu={(e) => e.preventDefault()}
     >
+      {/* 🌟 CSS Keyframes Animasi Modal Entry & Exit */}
+      <style>{`
+        @keyframes backdropFadeIn {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
+        }
+        @keyframes backdropFadeOut {
+          0% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        @keyframes modalSmoothIn {
+          0% {
+            opacity: 0;
+            transform: scale(0.92) translateY(16px);
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+        @keyframes modalSmoothOut {
+          0% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+          100% {
+            opacity: 0;
+            transform: scale(0.95) translateY(10px);
+          }
+        }
+        .animate-backdrop-in {
+          animation: backdropFadeIn 0.35s ease-out forwards;
+        }
+        .animate-backdrop-out {
+          animation: backdropFadeOut 0.3s ease-in forwards;
+        }
+        .animate-modal-in {
+          animation: modalSmoothIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .animate-modal-out {
+          animation: modalSmoothOut 0.3s ease-in forwards;
+        }
+      `}</style>
+
       {/* 🌊 DYNAMIC WATERMARK MELAYANG DI LAYAR */}
       {currentUser && (
         <div className="pointer-events-none fixed inset-0 z-30 flex flex-col justify-between p-6 opacity-[0.06] rotate-[-15deg] overflow-hidden">
@@ -305,10 +360,14 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
         </div>
       )}
       
-      {/* POP-UP MODAL PERINGATAN KERAHASIAAN DOKUMEN */}
-      {showWarningModal && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4">
-          <div className="bg-[#0f0f0f] border-2 border-red-600 rounded-3xl p-6 max-w-lg w-full text-white shadow-2xl relative text-left">
+      {/* POP-UP MODAL PERINGATAN KERAHASIAAN DOKUMEN DENGAN ANIMASI HALUS IN & OUT */}
+      {showWarningModal && createPortal(
+        <div className={`fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-4 ${
+          isClosingModal ? 'animate-backdrop-out' : 'animate-backdrop-in'
+        }`}>
+          <div className={`bg-[#0f0f0f] border-2 border-red-600 rounded-3xl p-6 max-w-lg w-full text-white shadow-2xl relative text-left my-auto ${
+            isClosingModal ? 'animate-modal-out' : 'animate-modal-in'
+          }`}>
             <div className="flex items-center gap-2 mb-3 bg-red-600 text-white font-black text-xs sm:text-sm px-3.5 py-1.5 rounded-xl w-fit uppercase tracking-wider">
               <span>⚠️</span> PERINGATAN KERAHASIAAN DOKUMEN <span>⚠️</span>
             </div>
@@ -342,13 +401,14 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
             </p>
 
             <button
-              onClick={() => setShowWarningModal(false)}
+              onClick={handleCloseWarningModal}
               className="w-full py-3.5 bg-[#d22027] hover:bg-[#bb2026] active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg transition cursor-pointer text-center"
             >
               Saya Mengerti & Setuju
             </button>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* BANNER PERINGATAN KERAHASIAAN DOKUMEN HEADER */}
@@ -509,9 +569,9 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
       )}
 
       {/* Modal Pop-Up Tambah Resep */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-neutral-100 text-left">
+      {isAddModalOpen && createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 animate-backdrop-in">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-neutral-100 text-left animate-modal-in my-auto">
             <h3 className="text-base font-black text-[#111111] mb-1">Tambah Resep Baru</h3>
             <p className="text-xs text-neutral-400 mb-4">Masukkan resep baru untuk divisi Bar atau Kitchen.</p>
 
@@ -597,7 +657,8 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

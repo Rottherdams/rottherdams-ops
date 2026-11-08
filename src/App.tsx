@@ -5,6 +5,7 @@ import DaftarKaryawan from './components/DaftarKaryawan';
 import LoginModal from './components/LoginModal';
 import HandoverLog from './components/HandoverLog';
 import ClockInModal from './components/ClockInModal';
+import ClockOutModal from './components/ClockOutModal';
 import BukuResep from './components/BukuResep';
 import EditProfileModal from './components/EditProfileModal';
 import ManagementDashboard from './components/ManagementDashboard';
@@ -41,6 +42,10 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState<'morning' | 'night'>(defaultShift);
   const [activeNav, setActiveNav] = useState<'home' | 'sop' | 'resep' | 'jadwal' | 'karyawan' | 'handover' | 'dashboard' | 'presensi'>('home');
+  
+  // 🚀 STATE UNTUK ANIMASI TRANSISI FADE PERPINDAHAN PAGE NAVBAR
+  const [isPageFading, setIsPageFading] = useState<boolean>(false);
+
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false); // Drawer "Lainnya" Mobile
   
@@ -51,10 +56,21 @@ export default function App() {
   const [isLoginOpen, setIsLoginOpen] = useState<boolean>(false);
 
   const [isClockInOpen, setIsClockInOpen] = useState<boolean>(false);
+  const [showClockOutModal, setShowClockOutModal] = useState<boolean>(false); // 🚪 State Modal Clock Out
   const [onDutyList, setOnDutyList] = useState<OnDutyStaff[]>([]);
   const [isClockingOut, setIsClockingOut] = useState<boolean>(false);
 
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 🚀 HELPER PERPINDAHAN TAB DENGAN EFEK SMOOTH FADE TRANSITION
+  const handleNavChange = (newNav: typeof activeNav) => {
+    if (newNav === activeNav) return;
+    setIsPageFading(true);
+    setTimeout(() => {
+      setActiveNav(newNav);
+      setIsPageFading(false);
+    }, 150); // Transisi 150ms agar mengalir mulus
+  };
 
   // 👑 Helper Formatting Role Kanan Atas
   const formatDisplayRole = (role?: string, staffId?: string): string => {
@@ -92,7 +108,7 @@ export default function App() {
     const activityEvents = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'];
     activityEvents.forEach(event => window.addEventListener(event, resetIdleTimer));
 
-    resetIdleTimer(); // Start initial timer
+    resetIdleTimer();
 
     return () => {
       if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
@@ -108,7 +124,6 @@ export default function App() {
         const parsedUser: CurrentUser = JSON.parse(savedUser);
         setCurrentUser(parsedUser);
 
-        // Ambil data profil terbaru dari Supabase untuk sinkronisasi avatar antar device
         if (parsedUser.staff_id) {
           fetchUserProfile(parsedUser.staff_id, parsedUser);
         }
@@ -185,7 +200,7 @@ export default function App() {
 
     localStorage.removeItem('rottherdams_user');
     setCurrentUser(null);
-    setActiveNav('home');
+    handleNavChange('home');
     setIsUserMenuOpen(false);
     setIsMoreMenuOpen(false);
   };
@@ -206,12 +221,9 @@ export default function App() {
     ? onDutyList.find(item => item.staff_id === currentUser.staff_id)
     : null;
 
-  const handleDirectClockOut = async () => {
+  // 🚪 HANDLER KONFIRMASI CLOCK OUT DARI MODAL CUSTOM
+  const handleConfirmClockOut = async () => {
     if (!activeUserAttendance) return;
-
-    if (!confirm('Apakah kamu yakin ingin menyelesaikan shift (Clock Out) sekarang?')) {
-      return;
-    }
 
     setIsClockingOut(true);
 
@@ -226,6 +238,7 @@ export default function App() {
     setIsClockingOut(false);
 
     if (!error) {
+      setShowClockOutModal(false);
       fetchOnDutyStaff();
     } else {
       alert('Gagal melakukan Clock Out: ' + error.message);
@@ -254,6 +267,16 @@ export default function App() {
         onSuccess={fetchOnDutyStaff}
       />
 
+      {/* 🚪 Modal Clock Out Presensi Custom */}
+      <ClockOutModal
+        isOpen={showClockOutModal}
+        onClose={() => setShowClockOutModal(false)}
+        onConfirm={handleConfirmClockOut}
+        staffName={currentUser?.name}
+        clockInTime={activeUserAttendance?.clock_in ? new Date(activeUserAttendance.clock_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) : undefined}
+        isLoading={isClockingOut}
+      />
+
       {/* Modal Edit Profil & PIN Staf */}
       {currentUser && (
         <EditProfileModal
@@ -272,7 +295,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16 md:h-20 gap-4">
             
-            <div className="flex items-center gap-3 shrink-0 cursor-pointer" onClick={() => setActiveNav('home')}>
+            <div className="flex items-center gap-3 shrink-0 cursor-pointer" onClick={() => handleNavChange('home')}>
               <img 
                 src="/logo.svg" 
                 alt="Rottherdams Logo" 
@@ -286,7 +309,7 @@ export default function App() {
             {/* Desktop Navbar Clean */}
             <nav className="hidden lg:flex items-center gap-2 bg-black/15 p-1 rounded-xl border border-white/10">
               <button
-                onClick={() => setActiveNav('home')}
+                onClick={() => handleNavChange('home')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                   activeNav === 'home' ? 'bg-white text-[#d22027] shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
@@ -297,7 +320,7 @@ export default function App() {
               {currentUser && (
                 <>
                   <button
-                    onClick={() => setActiveNav('presensi')}
+                    onClick={() => handleNavChange('presensi')}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                       activeNav === 'presensi' ? 'bg-white text-[#d22027] shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'
                     }`}
@@ -311,16 +334,16 @@ export default function App() {
                       Operasional ▾
                     </button>
                     <div className="absolute top-full left-0 hidden group-hover:flex flex-col bg-white text-[#111111] rounded-2xl shadow-xl border border-neutral-100 p-2 min-w-[160px] z-50 animate-dropdown-down">
-                      <button onClick={() => setActiveNav('sop')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">📋 SOP Checklist</button>
-                      <button onClick={() => setActiveNav('resep')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">☕ Buku Resep</button>
-                      <button onClick={() => setActiveNav('handover')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">📝 Handover Log</button>
+                      <button onClick={() => handleNavChange('sop')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">📋 SOP Checklist</button>
+                      <button onClick={() => handleNavChange('resep')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">☕ Buku Resep</button>
+                      <button onClick={() => handleNavChange('handover')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">📝 Handover Log</button>
                     </div>
                   </div>
                 </>
               )}
 
               <button
-                onClick={() => setActiveNav('jadwal')}
+                onClick={() => handleNavChange('jadwal')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                   activeNav === 'jadwal' ? 'bg-white text-[#d22027] shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'
                 }`}
@@ -334,8 +357,8 @@ export default function App() {
                     Management ▾
                   </button>
                   <div className="absolute top-full left-0 hidden group-hover:flex flex-col bg-white text-[#111111] rounded-2xl shadow-xl border border-neutral-100 p-2 min-w-[160px] z-50 animate-dropdown-down">
-                    <button onClick={() => setActiveNav('dashboard')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">📊 Analytics</button>
-                    <button onClick={() => setActiveNav('karyawan')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">👥 Daftar Staf</button>
+                    <button onClick={() => handleNavChange('dashboard')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">📊 Analytics</button>
+                    <button onClick={() => handleNavChange('karyawan')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">👥 Daftar Staf</button>
                   </div>
                 </div>
               )}
@@ -354,7 +377,6 @@ export default function App() {
                     </p>
                   </div>
 
-                  {/* 🟢 AVATAR PROFIL STAF PADA NAVBAR */}
                   {currentUser.avatar_url ? (
                     <img
                       src={currentUser.avatar_url}
@@ -410,7 +432,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Content Area */}
+      {/* 🚀 Main Content Area (Ditolong dengan Animasi Fade & Scale Transisi Halus) */}
       <main className="max-w-md md:max-w-4xl mx-auto px-5 py-6 md:py-10">
         <section className="mb-6 md:mb-8 border-b border-neutral-100 pb-5 md:pb-6 text-left">
           <p className="text-[11px] md:text-xs font-bold uppercase tracking-widest text-[#d22027] mb-1">
@@ -424,234 +446,246 @@ export default function App() {
           </p>
         </section>
 
-        {activeNav === 'dashboard' && isManagementOrOwner ? (
-          <ManagementDashboard currentUser={currentUser as any} />
-        ) : activeNav === 'presensi' && currentUser ? (
-          <RekapPresensi currentUser={currentUser as any} />
-        ) : activeNav === 'handover' && currentUser ? (
-          <HandoverLog 
-            currentUser={currentUser as any} 
-            onRequireLogin={() => setIsLoginOpen(true)} 
-          />
-        ) : activeNav === 'karyawan' && isManagementOrOwner ? (
-          <DaftarKaryawan />
-        ) : activeNav === 'jadwal' ? (
-          <JadwalStaf userRole={(currentUser?.role as any) || 'bar'} currentUser={currentUser as any} />
-        ) : activeNav === 'resep' && currentUser ? (
-          <BukuResep currentUser={currentUser as any} />
-        ) : activeNav === 'sop' && currentUser ? (
-          <SopChecklist isFullView={true} currentUser={currentUser as any} />
-        ) : (
-          <div>
-            {isManagementOrOwner && (
-              <div className="bg-neutral-100 p-1.5 rounded-2xl border border-neutral-200 flex mb-6 shadow-inner max-w-md mx-auto md:mx-0">
-                <button
-                  onClick={() => setActiveTab('morning')}
-                  className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer ${
-                    activeTab === 'morning'
-                      ? 'bg-[#111111] text-white shadow-md'
-                      : 'text-neutral-500 hover:text-[#111111]'
-                  }`}
-                >
-                  ☀️ Morning Shift
-                </button>
-                <button
-                  onClick={() => setActiveTab('night')}
-                  className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition cursor-pointer ${
-                    activeTab === 'night'
-                      ? 'bg-[#111111] text-white shadow-md'
-                      : 'text-neutral-500 hover:text-[#111111]'
-                  }`}
-                >
-                  🌙 Night Shift
-                </button>
-              </div>
-            )}
+        {/* 🚀 WADAH ANIMASI PERPINDAHAN TAB/HALAMAN */}
+        <div
+          className={`transition-all duration-300 ease-in-out transform ${
+            isPageFading ? 'opacity-0 scale-[0.99] translate-y-1' : 'opacity-100 scale-100 translate-y-0'
+          }`}
+        >
+          {activeNav === 'dashboard' && isManagementOrOwner ? (
+            <ManagementDashboard currentUser={currentUser as any} />
+          ) : activeNav === 'presensi' && currentUser ? (
+            <RekapPresensi currentUser={currentUser as any} />
+          ) : activeNav === 'handover' && currentUser ? (
+            <HandoverLog 
+              currentUser={currentUser as any} 
+              onRequireLogin={() => setIsLoginOpen(true)} 
+            />
+          ) : activeNav === 'karyawan' && isManagementOrOwner ? (
+            <DaftarKaryawan />
+          ) : activeNav === 'jadwal' ? (
+            <JadwalStaf userRole={(currentUser?.role as any) || 'bar'} currentUser={currentUser as any} />
+          ) : activeNav === 'resep' && currentUser ? (
+            <BukuResep currentUser={currentUser as any} />
+          ) : activeNav === 'sop' && currentUser ? (
+            <SopChecklist isFullView={true} currentUser={currentUser as any} />
+          ) : (
+            <div>
+              {/* 🌟 SLIDING TAB SWITCHER SHIFT (SMOOTH SLIDING PILL ANIMATION) */}
+              {isManagementOrOwner && (
+                <div className="relative bg-neutral-100 p-1.5 rounded-2xl border border-neutral-200 flex mb-6 shadow-inner max-w-md mx-auto md:mx-0 select-none">
+                  {/* Highlight Pill Hitam yang Meluncur secara Mulus */}
+                  <div
+                    className={`absolute top-1.5 bottom-1.5 w-[calc(50%-0.375rem)] bg-[#111111] rounded-xl shadow-md transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+                      activeTab === 'night' ? 'translate-x-[calc(100%+0.375rem)]' : 'translate-x-0'
+                    }`}
+                  />
 
-            {/* WIDGET KAFE OPEN & BUTTON PRESENSI */}
-            <div className="bg-[#111111] text-white rounded-3xl p-6 md:p-8 mb-6 relative overflow-hidden shadow-xl border border-neutral-800 text-left">
-              <div className="absolute -right-8 -bottom-8 w-44 h-44 bg-[#d22027] rounded-full blur-3xl opacity-40"></div>
-
-              <div className="relative z-10">
-                <div className="flex justify-between items-center mb-4">
-                  <span className="text-[10px] md:text-xs font-black text-[#d22027] bg-white px-3.5 py-1 rounded-full border border-white/40 shadow-[0_0_12px_rgba(255,255,255,0.35)] flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-[#d22027] animate-pulse shadow-[0_0_6px_#d22027]"></span>
-                    🕒 09.00 - 23.00 WITA
-                  </span>
-
-                  {currentUser && (
-                    onDutyList.length > 0 ? (
-                      <span className="flex items-center gap-1.5 text-[10px] md:text-xs text-emerald-400 font-bold">
-                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-                        Bar Active
-                      </span>
-                    ) : (
-                      <span className="flex items-center gap-1.5 text-[10px] md:text-xs text-neutral-400 font-medium">
-                        <span className="w-2 h-2 rounded-full bg-neutral-500"></span>
-                        Shift Closed
-                      </span>
-                    )
-                  )}
-                </div>
-
-                <h2 className="text-lg md:text-xl font-black mb-1 tracking-tight">
-                  We're Open Everyday
-                </h2>
-                <p className="text-xs md:text-sm text-neutral-400 mb-6 leading-relaxed">
-                  Your daily dose of caffeine & good vibes at Rottherdams Coffee Social House.
-                </p>
-
-                {currentUser ? (
-                  activeUserAttendance ? (
-                    <button 
-                      onClick={handleDirectClockOut}
-                      disabled={isClockingOut}
-                      className="w-full md:w-auto md:px-8 py-3.5 bg-white hover:bg-neutral-100 text-[#d22027] font-extrabold text-xs md:text-sm rounded-xl shadow-lg transition cursor-pointer active:scale-95"
-                    >
-                      {isClockingOut ? 'Memproses...' : '🚪 Selesai Shift / Clock Out'}
-                    </button>
-                  ) : (
-                    <button 
-                      onClick={() => setIsClockInOpen(true)}
-                      className="w-full md:w-auto md:px-8 py-3.5 bg-[#d22027] hover:bg-[#bb2026] text-white font-bold text-xs md:text-sm rounded-xl shadow-lg transition cursor-pointer active:scale-95"
-                    >
-                      ✅ Clock In Presensi Now
-                    </button>
-                  )
-                ) : (
-                  <button 
-                    onClick={() => setIsLoginOpen(true)}
-                    className="w-full md:w-auto md:px-8 py-3.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs md:text-sm rounded-xl border border-white/20 backdrop-blur-md transition cursor-pointer active:scale-95"
+                  <button
+                    onClick={() => setActiveTab('morning')}
+                    className={`relative z-10 flex-1 py-2.5 text-xs font-extrabold rounded-xl transition-colors duration-300 cursor-pointer flex items-center justify-center gap-1.5 ${
+                      activeTab === 'morning' ? 'text-white' : 'text-neutral-500 hover:text-neutral-900'
+                    }`}
                   >
-                    🔑 Login Staf untuk Presensi
+                    <span>☀️</span> Morning Shift
                   </button>
-                )}
-              </div>
-            </div>
 
-            {/* 📢 WIDGET BROADCAST ANNOUNCEMENT BULLETIN BOARD */}
-            {currentUser && (
-              <div className="mb-8">
-                <AnnouncementBanner currentUser={currentUser as any} />
-              </div>
-            )}
-
-            {onDutyList.length > 0 && (
-              <div className="bg-neutral-50 rounded-3xl p-5 border border-neutral-200 mb-8 text-left">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-xs font-black text-[#111111] uppercase tracking-wider flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                    Tim On-Duty Saat Ini ({onDutyList.length})
-                  </h3>
-                  <button 
-                    onClick={fetchOnDutyStaff}
-                    className="text-[10px] font-bold text-neutral-400 hover:text-neutral-700 transition cursor-pointer"
+                  <button
+                    onClick={() => setActiveTab('night')}
+                    className={`relative z-10 flex-1 py-2.5 text-xs font-extrabold rounded-xl transition-colors duration-300 cursor-pointer flex items-center justify-center gap-1.5 ${
+                      activeTab === 'night' ? 'text-white' : 'text-neutral-500 hover:text-neutral-900'
+                    }`}
                   >
-                    🔄 Refresh
+                    <span>🌙</span> Night Shift
                   </button>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
-                  {onDutyList.map(staf => (
-                    <div key={staf.id} className="bg-white p-3 rounded-2xl border border-neutral-200 shadow-2xs flex items-center gap-2.5">
-                      {staf.avatar_url ? (
-                        <img
-                          src={staf.avatar_url}
-                          alt={staf.staff_name}
-                          className="w-7 h-7 rounded-full object-cover border border-neutral-200 shrink-0"
-                        />
-                      ) : (
-                        <div className="w-7 h-7 rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-bold text-[10px] shrink-0">
-                          {staf.staff_name[0]}
-                        </div>
-                      )}
-                      <div>
-                        <p className="text-xs font-black text-[#111111] leading-tight">{staf.staff_name}</p>
-                        <p className="text-[10px] text-neutral-400 capitalize">
-                          {staf.role?.replace(/_/g, ' ')} • {staf.shift}
-                        </p>
-                        <p className="text-[9px] font-mono text-emerald-600 font-bold mt-0.5">
-                          In: {new Date(staf.clock_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {currentUser && <SopChecklist activeShift={activeTab} currentUser={currentUser as any} />}
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 md:gap-5 mt-8 text-left">
-              {currentUser && (
-                <>
-                  <div 
-                    onClick={() => setActiveNav('presensi')}
-                    className="p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg mb-3 group-hover:bg-[#d22027] group-hover:text-white transition">
-                      📍
-                    </div>
-                    <h3 className="font-bold text-xs md:text-sm text-[#111111] mb-0.5">Riwayat Presensi</h3>
-                    <p className="text-[10px] md:text-xs text-neutral-400">Jam masuk & keluar</p>
-                  </div>
-
-                  <div 
-                    onClick={() => setActiveNav('sop')}
-                    className="p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg mb-3 group-hover:bg-[#d22027] group-hover:text-white transition">
-                      📋
-                    </div>
-                    <h3 className="font-bold text-xs md:text-sm text-[#111111] mb-0.5">SOP Checklist</h3>
-                    <p className="text-[10px] md:text-xs text-neutral-400">Tugas harian shift</p>
-                  </div>
-
-                  <div 
-                    onClick={() => setActiveNav('resep')}
-                    className="p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg mb-3 group-hover:bg-[#d22027] group-hover:text-white transition">
-                      ☕
-                    </div>
-                    <h3 className="font-bold text-xs md:text-sm text-[#111111] mb-0.5">Buku Resep</h3>
-                    <p className="text-[10px] md:text-xs text-neutral-400">Gramasi & resep kopi</p>
-                  </div>
-
-                  <div 
-                    onClick={() => setActiveNav('handover')}
-                    className="p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group"
-                  >
-                    <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg mb-3 group-hover:bg-[#d22027] group-hover:text-white transition">
-                      📝
-                    </div>
-                    <h3 className="font-bold text-xs md:text-sm text-[#111111] mb-0.5">Handover Log</h3>
-                    <p className="text-[10px] md:text-xs text-neutral-400">Catatan antar shift</p>
-                  </div>
-                </>
               )}
 
-              <div 
-                onClick={() => setActiveNav('jadwal')}
-                className={`p-5 rounded-2xl bg-[#ffffff] border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group ${
-                  !currentUser ? 'col-span-2 md:col-span-4' : ''
-                }`}
-              >
-                <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg mb-3 group-hover:bg-[#d22027] group-hover:text-white transition">
-                  📅
+              {/* WIDGET KAFE OPEN & BUTTON PRESENSI */}
+              <div className="bg-[#111111] text-white rounded-3xl p-6 md:p-8 mb-6 relative overflow-hidden shadow-xl border border-neutral-800 text-left">
+                <div className="absolute -right-8 -bottom-8 w-44 h-44 bg-[#d22027] rounded-full blur-3xl opacity-40"></div>
+
+                <div className="relative z-10">
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-[10px] md:text-xs font-black text-[#d22027] bg-white px-3.5 py-1 rounded-full border border-white/40 shadow-[0_0_12px_rgba(255,255,255,0.35)] flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-[#d22027] animate-pulse shadow-[0_0_6px_#d22027]"></span>
+                      🕒 09.00 - 23.00 WITA
+                    </span>
+
+                    {currentUser && (
+                      onDutyList.length > 0 ? (
+                        <span className="flex items-center gap-1.5 text-[10px] md:text-xs text-emerald-400 font-bold">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                          Bar Active
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1.5 text-[10px] md:text-xs text-neutral-400 font-medium">
+                          <span className="w-2 h-2 rounded-full bg-neutral-500"></span>
+                          Shift Closed
+                        </span>
+                      )
+                    )}
+                  </div>
+
+                  <h2 className="text-lg md:text-xl font-black mb-1 tracking-tight">
+                    We're Open Everyday
+                  </h2>
+                  <p className="text-xs md:text-sm text-neutral-400 mb-6 leading-relaxed">
+                    Your daily dose of caffeine & good vibes at Rottherdams Coffee Social House.
+                  </p>
+
+                  {currentUser ? (
+                    activeUserAttendance ? (
+                      <button 
+                        onClick={() => setShowClockOutModal(true)}
+                        disabled={isClockingOut}
+                        className="w-full md:w-auto md:px-8 py-3.5 bg-white hover:bg-neutral-100 text-[#d22027] font-extrabold text-xs md:text-sm rounded-xl shadow-lg transition cursor-pointer active:scale-95"
+                      >
+                        {isClockingOut ? 'Memproses...' : '🚪 Selesai Shift / Clock Out'}
+                      </button>
+                    ) : (
+                      <button 
+                        onClick={() => setIsClockInOpen(true)}
+                        className="w-full md:w-auto md:px-8 py-3.5 bg-[#d22027] hover:bg-[#bb2026] text-white font-bold text-xs md:text-sm rounded-xl shadow-lg transition cursor-pointer active:scale-95"
+                      >
+                        ✅ Clock In Presensi Now
+                      </button>
+                    )
+                  ) : (
+                    <button 
+                      onClick={() => setIsLoginOpen(true)}
+                      className="w-full md:w-auto md:px-8 py-3.5 bg-white/10 hover:bg-white/20 text-white font-bold text-xs md:text-sm rounded-xl border border-white/20 backdrop-blur-md transition cursor-pointer active:scale-95"
+                    >
+                      🔑 Login Staf untuk Presensi
+                    </button>
+                  )}
                 </div>
-                <h3 className="font-bold text-xs md:text-sm text-[#111111] mb-0.5">Jadwal Staf</h3>
-                <p className="text-[10px] md:text-xs text-neutral-400">Roster 2 shift</p>
+              </div>
+
+              {/* 📢 WIDGET BROADCAST ANNOUNCEMENT BULLETIN BOARD */}
+              {currentUser && (
+                <div className="mb-8">
+                  <AnnouncementBanner currentUser={currentUser as any} />
+                </div>
+              )}
+
+              {onDutyList.length > 0 && (
+                <div className="bg-neutral-50 rounded-3xl p-5 border border-neutral-200 mb-8 text-left">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-xs font-black text-[#111111] uppercase tracking-wider flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                      Tim On-Duty Saat Ini ({onDutyList.length})
+                    </h3>
+                    <button 
+                      onClick={fetchOnDutyStaff}
+                      className="text-[10px] font-bold text-neutral-400 hover:text-neutral-700 transition cursor-pointer"
+                    >
+                      🔄 Refresh
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+                    {onDutyList.map(staf => (
+                      <div key={staf.id} className="bg-white p-3 rounded-2xl border border-neutral-200 shadow-2xs flex items-center gap-2.5">
+                        {staf.avatar_url ? (
+                          <img
+                            src={staf.avatar_url}
+                            alt={staf.staff_name}
+                            className="w-7 h-7 rounded-full object-cover border border-neutral-200 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-7 h-7 rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-bold text-[10px] shrink-0">
+                            {staf.staff_name[0]}
+                          </div>
+                        )}
+                        <div>
+                          <p className="text-xs font-black text-[#111111] leading-tight">{staf.staff_name}</p>
+                          <p className="text-[10px] text-neutral-400 capitalize">
+                            {staf.role?.replace(/_/g, ' ')} • {staf.shift}
+                          </p>
+                          <p className="text-[9px] font-mono text-emerald-600 font-bold mt-0.5">
+                            In: {new Date(staf.clock_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {currentUser && <SopChecklist activeShift={activeTab} currentUser={currentUser as any} />}
+
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 md:gap-5 mt-8 text-left">
+                {currentUser && (
+                  <>
+                    <div 
+                      onClick={() => handleNavChange('presensi')}
+                      className="p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg mb-3 group-hover:bg-[#d22027] group-hover:text-white transition">
+                        📍
+                      </div>
+                      <h3 className="font-bold text-xs md:text-sm text-[#111111] mb-0.5">Riwayat Presensi</h3>
+                      <p className="text-[10px] md:text-xs text-neutral-400">Jam masuk & keluar</p>
+                    </div>
+
+                    <div 
+                      onClick={() => handleNavChange('sop')}
+                      className="p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg mb-3 group-hover:bg-[#d22027] group-hover:text-white transition">
+                        📋
+                      </div>
+                      <h3 className="font-bold text-xs md:text-sm text-[#111111] mb-0.5">SOP Checklist</h3>
+                      <p className="text-[10px] md:text-xs text-neutral-400">Tugas harian shift</p>
+                    </div>
+
+                    <div 
+                      onClick={() => handleNavChange('resep')}
+                      className="p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg mb-3 group-hover:bg-[#d22027] group-hover:text-white transition">
+                        ☕
+                      </div>
+                      <h3 className="font-bold text-xs md:text-sm text-[#111111] mb-0.5">Buku Resep</h3>
+                      <p className="text-[10px] md:text-xs text-neutral-400">Gramasi & resep kopi</p>
+                    </div>
+
+                    <div 
+                      onClick={() => handleNavChange('handover')}
+                      className="p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group"
+                    >
+                      <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg mb-3 group-hover:bg-[#d22027] group-hover:text-white transition">
+                        📝
+                      </div>
+                      <h3 className="font-bold text-xs md:text-sm text-[#111111] mb-0.5">Handover Log</h3>
+                      <p className="text-[10px] md:text-xs text-neutral-400">Catatan antar shift</p>
+                    </div>
+                  </>
+                )}
+
+                <div 
+                  onClick={() => handleNavChange('jadwal')}
+                  className={`p-5 rounded-2xl bg-[#ffffff] border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group ${
+                    !currentUser ? 'col-span-2 md:col-span-4' : ''
+                  }`}
+                >
+                  <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg mb-3 group-hover:bg-[#d22027] group-hover:text-white transition">
+                    📅
+                  </div>
+                  <h3 className="font-bold text-xs md:text-sm text-[#111111] mb-0.5">Jadwal Staf</h3>
+                  <p className="text-[10px] md:text-xs text-neutral-400">Roster 2 shift</p>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </main>
 
       {/* 📱 Bottom Navigation Mobile */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-neutral-200 px-4 py-2 z-40 shadow-2xl">
         <div className="max-w-md mx-auto flex justify-around items-center">
           <button
-            onClick={() => setActiveNav('home')}
+            onClick={() => handleNavChange('home')}
             className={`flex flex-col items-center gap-0.5 cursor-pointer transition ${
               activeNav === 'home' ? 'text-[#d22027]' : 'text-neutral-400 hover:text-neutral-700'
             }`}
@@ -663,7 +697,7 @@ export default function App() {
           {currentUser && (
             <>
               <button
-                onClick={() => setActiveNav('presensi')}
+                onClick={() => handleNavChange('presensi')}
                 className={`flex flex-col items-center gap-0.5 cursor-pointer transition ${
                   activeNav === 'presensi' ? 'text-[#d22027]' : 'text-neutral-400 hover:text-neutral-700'
                 }`}
@@ -673,7 +707,7 @@ export default function App() {
               </button>
 
               <button
-                onClick={() => setActiveNav('sop')}
+                onClick={() => handleNavChange('sop')}
                 className={`flex flex-col items-center gap-0.5 cursor-pointer transition ${
                   activeNav === 'sop' ? 'text-[#d22027]' : 'text-neutral-400 hover:text-neutral-700'
                 }`}
@@ -683,7 +717,7 @@ export default function App() {
               </button>
 
               <button
-                onClick={() => setActiveNav('resep')}
+                onClick={() => handleNavChange('resep')}
                 className={`flex flex-col items-center gap-0.5 cursor-pointer transition ${
                   activeNav === 'resep' ? 'text-[#d22027]' : 'text-neutral-400 hover:text-neutral-700'
                 }`}
@@ -723,7 +757,7 @@ export default function App() {
 
             <div className="grid grid-cols-3 gap-3 pt-2 text-left">
               <button 
-                onClick={() => { setActiveNav('jadwal'); setIsMoreMenuOpen(false); }}
+                onClick={() => { handleNavChange('jadwal'); setIsMoreMenuOpen(false); }}
                 className="p-3 bg-neutral-50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:bg-red-50 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
               >
                 <span className="text-2xl">📅</span>
@@ -732,7 +766,7 @@ export default function App() {
 
               {currentUser && (
                 <button 
-                  onClick={() => { setActiveNav('handover'); setIsMoreMenuOpen(false); }}
+                  onClick={() => { handleNavChange('handover'); setIsMoreMenuOpen(false); }}
                   className="p-3 bg-neutral-50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:bg-red-50 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
                 >
                   <span className="text-2xl">📝</span>
@@ -743,7 +777,7 @@ export default function App() {
               {isManagementOrOwner && (
                 <>
                   <button 
-                    onClick={() => { setActiveNav('dashboard'); setIsMoreMenuOpen(false); }}
+                    onClick={() => { handleNavChange('dashboard'); setIsMoreMenuOpen(false); }}
                     className="p-3 bg-neutral-50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:bg-red-50 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
                   >
                     <span className="text-2xl">📊</span>
@@ -751,7 +785,7 @@ export default function App() {
                   </button>
 
                   <button 
-                    onClick={() => { setActiveNav('karyawan'); setIsMoreMenuOpen(false); }}
+                    onClick={() => { handleNavChange('karyawan'); setIsMoreMenuOpen(false); }}
                     className="p-3 bg-neutral-50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:bg-red-50 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
                   >
                     <span className="text-2xl">👥</span>

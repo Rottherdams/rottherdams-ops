@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 
 interface CurrentUser {
@@ -29,6 +30,9 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
   const [tasks, setTasks] = useState<SopItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  
+  // State animasi switching antar shift
+  const [isSwitchingShift, setIsSwitchingShift] = useState(false);
 
   // State Modal Tambah SOP
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -51,9 +55,14 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
   const currentShift = activeShift.toLowerCase().includes('night') ? 'night' : 'morning';
 
   useEffect(() => {
-    fetchSopTasks();
+    // Picu animasi transisi fade saat perpindahan shift
+    setIsSwitchingShift(true);
+    const timer = setTimeout(() => {
+      fetchSopTasks();
+      setIsSwitchingShift(false);
+    }, 120);
 
-    // 🚀 INTEGRASI REALTIME SUPABASE
+    // INTEGRASI REALTIME SUPABASE
     const sopChannel = supabase
       .channel('sop_realtime_channel')
       .on(
@@ -66,6 +75,7 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
       .subscribe();
 
     return () => {
+      clearTimeout(timer);
       supabase.removeChannel(sopChannel);
     };
   }, [currentShift, isFullView]);
@@ -120,9 +130,7 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
     setLoading(false);
   };
 
-  // 🔒 LOGIKA HAK AKSES CHECKLIST & UN-CHECKLIST
   const toggleTask = async (id: number, currentStatus: boolean) => {
-    // PROTEKSI: Jika SOP sudah dicentang dan user BUKAN Management/Owner, tolak un-checklist
     if (currentStatus && !isManagementOrOwner) {
       alert('🔒 SOP yang sudah diselesaikan tidak dapat dibatalkan oleh Staf. Harap hubungi Management atau Owner.');
       return;
@@ -132,7 +140,6 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
     const actorName = currentUser?.name || 'Staf On-Duty';
     const actorAvatar = currentUser?.avatar_url;
 
-    // Optimistic UI Update
     setTasks(prev =>
       prev.map(t => (t.id === id ? {
         ...t,
@@ -211,14 +218,15 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
           </span>
         </div>
       )}
-      {taskList.map(task => {
+      {taskList.map((task, index) => {
         const isLockedForStaff = task.is_completed && !isManagementOrOwner;
 
         return (
           <div
             key={task.id}
             onClick={() => toggleTask(task.id, task.is_completed)}
-            className={`p-3.5 rounded-2xl border transition flex items-center justify-between gap-3 group ${
+            style={{ animationDelay: `${index * 45}ms` }}
+            className={`sop-item-fade p-3.5 rounded-2xl border transition duration-200 flex items-center justify-between gap-3 group ${
               isLockedForStaff
                 ? 'cursor-not-allowed bg-neutral-50/80 border-neutral-200 opacity-80'
                 : 'cursor-pointer ' + (task.is_completed ? 'bg-neutral-50 border-neutral-200' : 'bg-white border-neutral-200 hover:border-[#d22027]')
@@ -236,7 +244,7 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
               />
               <div className="min-w-0">
                 <p
-                  className={`text-xs font-bold truncate ${
+                  className={`text-xs font-bold truncate transition-all duration-300 ${
                     task.is_completed ? 'line-through text-neutral-400' : 'text-[#111111]'
                   }`}
                 >
@@ -288,6 +296,23 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
 
   return (
     <div className="bg-white rounded-3xl p-5 border border-neutral-200 shadow-sm mb-8 text-left relative">
+      <style>{`
+        @keyframes sopItemSlideUp {
+          0% {
+            opacity: 0;
+            transform: translateY(12px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .sop-item-fade {
+          animation: sopItemSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+          opacity: 0;
+        }
+      `}</style>
+
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-4 pb-3 border-b border-neutral-100">
         <div>
           <div className="flex items-center gap-2">
@@ -296,10 +321,10 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
                 ? 'Semua Master Checklist SOP'
                 : `Checklist SOP ${currentShift === 'morning' ? 'Opening' : 'Closing'}`}
             </h2>
-            <span className="text-[10px] bg-red-50 text-[#d22027] font-bold px-2 py-0.5 rounded-full border border-red-100 uppercase">
+            <span className="text-[10px] bg-red-50 text-[#d22027] font-bold px-2.5 py-0.5 rounded-full border border-red-100 uppercase transition-all duration-300">
               {isFullView ? 'All Shifts' : currentShift}
             </span>
-            <span className="text-[9px] bg-emerald-50 text-emerald-600 font-bold px-2 py-0.5 rounded-full border border-emerald-200">
+            <span className="text-[9px] bg-emerald-50 text-emerald-600 font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
               ● Realtime Sync
             </span>
           </div>
@@ -318,31 +343,33 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
         )}
       </div>
 
-      {loading ? (
-        <div className="py-8 text-center text-xs text-neutral-400 animate-pulse">
-          Memuat tugas SOP dari database...
-        </div>
-      ) : errorMessage ? (
-        <div className="py-8 text-center text-xs text-red-500 font-bold">
-          ⚠️ Gagal memuat data: {errorMessage}
-        </div>
-      ) : tasks.length === 0 ? (
-        <div className="py-8 text-center text-xs text-neutral-400">
-          Belum ada daftar SOP untuk ditampilkan.
-        </div>
-      ) : isFullView ? (
-        <div className="space-y-6">
-          {morningTasks.length > 0 && renderTaskList(morningTasks, '☀️ Morning Shift (Opening)')}
-          {nightTasks.length > 0 && renderTaskList(nightTasks, '🌙 Night Shift (Closing)')}
-        </div>
-      ) : (
-        renderTaskList(tasks)
-      )}
+      <div className={`transition-all duration-200 ease-out ${isSwitchingShift ? 'opacity-0 translate-y-1' : 'opacity-100 translate-y-0'}`}>
+        {loading ? (
+          <div className="py-8 text-center text-xs text-neutral-400 animate-pulse">
+            Memuat tugas SOP dari database...
+          </div>
+        ) : errorMessage ? (
+          <div className="py-8 text-center text-xs text-red-500 font-bold">
+            ⚠️ Gagal memuat data: {errorMessage}
+          </div>
+        ) : tasks.length === 0 ? (
+          <div className="py-8 text-center text-xs text-neutral-400">
+            Belum ada daftar SOP untuk shift ini.
+          </div>
+        ) : isFullView ? (
+          <div className="space-y-6">
+            {morningTasks.length > 0 && renderTaskList(morningTasks, '☀️ Morning Shift (Opening)')}
+            {nightTasks.length > 0 && renderTaskList(nightTasks, '🌙 Night Shift (Closing)')}
+          </div>
+        ) : (
+          renderTaskList(tasks)
+        )}
+      </div>
 
       {/* Modal Pop-Up Tambah SOP */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-neutral-100 text-left">
+      {isAddModalOpen && createPortal(
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-neutral-100 text-left animate-in fade-in zoom-in-95 duration-150 my-auto">
             <h3 className="text-base font-black text-[#111111] mb-1">Tambah Tugas SOP Baru</h3>
             <p className="text-xs text-neutral-400 mb-4">Masukkan tugas operasional baru untuk tim.</p>
 
@@ -405,7 +432,8 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

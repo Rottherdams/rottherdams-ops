@@ -79,6 +79,9 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
   const [handoverLogs, setHandoverLogs] = useState<HandoverItem[]>([]);
   const [securityLogs, setSecurityLogs] = useState<SecurityAuditLog[]>([]);
   
+  // Total Akumulatif Permanent Screenshot / Switch App
+  const [screenshotAttemptsCount, setScreenshotAttemptsCount] = useState<number>(0);
+  
   // Data Persetujuan
   const [swapRequests, setSwapRequests] = useState<ShiftSwapRequest[]>([]);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([]);
@@ -151,12 +154,20 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
         .order('created_at', { ascending: false })
         .limit(5);
 
-      // 5. Log Security Audit Terbaru
+      // 5. Log Security Audit Terbaru (Dipakai untuk tampilan feed log rotasi 6 terbawah)
       const { data: secData } = await supabase
         .from('security_audit_logs')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(6);
+
+      // 🚀 FIX: Total Akumulatif Permanen Percobaan Screenshot / Switch App dari Database (Tidak Reset)
+      const { count: totalScreenshotCount } = await supabase
+        .from('security_audit_logs')
+        .select('*', { count: 'exact', head: true })
+        .ilike('action_type', '%SCREENSHOT%');
+
+      setScreenshotAttemptsCount(totalScreenshotCount || 0);
 
       // 6. Data Permintaan Tukar Shift
       const { data: swapData } = await supabase
@@ -253,7 +264,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
     }
   }, [pendingSwapCount, pendingLeaveCount, loading]);
 
-  // 🚀 SORTING KHUSUS TUKAR SHIFT (Pending Management ACC di Atas + Urut Tanggal Terbaru)
+  // SORTING KHUSUS TUKAR SHIFT (Pending Management ACC di Atas + Urut Tanggal Terbaru)
   const sortedSwapRequests = [...swapRequests].sort((a, b) => {
     const aTarget = ((a.target_status && a.target_status !== 'pending' ? a.target_status : a.status) || '').toLowerCase();
     const bTarget = ((b.target_status && b.target_status !== 'pending' ? b.target_status : b.status) || '').toLowerCase();
@@ -266,11 +277,10 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
     if (aNeedsAcc && !bNeedsAcc) return -1;
     if (!aNeedsAcc && bNeedsAcc) return 1;
 
-    // Urutkan berdasarkan tanggal created_at terbaru
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 
-  // 🚀 SORTING KHUSUS IZIN & CUTI (Pending ACC di Atas + Urut Tanggal Terbaru)
+  // SORTING KHUSUS IZIN & CUTI (Pending ACC di Atas + Urut Tanggal Terbaru)
   const sortedLeaveRequests = [...leaveRequests].sort((a, b) => {
     const aPending = a.status?.toLowerCase() === 'pending';
     const bPending = b.status?.toLowerCase() === 'pending';
@@ -387,8 +397,6 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
   const kitchenSopPct = Math.round((sopStats.kitchenCompleted / sopStats.kitchenTotal) * 100);
   const floorSopPct = Math.round((sopStats.floorCompleted / sopStats.floorTotal) * 100);
 
-  const screenshotAttemptsCount = securityLogs.filter((l) => l.action_type.includes('SCREENSHOT')).length;
-
   const formatFullDate = (rawDateStr?: string, createdAtStr?: string) => {
     if (!rawDateStr && !createdAtStr) return '-';
 
@@ -468,8 +476,29 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
 
   return (
     <div className="space-y-6 text-left">
-      {/* HEADER EXECUTIVE DASHBOARD */}
-      <div className="bg-gradient-to-r from-[#111111] via-neutral-900 to-neutral-800 text-white p-6 md:p-8 rounded-3xl shadow-xl border border-neutral-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      {/* 🌟 CSS Keyframes Animasi Staggered Entrance Muncul Berurutan */}
+      <style>{`
+        @keyframes fadeSlideUp {
+          0% {
+            opacity: 0;
+            transform: translateY(12px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-section-fade {
+          animation: fadeSlideUp 0.45s ease-out forwards;
+          opacity: 0;
+        }
+      `}</style>
+
+      {/* 1. HEADER EXECUTIVE DASHBOARD (Delay: 0ms) */}
+      <div 
+        className="animate-section-fade bg-gradient-to-r from-[#111111] via-neutral-900 to-neutral-800 text-white p-6 md:p-8 rounded-3xl shadow-xl border border-neutral-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
+        style={{ animationDelay: '0ms' }}
+      >
         <div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] bg-[#d22027] text-white px-3 py-1 rounded-full font-black uppercase tracking-wider">
@@ -504,8 +533,11 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
         </div>
       ) : (
         <>
-          {/* APPROVAL CENTER (MAX 5 ITEM + SCROLL + PRIORITAS PENDING & TANGGAL TERBARU) */}
-          <div className="bg-white rounded-3xl p-6 border-2 border-[#d22027]/20 shadow-md space-y-4">
+          {/* 2. APPROVAL CENTER (Delay: 100ms) */}
+          <div 
+            className="animate-section-fade bg-white rounded-3xl p-6 border-2 border-[#d22027]/20 shadow-md space-y-4"
+            style={{ animationDelay: '100ms' }}
+          >
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-neutral-100">
               <div>
                 <h3 className="font-black text-base text-[#111111] flex items-center gap-2">
@@ -747,8 +779,11 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
             )}
           </div>
 
-          {/* METRIC SUMMARY CARDS */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* 3. METRIC SUMMARY CARDS (Delay: 200ms) */}
+          <div 
+            className="animate-section-fade grid grid-cols-2 md:grid-cols-4 gap-4"
+            style={{ animationDelay: '200ms' }}
+          >
             <div className="bg-white p-5 rounded-3xl border border-neutral-200 shadow-xs hover:border-neutral-300 transition">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-2xl">👥</span>
@@ -802,8 +837,11 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
             </div>
           </div>
 
-          {/* MATRIKS KEPATUHAN SOP PER DIVISI */}
-          <div className="bg-white rounded-3xl p-6 md:p-8 border border-neutral-200 shadow-xs space-y-6">
+          {/* 4. MATRIKS KEPATUHAN SOP PER DIVISI (Delay: 300ms) */}
+          <div 
+            className="animate-section-fade bg-white rounded-3xl p-6 md:p-8 border border-neutral-200 shadow-xs space-y-6"
+            style={{ animationDelay: '300ms' }}
+          >
             <div className="flex justify-between items-center pb-3 border-b border-neutral-100">
               <div>
                 <h3 className="font-black text-base text-[#111111]">📋 Matriks Kepatuhan SOP Harian Per Divisi</h3>
@@ -850,8 +888,11 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
             </div>
           </div>
 
-          {/* LIVE SECURITY AUDIT & ON-DUTY MONITOR */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* 5. LIVE SECURITY AUDIT & ON-DUTY MONITOR (Delay: 400ms) */}
+          <div 
+            className="animate-section-fade grid grid-cols-1 md:grid-cols-2 gap-6"
+            style={{ animationDelay: '400ms' }}
+          >
             <div className="bg-[#111111] text-white rounded-3xl p-6 shadow-xl border border-neutral-800 space-y-4">
               <div className="flex justify-between items-center pb-3 border-b border-neutral-800">
                 <h3 className="font-black text-sm text-white flex items-center gap-2">
@@ -948,8 +989,11 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
             </div>
           </div>
 
-          {/* HANDOVER LOG FEED */}
-          <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-xs space-y-4">
+          {/* 6. HANDOVER LOG FEED (Delay: 500ms) */}
+          <div 
+            className="animate-section-fade bg-white rounded-3xl p-6 border border-neutral-200 shadow-xs space-y-4"
+            style={{ animationDelay: '500ms' }}
+          >
             <div className="flex justify-between items-center pb-3 border-b border-neutral-100">
               <h3 className="font-black text-sm text-[#111111]">📝 Catatan Serah Terima Shift Terbaru (Handover Log)</h3>
               <span className="text-xs text-neutral-400">5 Feed Terakhir</span>

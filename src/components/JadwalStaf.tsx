@@ -37,9 +37,7 @@ interface StaffSummary {
 const DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 const WEEKS = [1, 2, 3, 4];
 
-// 🚀 HELPER: Menghitung Rentang Tanggal Mulai (Senin) & Selesai (Minggu) Berdasarkan Minggu Ke-
 const getWeekDateRange = (weekNum: number) => {
-  // Rujukan Senin Minggu 1 (November 2026): 2 Nov 2026
   const baseMonday = new Date(2026, 10, 2); 
   
   const startDate = new Date(baseMonday);
@@ -48,7 +46,6 @@ const getWeekDateRange = (weekNum: number) => {
   const endDate = new Date(startDate);
   endDate.setDate(startDate.getDate() + 6);
 
-  // Array Tanggal Presisi untuk 7 Hari (Senin - Minggu)
   const weekDates: string[] = [];
   const dateFormattedLabels: { [day: string]: string } = {};
 
@@ -56,7 +53,6 @@ const getWeekDateRange = (weekNum: number) => {
     const d = new Date(startDate);
     d.setDate(startDate.getDate() + i);
     
-    // Format YYYY-MM-DD Lokal
     const year = d.getFullYear();
     const month = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
@@ -71,7 +67,6 @@ const getWeekDateRange = (weekNum: number) => {
     });
   }
 
-  // Format YYYY-MM-DD Lokal untuk start & end
   const formatLocalIso = (dateObj: Date) => {
     const y = dateObj.getFullYear();
     const m = String(dateObj.getMonth() + 1).padStart(2, '0');
@@ -87,16 +82,10 @@ const getWeekDateRange = (weekNum: number) => {
   };
 };
 
-// 🚀 OTOMATISASI PENENTUAN MINGGU KE- BERDASARKAN HARI SIKLUS ROSTER (SENIN-MINGGU)
 const getCurrentWeekKey = (): number => {
   const today = new Date();
   const currentDate = today.getDate();
   
-  // Roster Siklus November 2026:
-  // M1: 2 Nov - 8 Nov (Sampai Minggu malam 8 Nov)
-  // M2: 9 Nov - 15 Nov
-  // M3: 16 Nov - 22 Nov
-  // M4: 23 Nov - 30 Nov
   if (currentDate <= 8) return 1;
   if (currentDate <= 15) return 2;
   if (currentDate <= 22) return 3;
@@ -117,7 +106,6 @@ const getTodayName = (): string => {
   return dayMap[dayIndex] || 'Senin';
 };
 
-// 🎯 HELPER VALIDASI PRESISI HARI INI
 const isSameDate = (dateString: string) => {
   const today = new Date();
   const y = today.getFullYear();
@@ -134,6 +122,9 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
   const [selectedDay, setSelectedDay] = useState<string>(getTodayName());
   const [dateLabels, setDateLabels] = useState<{ [day: string]: string }>({});
   
+  // State key untuk reset dan memicu ulang animasi CSS saat ganti tab
+  const [animKey, setAnimKey] = useState<number>(0);
+
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [isSwapModalOpen, setIsSwapModalOpen] = useState<boolean>(false);
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState<boolean>(false);
@@ -141,7 +132,6 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
   const [isInboxOpen, setIsInboxOpen] = useState<boolean>(false);
   const [pendingInboxCount, setPendingInboxCount] = useState<number>(0);
 
-  // 👑 Validasi Manajemen/Owner yang Mendukung Daftar Role Terstruktur Baru
   const rawRole = (currentUser?.role || userRole || '').toLowerCase();
   const isManagement = 
     rawRole.includes('management') || 
@@ -162,6 +152,18 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
     }
   }, [selectedWeek, currentUser]);
 
+  const handleWeekChange = (w: number) => {
+    if (w === selectedWeek) return;
+    setSelectedWeek(w);
+    setAnimKey(prev => prev + 1);
+  };
+
+  const handleDayChange = (day: string) => {
+    if (day === selectedDay) return;
+    setSelectedDay(day);
+    setAnimKey(prev => prev + 1);
+  };
+
   const checkPendingInbox = async () => {
     if (!currentUser?.staff_id) return;
     try {
@@ -181,11 +183,9 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
     setLoading(true);
 
     try {
-      // 1. Dapatkan Rentang Tanggal Minggu Terpilih
       const { start, end, dateFormattedLabels } = getWeekDateRange(selectedWeek);
       setDateLabels(dateFormattedLabels);
 
-      // 2. Ambil Data Staf Operasional (Kecualikan Eksekutif & Manajemen)
       const { data: staffData, error: staffError } = await supabase
         .from('staff')
         .select('staff_id, staff_name, first_name, last_name, avatar_url, role, status')
@@ -193,7 +193,6 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
 
       if (staffError) throw staffError;
 
-      // Filter di level aplikasi untuk menyaring staf non-operasional
       const operationalStaffData = (staffData || []).filter(s => {
         const r = (s.role || '').toLowerCase();
         return (
@@ -207,7 +206,6 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
         );
       });
 
-      // 3. Ambil Data Jadwal dari Tabel 'schedules' Berdasarkan Range Tanggal & Filter Minggu
       const { data: scheduleData, error: scheduleError } = await supabase
         .from('schedules')
         .select('staff_id, staff_name, day, date, shift, week_number')
@@ -215,7 +213,6 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
 
       if (scheduleError) throw scheduleError;
 
-      // Map untuk Pencarian Jadwal Cepat
       const scheduleMap: { [key: string]: string } = {};
       (scheduleData || []).forEach(item => {
         if (item.date) {
@@ -227,7 +224,6 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
         }
       });
 
-      // 4. Susun Data Roster dan Deteksi Rest Time Warning (Shift 2 -> Shift 1)
       const summaries: StaffSummary[] = operationalStaffData.map(staf => {
         const shifts: { [day: string]: string } = {};
         const restWarnings: { [day: string]: boolean } = {};
@@ -254,7 +250,6 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
             total_off += 1;
           }
 
-          // DETEKSI REST TIME WARNING: Hari kemarin Shift 2 (Malam) -> Hari ini Shift 1 (Pagi)
           if (idx > 0) {
             const prevDay = DAYS[idx - 1];
             const prevShift = shifts[prevDay];
@@ -287,9 +282,10 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
       });
 
       setStaffSummaries(summaries);
+      setLoading(false);
+      setAnimKey(prev => prev + 1);
     } catch (err) {
       console.error('Error fetching dynamic roster schedules:', err);
-    } finally {
       setLoading(false);
     }
   };
@@ -298,6 +294,24 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
 
   return (
     <div className="bg-white rounded-3xl p-5 md:p-6 border border-neutral-200 shadow-sm mb-8 text-left">
+      {/* CSS Animasi Murni dengan Keyframes */}
+      <style>{`
+        @keyframes fadeInCol {
+          0% {
+            opacity: 0;
+            transform: translateY(4px);
+          }
+          100% {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-col-fade {
+          animation: fadeInCol 0.35s ease-out forwards;
+          opacity: 0;
+        }
+      `}</style>
+
       {/* Header Roster */}
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6 pb-4 border-b border-neutral-100">
         <div>
@@ -365,7 +379,7 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
               return (
                 <button
                   key={w}
-                  onClick={() => setSelectedWeek(w)}
+                  onClick={() => handleWeekChange(w)}
                   className={`relative px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
                     isActive
                       ? 'bg-[#d22027] text-white shadow-xs'
@@ -397,7 +411,7 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
           return (
             <button
               key={day}
-              onClick={() => setSelectedDay(day)}
+              onClick={() => handleDayChange(day)}
               className={`relative px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
                 isActive
                   ? 'bg-[#111111] text-white'
@@ -425,26 +439,37 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
         </div>
       ) : (
         <>
-          {/* Tampilan Desktop: Tabel Roster */}
-          <div className="hidden md:block overflow-x-auto">
+          {/* Tabel Desktop: Animasi Kolom Berurutan (Kiri ke Kanan) */}
+          <div key={`anim-${animKey}`} className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="bg-[#111111] text-white">
-                  {isManagement && (
-                    <th className="p-3 rounded-tl-xl font-bold">ID</th>
-                  )}
-
-                  <th className={`p-3 font-bold ${!isManagement ? 'rounded-tl-xl' : ''}`}>
+                  {/* 1. Nama Staf (0ms) */}
+                  <th className="p-3 font-bold rounded-tl-xl animate-col-fade" style={{ animationDelay: '0ms' }}>
                     Nama Staf
                   </th>
-                  <th className="p-3 font-bold">Divisi</th>
 
-                  {/* HEADER HARI + TANGGAL PRESISI */}
+                  {/* 2. ID (70ms) & Divisi (140ms) */}
+                  {isManagement && (
+                    <th className="p-3 font-bold animate-col-fade" style={{ animationDelay: '70ms' }}>
+                      ID
+                    </th>
+                  )}
+                  <th className="p-3 font-bold animate-col-fade" style={{ animationDelay: '140ms' }}>
+                    Divisi
+                  </th>
+
+                  {/* 3. Hari a s/d Hari x (Senin - Minggu) (210ms - 630ms) */}
                   {DAYS.map((day, idx) => {
                     const isTodayHeader = isSameDate(currentSelectedWeekDates[idx]);
+                    const delayMs = 210 + idx * 70;
 
                     return (
-                      <th key={day} className="p-3 text-center font-bold">
+                      <th
+                        key={day}
+                        className="p-3 text-center font-bold animate-col-fade"
+                        style={{ animationDelay: `${delayMs}ms` }}
+                      >
                         <div>{day}</div>
                         <div className="text-[10px] font-normal opacity-80 mt-0.5">
                           {dateLabels[day] || ''} {isTodayHeader && ' (Hari Ini)'}
@@ -453,19 +478,31 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
                     );
                   })}
                   
-                  <th className={`p-3 text-center bg-neutral-800 font-bold ${!isManagement ? 'rounded-tr-xl' : ''}`}>
+                  {/* 4. Total Shift (700ms) */}
+                  <th
+                    className={`p-3 text-center bg-neutral-800 font-bold animate-col-fade ${!isManagement ? 'rounded-tr-xl' : ''}`}
+                    style={{ animationDelay: '700ms' }}
+                  >
                     Tot. Shift
                   </th>
 
+                  {/* 5. Shift 1 (770ms), Shift 2 (840ms), OFF (910ms) */}
                   {isManagement && (
                     <>
-                      <th className="p-3 text-center bg-blue-900/60 font-bold">Shift 1</th>
-                      <th className="p-3 text-center bg-amber-900/60 font-bold">Shift 2</th>
-                      <th className="p-3 text-center bg-red-900/60 rounded-tr-xl font-bold">OFF</th>
+                      <th className="p-3 text-center bg-blue-900/60 font-bold animate-col-fade" style={{ animationDelay: '770ms' }}>
+                        Shift 1
+                      </th>
+                      <th className="p-3 text-center bg-amber-900/60 font-bold animate-col-fade" style={{ animationDelay: '840ms' }}>
+                        Shift 2
+                      </th>
+                      <th className="p-3 text-center bg-red-900/60 rounded-tr-xl font-bold animate-col-fade" style={{ animationDelay: '910ms' }}>
+                        OFF
+                      </th>
                     </>
                   )}
                 </tr>
               </thead>
+
               <tbody className="divide-y divide-neutral-100">
                 {staffSummaries.map(staff => {
                   const isLoggedUser = currentUser && (
@@ -482,13 +519,9 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
                           : 'hover:bg-neutral-50'
                       }`}
                     >
-                      {isManagement && (
-                        <td className="p-3 font-mono font-bold text-neutral-400">{staff.staff_id}</td>
-                      )}
-
-                      <td className="p-3 font-bold text-[#111111]">
+                      {/* 1. Nama Staf */}
+                      <td className="p-3 font-bold text-[#111111] animate-col-fade" style={{ animationDelay: '0ms' }}>
                         <div className="flex items-center gap-2">
-                          {/* AVATAR PROFIL STAF */}
                           {staff.avatar_url ? (
                             <img
                               src={staff.avatar_url}
@@ -511,7 +544,6 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
                               )}
                             </span>
 
-                            {/* 🔒 PERINGATAN REST TIME HANYA UTK OWNER/MANAGEMENT */}
                             {isManagement && staff.hasAnyRestWarning && (
                               <span
                                 className="mt-0.5 text-[9px] text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded font-semibold w-max"
@@ -529,16 +561,27 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
                           </div>
                         </div>
                       </td>
-                      <td className="p-3 text-neutral-500 capitalize">{staff.role?.replace(/_/g, ' ')}</td>
+
+                      {/* 2. ID & Divisi */}
+                      {isManagement && (
+                        <td className="p-3 font-mono font-bold text-neutral-400 animate-col-fade" style={{ animationDelay: '70ms' }}>
+                          {staff.staff_id}
+                        </td>
+                      )}
+                      <td className="p-3 text-neutral-500 capitalize animate-col-fade" style={{ animationDelay: '140ms' }}>
+                        {staff.role?.replace(/_/g, ' ')}
+                      </td>
                       
-                      {DAYS.map(day => {
+                      {/* 3. Shift Hari (Senin - Minggu) */}
+                      {DAYS.map((day, idx) => {
                         const shift = staff.shifts[day] || 'OFF';
                         const isRestWarning = isManagement && staff.restWarnings[day];
+                        const delayMs = 210 + idx * 70;
 
                         return (
-                          <td key={day} className="p-3 text-center">
+                          <td key={day} className="p-3 text-center animate-col-fade" style={{ animationDelay: `${delayMs}ms` }}>
                             <span
-                              className={`px-2 py-1 rounded-md font-bold text-[10px] inline-block min-w-[54px] ${
+                              className={`px-2 py-1 rounded-md font-bold text-[10px] inline-block min-w-[54px] transition-colors ${
                                 isRestWarning
                                   ? 'bg-amber-100 text-amber-800 border border-amber-300'
                                   : shift === 'Shift 1' || shift === 'S1'
@@ -556,15 +599,23 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
                         );
                       })}
 
-                      <td className="p-3 text-center font-black bg-neutral-50/80 text-[#111111]">
+                      {/* 4. Total Shift */}
+                      <td className="p-3 text-center font-black bg-neutral-50/80 text-[#111111] animate-col-fade" style={{ animationDelay: '700ms' }}>
                         {staff.total_shift}
                       </td>
 
+                      {/* 5. Shift 1, Shift 2, OFF */}
                       {isManagement && (
                         <>
-                          <td className="p-3 text-center font-bold text-blue-600 bg-blue-50/40">{staff.total_shift_1}</td>
-                          <td className="p-3 text-center font-bold text-amber-700 bg-amber-50/40">{staff.total_shift_2}</td>
-                          <td className="p-3 text-center font-bold text-red-500 bg-red-50/40">{staff.total_off}</td>
+                          <td className="p-3 text-center font-bold text-blue-600 bg-blue-50/40 animate-col-fade" style={{ animationDelay: '770ms' }}>
+                            {staff.total_shift_1}
+                          </td>
+                          <td className="p-3 text-center font-bold text-amber-700 bg-amber-50/40 animate-col-fade" style={{ animationDelay: '840ms' }}>
+                            {staff.total_shift_2}
+                          </td>
+                          <td className="p-3 text-center font-bold text-red-500 bg-red-50/40 animate-col-fade" style={{ animationDelay: '910ms' }}>
+                            {staff.total_off}
+                          </td>
                         </>
                       )}
                     </tr>
@@ -574,15 +625,15 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
             </table>
           </div>
 
-          {/* Tampilan Mobile */}
-          <div className="md:hidden space-y-3">
+          {/* Tampilan Mobile: Kartu Roster Per Hari */}
+          <div key={`mob-${animKey}`} className="md:hidden space-y-3">
             <div className="flex justify-between items-center mb-1">
               <span className="text-xs font-bold text-neutral-400">
                 Jadwal Hari {selectedDay} {dateLabels[selectedDay] && `(${dateLabels[selectedDay]})`} (Minggu {selectedWeek})
               </span>
             </div>
 
-            {staffSummaries.map(staff => {
+            {staffSummaries.map((staff, idx) => {
               const shiftToday = staff.shifts[selectedDay] || 'OFF';
               const isRestWarningToday = isManagement && staff.restWarnings[selectedDay];
               const isLoggedUser = currentUser && (
@@ -593,14 +644,14 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
               return (
                 <div
                   key={staff.staff_id}
-                  className={`p-3.5 rounded-2xl border flex justify-between items-center ${
+                  style={{ animationDelay: `${idx * 60}ms` }}
+                  className={`p-3.5 rounded-2xl border flex justify-between items-center animate-col-fade ${
                     isLoggedUser
                       ? 'bg-red-50/90 border-[#d22027]'
                       : 'bg-neutral-50 border-neutral-200'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    {/* AVATAR PROFIL MOBILE */}
                     {staff.avatar_url ? (
                       <img
                         src={staff.avatar_url}

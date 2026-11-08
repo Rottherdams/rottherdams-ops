@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 
 interface CurrentUser {
@@ -43,9 +44,8 @@ interface TukarShiftModalProps {
 
 const DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
 
-// 🚀 HELPER: Menghitung Rentang Tanggal Presisi Mulai (Senin) & Selesai (Minggu) Berdasarkan Minggu Ke-
 const getWeekDateRange = (weekNum: number) => {
-  const baseMonday = new Date(2026, 10, 2); // 2 Nov 2026 (Senin Minggu 1)
+  const baseMonday = new Date(2026, 10, 2); 
   
   const startDate = new Date(baseMonday);
   startDate.setDate(baseMonday.getDate() + (weekNum - 1) * 7);
@@ -70,13 +70,24 @@ export default function TukarShiftModal({
   const [swapRequests, setSwapRequests] = useState<SwapRequest[]>([]);
   const [loading, setLoading] = useState(false);
   const [fetchingShifts, setFetchingShifts] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
 
-  // Form State
+  // State transisi fade konten tab
+  const [isTabChanging, setIsTabChanging] = useState(false);
+
+  const handleTabChange = (newTab: 'form' | 'history') => {
+    if (newTab === activeTab) return;
+    setIsTabChanging(true);
+    setTimeout(() => {
+      setActiveTab(newTab);
+      setIsTabChanging(false);
+    }, 150);
+  };
+
   const [targetStaffId, setTargetStaffId] = useState('');
   const [weekNumber, setWeekNumber] = useState<number>(1);
   const [swapDay, setSwapDay] = useState('Senin');
   
-  // Shift State (Otomatis dari Database)
   const [myShift, setMyShift] = useState('Memuat...');
   const [targetShift, setTargetShift] = useState('Memuat...');
   const [reason, setReason] = useState('');
@@ -92,10 +103,8 @@ export default function TukarShiftModal({
     currentUser?.staff_id?.startsWith('MNG-') ||
     currentUser?.staff_id?.startsWith('OWN-');
 
-  // Ambil objek staf target berdasarkan ID yang dipilih
   const selectedTargetStaff = staffList.find(s => String(s.staff_id) === String(targetStaffId));
 
-  // Deteksi jika shift asal dan shift tujuan persis sama
   const isSameShift = 
     !fetchingShifts && 
     targetStaffId !== '' && 
@@ -105,17 +114,25 @@ export default function TukarShiftModal({
 
   useEffect(() => {
     if (isOpen) {
+      setIsClosing(false);
       fetchStaffList();
       fetchSwapRequests();
     }
   }, [isOpen, currentUser]);
 
-  // Trigger pencarian shift otomatis setiap kali Minggu, Hari, atau Staf Pasangan berubah
   useEffect(() => {
     if (isOpen && currentUser) {
       fetchAutoShifts();
     }
   }, [isOpen, currentUser, weekNumber, swapDay, targetStaffId]);
+
+  const handleAnimatedClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      onClose();
+      setIsClosing(false);
+    }, 250);
+  };
 
   const fetchStaffList = async () => {
     const { data } = await supabase
@@ -165,7 +182,6 @@ export default function TukarShiftModal({
     setLoading(false);
   };
 
-  // 🤖 FUNGSI PRESISI DENGAN RANGE TANGGAL MINGGU UNTUK OTOMATIS MEMBACA SHIFT DARI DATABASE 'schedules'
   const fetchAutoShifts = async () => {
     if (!currentUser) return;
     setFetchingShifts(true);
@@ -173,7 +189,6 @@ export default function TukarShiftModal({
     try {
       const { start, end } = getWeekDateRange(weekNumber);
 
-      // Ambil jadwal presisi berdasarkan rentang tanggal & minggu terpilih
       const { data: scheduleData, error } = await supabase
         .from('schedules')
         .select('staff_id, shift, date, day, week_number')
@@ -189,12 +204,10 @@ export default function TukarShiftModal({
       (scheduleData || []).forEach(item => {
         const isDayMatch = item.day === swapDay;
 
-        // Pencocokan Staf Requester (Staf Login)
         if (String(item.staff_id) === String(currentUser.staff_id) && isDayMatch) {
           foundMyShift = item.shift || 'OFF';
         }
 
-        // Pencocokan Staf Pasangan (Target)
         if (targetStaffId && String(item.staff_id) === String(targetStaffId) && isDayMatch) {
           foundTargetShift = item.shift || 'OFF';
         }
@@ -247,7 +260,7 @@ export default function TukarShiftModal({
     if (!error) {
       alert('Pengajuan tukar shift berhasil dikirim!');
       setReason('');
-      setActiveTab('history');
+      handleTabChange('history');
       fetchSwapRequests();
     } else {
       alert('Gagal mengajukan tukar shift: ' + error.message);
@@ -308,10 +321,34 @@ export default function TukarShiftModal({
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs text-left">
-      <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-neutral-100 max-h-[90vh] flex flex-col overflow-hidden">
-        {/* Header Modal */}
+  return createPortal(
+    <div
+      className={`fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs text-left ${
+        isClosing ? 'animate-backdrop-out' : 'animate-backdrop-in'
+      }`}
+    >
+      <style>{`
+        @keyframes modalBackdropIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+        @keyframes modalBackdropOut { 0% { opacity: 1; } 100% { opacity: 0; } }
+        @keyframes modalContentIn {
+          0% { opacity: 0; transform: scale(0.92) translateY(12px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes modalContentOut {
+          0% { opacity: 1; transform: scale(1) translateY(0); }
+          100% { opacity: 0; transform: scale(0.95) translateY(8px); }
+        }
+        .animate-backdrop-in { animation: modalBackdropIn 0.3s ease-out forwards; }
+        .animate-backdrop-out { animation: modalBackdropOut 0.25s ease-in forwards; }
+        .animate-modal-in { animation: modalContentIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .animate-modal-out { animation: modalContentOut 0.25s ease-in forwards; }
+      `}</style>
+
+      <div
+        className={`bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-neutral-100 max-h-[90vh] flex flex-col overflow-hidden my-auto ${
+          isClosing ? 'animate-modal-out' : 'animate-modal-in'
+        }`}
+      >
         <div className="flex justify-between items-center pb-4 border-b border-neutral-100">
           <div>
             <span className="text-[10px] font-extrabold uppercase tracking-widest text-[#d22027]">
@@ -320,39 +357,48 @@ export default function TukarShiftModal({
             <h3 className="text-lg font-black text-[#111111]">🔁 Pengajuan Tukar Shift</h3>
           </div>
           <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-neutral-100 text-neutral-500 hover:bg-neutral-200 flex items-center justify-center font-bold text-sm cursor-pointer"
+            onClick={handleAnimatedClose}
+            className="w-8 h-8 rounded-full bg-neutral-100 text-neutral-500 hover:bg-neutral-200 flex items-center justify-center font-bold text-sm cursor-pointer transition active:scale-90"
           >
             ✕
           </button>
         </div>
 
-        {/* Tab Switcher */}
-        <div className="flex bg-neutral-100 p-1 rounded-2xl my-4">
+        {/* 🌟 SLIDING TAB SWITCHER BERANIMASI */}
+        <div className="relative bg-neutral-100 p-1 rounded-2xl my-4 flex shrink-0 select-none border border-neutral-200">
+          {/* Highlight Meluncur */}
+          <div
+            className={`absolute top-1 bottom-1 w-[calc(50%-0.25rem)] bg-[#111111] rounded-xl shadow-sm transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+              activeTab === 'history' ? 'translate-x-[calc(100%+0.25rem)]' : 'translate-x-0'
+            }`}
+          />
+
           <button
-            onClick={() => setActiveTab('form')}
-            className={`flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
-              activeTab === 'form'
-                ? 'bg-[#111111] text-white shadow-xs'
-                : 'text-neutral-500 hover:text-[#111111]'
+            type="button"
+            onClick={() => handleTabChange('form')}
+            className={`relative z-10 flex-1 py-2 text-xs font-bold rounded-xl transition-colors duration-200 cursor-pointer flex items-center justify-center ${
+              activeTab === 'form' ? 'text-white' : 'text-neutral-500 hover:text-[#111111]'
             }`}
           >
             📝 Form Ajukan Tukar
           </button>
           <button
-            onClick={() => setActiveTab('history')}
-            className={`flex-1 py-2 text-xs font-bold rounded-xl transition cursor-pointer ${
-              activeTab === 'history'
-                ? 'bg-[#111111] text-white shadow-xs'
-                : 'text-neutral-500 hover:text-[#111111]'
+            type="button"
+            onClick={() => handleTabChange('history')}
+            className={`relative z-10 flex-1 py-2 text-xs font-bold rounded-xl transition-colors duration-200 cursor-pointer flex items-center justify-center ${
+              activeTab === 'history' ? 'text-white' : 'text-neutral-500 hover:text-[#111111]'
             }`}
           >
             📋 Riwayat & Status ({swapRequests.length})
           </button>
         </div>
 
-        {/* Content Body */}
-        <div className="flex-1 overflow-y-auto pr-1">
+        {/* Content Section dengan Animasi Fade */}
+        <div
+          className={`flex-1 overflow-y-auto pr-1 transition-opacity duration-200 ${
+            isTabChanging ? 'opacity-0 scale-[0.99]' : 'opacity-100 scale-100'
+          }`}
+        >
           {activeTab === 'form' ? (
             <form onSubmit={handleSubmitSwap} className="space-y-4">
               <div>
@@ -403,7 +449,6 @@ export default function TukarShiftModal({
                 </div>
               </div>
 
-              {/* READ-ONLY / DISPLAY OTOMATIS SHIFT */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-neutral-700 mb-1">
@@ -428,7 +473,6 @@ export default function TukarShiftModal({
                 </div>
               </div>
 
-              {/* ⚠️ NOTIFIKASI WARNING DENGAN NAMA STAF SPESIFIK */}
               {isSameShift && (
                 <div className="p-3 rounded-2xl bg-amber-50 border border-amber-200 text-[11px] font-bold text-amber-800 flex items-start gap-2">
                   <span className="text-sm">⚠️</span>
@@ -449,14 +493,13 @@ export default function TukarShiftModal({
                 ></textarea>
               </div>
 
-              {/* TOMBOL SMART DISABLE BILA SHIFT SAMA */}
               <button
                 type="submit"
                 disabled={loading || fetchingShifts || isSameShift}
-                className={`w-full py-3 font-extrabold text-xs rounded-xl shadow-md transition cursor-pointer ${
+                className={`w-full py-3 font-extrabold text-xs rounded-xl shadow-md transition cursor-pointer active:scale-98 ${
                   isSameShift
                     ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed shadow-none'
-                    : 'bg-[#d22027] hover:bg-[#b0181e] text-white active:scale-98'
+                    : 'bg-[#d22027] hover:bg-[#b0181e] text-white'
                 }`}
               >
                 {loading
@@ -536,6 +579,7 @@ export default function TukarShiftModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

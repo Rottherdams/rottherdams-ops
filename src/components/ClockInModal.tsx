@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 
 interface ClockInModalProps {
@@ -35,6 +36,13 @@ export default function ClockInModal({
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [cameraError, setCameraError] = useState<string | null>(null);
 
+  // State Animasi Exit Modal Utama
+  const [isClosing, setIsClosing] = useState<boolean>(false);
+
+  // State Sub-Modal Konfirmasi Clock Out Beranimasi
+  const [showClockOutConfirm, setShowClockOutConfirm] = useState<boolean>(false);
+  const [isClosingClockOutModal, setIsClosingClockOutModal] = useState<boolean>(false);
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
@@ -47,6 +55,9 @@ export default function ClockInModal({
 
   useEffect(() => {
     if (isOpen && currentUser) {
+      setIsClosing(false);
+      setShowClockOutConfirm(false);
+      setIsClosingClockOutModal(false);
       checkCurrentAttendance();
       getLocation();
       fetchIpAddress();
@@ -58,6 +69,25 @@ export default function ClockInModal({
       stopCamera();
     };
   }, [isOpen, currentUser]);
+
+  // Handler Tutup Modal Utama Beranimasi Smooth Out
+  const handleAnimatedClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      stopCamera();
+      onClose();
+      setIsClosing(false);
+    }, 250);
+  };
+
+  // Handler Tutup Modal Clock Out dengan Animasi
+  const handleCloseClockOutConfirm = () => {
+    setIsClosingClockOutModal(true);
+    setTimeout(() => {
+      setShowClockOutConfirm(false);
+      setIsClosingClockOutModal(false);
+    }, 250);
+  };
 
   // Ambil IP Address publik untuk Audit Trail Metadata
   const fetchIpAddress = async () => {
@@ -255,7 +285,6 @@ export default function ClockInModal({
     setIsLoading(true);
 
     try {
-      // Ambil nama profil resmi dari Supabase staff
       const { data: staffData } = await supabase
         .from('staff')
         .select('first_name, last_name, staff_name')
@@ -265,7 +294,6 @@ export default function ClockInModal({
       const staffDisplayName = staffData?.staff_name || 
         (staffData?.first_name ? `${staffData.first_name} ${staffData.last_name || ''}`.trim() : currentUser.name);
 
-      // A. Upload Foto ke Supabase Storage
       const fileName = `${currentUser.staff_id}_${Date.now()}.jpg`;
       const { data: storageData, error: storageError } = await supabase.storage
         .from('attendance-photos')
@@ -279,12 +307,10 @@ export default function ClockInModal({
         photo_url = publicUrlData.publicUrl;
       }
 
-      // B. Hitung Status Kecurangan / Fake GPS Sebelum Simpan
       const isOutsideRadius = !isLocalhost && distance !== null && distance > MAX_RADIUS_METERS;
       const isFakeGpsDetected = !!locationError && locationError.includes('Fake GPS');
       const isFakeGpsFlag = isOutsideRadius || isFakeGpsDetected;
 
-      // C. Simpan Presensi + Metadata Audit Trail + Status Fake GPS ke Database
       const { error } = await supabase.from('attendances').insert([
         {
           staff_id: currentUser.staff_id,
@@ -295,7 +321,7 @@ export default function ClockInModal({
           longitude: location?.lng || null,
           photo_url,
           status: 'On Duty',
-          is_fake_gps: isFakeGpsFlag, // 🚨 SIMPAN SINYAL FAKE GPS UNTUK AUDIT TIM
+          is_fake_gps: isFakeGpsFlag,
           gps_accuracy: gpsAccuracy,
           ip_address: ipAddress || 'Unknown',
           device_info: navigator.userAgent,
@@ -305,8 +331,13 @@ export default function ClockInModal({
       setIsLoading(false);
 
       if (!error) {
-        onSuccess();
-        onClose();
+        setIsClosing(true);
+        setTimeout(() => {
+          stopCamera();
+          onSuccess();
+          onClose();
+          setIsClosing(false);
+        }, 250);
       } else {
         alert('Gagal Melakukan Clock In: ' + error.message);
       }
@@ -316,7 +347,8 @@ export default function ClockInModal({
     }
   };
 
-  const handleClockOut = async () => {
+  // 🚪 4. Proses Clock Out Eksekusi Database
+  const handleClockOutSubmit = async () => {
     if (!activeAttendance) return;
     setIsLoading(true);
 
@@ -331,26 +363,59 @@ export default function ClockInModal({
     setIsLoading(false);
 
     if (!error) {
-      onSuccess();
-      onClose();
+      setIsClosingClockOutModal(true);
+      setTimeout(() => {
+        setShowClockOutConfirm(false);
+        setIsClosingClockOutModal(false);
+        setIsClosing(true);
+        setTimeout(() => {
+          onSuccess();
+          onClose();
+          setIsClosing(false);
+        }, 250);
+      }, 250);
     } else {
       alert('Gagal Melakukan Clock Out: ' + error.message);
     }
   };
 
-  // Validasi radius & Fake GPS untuk UI Modal
   const isOutsideRadius = !isLocalhost && distance !== null && distance > MAX_RADIUS_METERS;
   const isFakeGpsDetected = !!locationError && locationError.includes('Fake GPS');
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-      <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-neutral-100 text-left relative animate-in fade-in zoom-in-95 duration-200">
+  return createPortal(
+    <div
+      className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 ${
+        isClosing ? 'animate-backdrop-out' : 'animate-backdrop-in'
+      }`}
+    >
+      {/* 🌟 Keyframes Animasi Backdrop & Modal */}
+      <style>{`
+        @keyframes clockInBackdropIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+        @keyframes clockInBackdropOut { 0% { opacity: 1; } 100% { opacity: 0; } }
+        @keyframes clockInModalIn {
+          0% { opacity: 0; transform: scale(0.92) translateY(16px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes clockInModalOut {
+          0% { opacity: 1; transform: scale(1) translateY(0); }
+          100% { opacity: 0; transform: scale(0.95) translateY(10px); }
+        }
+        .animate-backdrop-in { animation: clockInBackdropIn 0.3s ease-out forwards; }
+        .animate-backdrop-out { animation: clockInBackdropOut 0.25s ease-in forwards; }
+        .animate-modal-in { animation: clockInModalIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .animate-modal-out { animation: clockInModalOut 0.25s ease-in forwards; }
+      `}</style>
+
+      {/* MODAL UTAMA PRESENSI */}
+      <div
+        className={`bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-neutral-100 text-left relative my-auto ${
+          isClosing ? 'animate-modal-out' : 'animate-modal-in'
+        }`}
+      >
         <button
-          onClick={() => {
-            stopCamera();
-            onClose();
-          }}
-          className="absolute right-4 top-4 w-8 h-8 rounded-full bg-neutral-100 text-neutral-400 font-bold hover:bg-neutral-200 transition cursor-pointer flex items-center justify-center text-xs"
+          type="button"
+          onClick={handleAnimatedClose}
+          className="absolute right-4 top-4 w-8 h-8 rounded-full bg-neutral-100 text-neutral-400 font-bold hover:bg-neutral-200 transition cursor-pointer flex items-center justify-center text-xs active:scale-90"
         >
           ✕
         </button>
@@ -385,11 +450,11 @@ export default function ClockInModal({
             </div>
 
             <button
-              onClick={handleClockOut}
+              onClick={() => setShowClockOutConfirm(true)}
               disabled={isLoading}
               className="w-full py-3.5 bg-neutral-900 hover:bg-black text-white font-bold text-xs rounded-2xl shadow-md transition cursor-pointer active:scale-95"
             >
-              {isLoading ? 'Memproses...' : '🚪 Clock Out (Selesai Shift)'}
+              🚪 Clock Out (Selesai Shift)
             </button>
           </div>
         ) : (
@@ -430,7 +495,7 @@ export default function ClockInModal({
             </div>
 
             {/* Kamera & Preview Selfie */}
-            <div className="relative w-full h-48 bg-black rounded-2xl overflow-hidden flex items-center justify-center border border-neutral-200">
+            <div className="relative w-full h-48 bg-black rounded-2xl overflow-hidden flex items-center justify-center border border-neutral-200 shadow-inner">
               {photoPreview ? (
                 <img src={photoPreview} alt="Selfie Preview" className="w-full h-full object-cover" />
               ) : cameraError ? (
@@ -478,6 +543,76 @@ export default function ClockInModal({
           </div>
         )}
       </div>
-    </div>
+
+      {/* 🚪 SUB-MODAL KONFIRMASI CLOCK OUT CUSTOM BERANIMASI */}
+      {showClockOutConfirm && createPortal(
+        <div
+          className={`fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 ${
+            isClosingClockOutModal ? 'animate-backdrop-out' : 'animate-backdrop-in'
+          }`}
+        >
+          <div
+            className={`bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-neutral-100 text-left relative my-auto ${
+              isClosingClockOutModal ? 'animate-modal-out' : 'animate-modal-in'
+            }`}
+          >
+            <button
+              type="button"
+              onClick={handleCloseClockOutConfirm}
+              disabled={isLoading}
+              className="absolute right-4 top-4 w-8 h-8 rounded-full bg-neutral-100 text-neutral-400 font-bold hover:bg-neutral-200 transition cursor-pointer flex items-center justify-center text-xs active:scale-90"
+            >
+              ✕
+            </button>
+
+            <div className="flex flex-col items-center text-center space-y-2 pt-2 pb-1">
+              <div className="w-14 h-14 bg-red-50 text-[#d22027] rounded-3xl flex items-center justify-center text-2xl font-black shadow-inner border border-red-100">
+                🚪
+              </div>
+              <h3 className="text-base font-black text-[#111111]">Konfirmasi Selesai Shift</h3>
+              <p className="text-xs text-neutral-500 font-medium">
+                Apakah kamu yakin ingin menyelesaikan shift (<strong className="text-neutral-800">Clock Out</strong>) sekarang?
+              </p>
+            </div>
+
+            {activeAttendance && (
+              <div className="my-4 p-3 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs space-y-1">
+                <div className="flex justify-between items-center text-neutral-600">
+                  <span>Nama Staf:</span>
+                  <span className="font-extrabold text-[#111111]">{currentUser?.name}</span>
+                </div>
+                <div className="flex justify-between items-center text-neutral-600">
+                  <span>Jam Clock In:</span>
+                  <span className="font-mono font-bold text-emerald-600">
+                    {new Date(activeAttendance.clock_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleCloseClockOutConfirm}
+                disabled={isLoading}
+                className="flex-1 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold text-xs rounded-2xl transition cursor-pointer active:scale-95"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleClockOutSubmit}
+                disabled={isLoading}
+                className="flex-1 py-3 bg-[#d22027] hover:bg-red-700 text-white font-black text-xs rounded-2xl shadow-md transition cursor-pointer active:scale-95 disabled:opacity-50"
+              >
+                {isLoading ? 'Memproses...' : 'Ya, Selesai Shift'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+    </div>,
+    document.body
   );
 }

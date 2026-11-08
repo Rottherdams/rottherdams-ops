@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 
 interface CurrentUser {
@@ -31,21 +32,23 @@ interface AnnouncementBannerProps {
 
 export default function AnnouncementBanner({ currentUser }: AnnouncementBannerProps) {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
-  const [readAnnouncementIds, setReadAnnouncementIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
 
   // State Modal Buat Pengumuman Baru
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isClosingCreateModal, setIsClosingCreateModal] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [newPriority, setNewPriority] = useState<'Normal' | 'Urgent'>('Normal');
   const [submitting, setSubmitting] = useState(false);
+  const [modalErrorMessage, setModalErrorMessage] = useState<string | null>(null);
 
   // State Modal Audit Staf yang Sudah Membaca
   const [auditAnnouncementId, setAuditAnnouncementId] = useState<number | null>(null);
+  const [isClosingAuditModal, setIsClosingAuditModal] = useState(false);
   const [readAuditList, setReadAuditList] = useState<ReadAuditItem[]>([]);
 
-  // 👑 Validasi Manajemen/Owner yang Mendukung Daftar Role Terstruktur Baru
+  // 👑 Validasi Manajemen & Owner (Bisa Akses Fitur Audit & Broadcast)
   const rawRole = (currentUser?.role || '').toLowerCase();
   const isManagementOrOwner =
     rawRole.includes('management') ||
@@ -58,8 +61,7 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
     currentUser.staff_id?.startsWith('OWN-');
 
   useEffect(() => {
-    fetchAnnouncements();
-    fetchReadLogs();
+    fetchAnnouncementsAndAutoRead();
 
     // ⚡ SUBSCRIBER REALTIME SUPABASE UNTUK ANNOUNCEMENTS
     const announcementChannel = supabase
@@ -70,6 +72,10 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
         (payload) => {
           const newAnn = payload.new as Announcement;
           setAnnouncements((prev) => [newAnn, ...prev]);
+          // Otomatis tandai dibaca jika ada pengumuman baru yang masuk saat user aktif
+          if (currentUser?.staff_id) {
+            autoMarkAsRead([newAnn.id]);
+          }
         }
       )
       .subscribe();
@@ -79,17 +85,34 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
     };
   }, [currentUser]);
 
-  const fetchAnnouncements = async () => {
+  // FUNGSI AMBIL DATA & AUTO-MARK READ UNTUK SELURUH PENGUMUMAN TERSEDIA
+  const fetchAnnouncementsAndAutoRead = async () => {
     setLoading(true);
-    const { data } = await supabase
+
+    // 1. Fetch pengumuman terbaru
+    const { data: annData } = await supabase
       .from('announcements')
       .select('*')
       .order('created_at', { ascending: false })
       .limit(5);
 
-    if (data && data.length > 0) {
+    let currentReadIds: number[] = [];
+
+    // 2. Fetch log yang sudah dibaca oleh user saat ini
+    if (currentUser?.staff_id) {
+      const { data: readData } = await supabase
+        .from('announcement_reads')
+        .select('announcement_id')
+        .eq('staff_id', currentUser.staff_id);
+
+      if (readData) {
+        currentReadIds = readData.map((item) => item.announcement_id);
+      }
+    }
+
+    if (annData && annData.length > 0) {
       // Ambil avatar penulis dari tabel staff jika ada
-      const authorNames = Array.from(new Set(data.map((a: any) => a.author_name).filter(Boolean)));
+      const authorNames = Array.from(new Set(annData.map((a: any) => a.author_name).filter(Boolean)));
       const { data: staffData } = await supabase
         .from('staff')
         .select('staff_name, first_name, avatar_url')
@@ -100,50 +123,59 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
         if (s.avatar_url) avatarMap[s.staff_name] = s.avatar_url;
       });
 
-      const enriched = data.map((item: any) => ({
+      const enriched = annData.map((item: any) => ({
         ...item,
         author_avatar: avatarMap[item.author_name] || undefined,
       }));
 
       setAnnouncements(enriched);
+
+      // ⚡ 3. EKSEKUSI OTOMATIS: Cari pengumuman yang BELUM dibaca dan langsung catat ke DB
+      if (currentUser?.staff_id) {
+        const unreadIds = annData
+          .map((a: any) => a.id)
+          .filter((id: number) => !currentReadIds.includes(id));
+
+        if (unreadIds.length > 0) {
+          autoMarkAsRead(unreadIds);
+        }
+      }
     } else {
       setAnnouncements([]);
     }
     setLoading(false);
   };
 
-  const fetchReadLogs = async () => {
-    if (!currentUser?.staff_id) return;
-    const { data } = await supabase
-      .from('announcement_reads')
-      .select('announcement_id')
-      .eq('staff_id', currentUser.staff_id);
+  // HANDLER RECORD OTOMATIS KE SUPABASE
+  const autoMarkAsRead = async (announcementIds: number[]) => {
+    if (!currentUser?.staff_id || announcementIds.length === 0) return;
 
-    if (data) {
-      setReadAnnouncementIds(data.map((item) => item.announcement_id));
-    }
+    const payload = announcementIds.map((id) => ({
+      announcement_id: id,
+      staff_id: currentUser.staff_id,
+    }));
+
+    await supabase.from('announcement_reads').insert(payload);
   };
 
-  // Handler Tandai Sudah Membaca
-  const handleMarkAsRead = async (announcementId: number) => {
-    const { error } = await supabase.from('announcement_reads').insert([
-      {
-        announcement_id: announcementId,
-        staff_id: currentUser.staff_id,
-      },
-    ]);
-
-    if (!error) {
-      setReadAnnouncementIds((prev) => [...prev, announcementId]);
-    }
+  // Handler Tutup Modal Buat Pengumuman dengan Animasi Out
+  const handleCloseCreateModal = () => {
+    setIsClosingCreateModal(true);
+    setTimeout(() => {
+      setShowCreateModal(false);
+      setIsClosingCreateModal(false);
+      setModalErrorMessage(null);
+    }, 250);
   };
 
-  // Handler Buat Pengumuman Baru (Management)
+  // Handler Buat Pengumuman Baru (Management & Owner)
   const handleCreateAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !newContent.trim()) return;
 
     setSubmitting(true);
+    setModalErrorMessage(null);
+
     const { error } = await supabase.from('announcements').insert([
       {
         title: newTitle.trim(),
@@ -154,15 +186,26 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
     ]);
 
     setSubmitting(false);
+
     if (!error) {
       setNewTitle('');
       setNewContent('');
       setNewPriority('Normal');
-      setShowCreateModal(false);
-      fetchAnnouncements();
+      handleCloseCreateModal();
+      fetchAnnouncementsAndAutoRead();
     } else {
-      alert('Gagal membuat pengumuman: ' + error.message);
+      console.error('Error insert announcement:', error);
+      setModalErrorMessage(error.message);
     }
+  };
+
+  // Handler Tutup Modal Audit dengan Animasi Out
+  const handleCloseAuditModal = () => {
+    setIsClosingAuditModal(true);
+    setTimeout(() => {
+      setAuditAnnouncementId(null);
+      setIsClosingAuditModal(false);
+    }, 250);
   };
 
   // Handler Lihat Audit Staf yang Sudah Membaca (Lengkap Foto & Nama)
@@ -205,6 +248,24 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
 
   return (
     <div className="space-y-4 text-left">
+      {/* 🌟 Keyframe Animasi Backdrop & Modal */}
+      <style>{`
+        @keyframes annBackdropIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+        @keyframes annBackdropOut { 0% { opacity: 1; } 100% { opacity: 0; } }
+        @keyframes annModalIn {
+          0% { opacity: 0; transform: scale(0.92) translateY(12px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes annModalOut {
+          0% { opacity: 1; transform: scale(1) translateY(0); }
+          100% { opacity: 0; transform: scale(0.95) translateY(8px); }
+        }
+        .ann-backdrop-in { animation: annBackdropIn 0.3s ease-out forwards; }
+        .ann-backdrop-out { animation: annBackdropOut 0.25s ease-in forwards; }
+        .ann-modal-in { animation: annModalIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .ann-modal-out { animation: annModalOut 0.25s ease-in forwards; }
+      `}</style>
+
       {/* HEADER BAR & BUTTON BUAT PENGUMUMAN */}
       <div className="flex justify-between items-center pb-2 border-b border-neutral-200">
         <h3 className="font-black text-sm text-[#111111] flex items-center gap-2">
@@ -228,7 +289,6 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
           </div>
         ) : (
           announcements.map((item) => {
-            const isRead = readAnnouncementIds.includes(item.id);
             const isUrgent = item.priority === 'Urgent';
 
             return (
@@ -279,20 +339,11 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
                     </p>
                   </div>
 
-                  {/* TOMBOL AKSI STAF & AUDIT MANAGEMENT */}
+                  {/* AUDIT MANAGEMENT & OWNER / STATUS OTOMATIS READ */}
                   <div className="flex flex-col items-end gap-2 shrink-0">
-                    {isRead ? (
-                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                        ✓ Sudah Dibaca
-                      </span>
-                    ) : (
-                      <button
-                        onClick={() => handleMarkAsRead(item.id)}
-                        className="px-3 py-1 bg-[#111111] hover:bg-neutral-800 text-white rounded-xl text-[11px] font-bold shadow-xs transition cursor-pointer"
-                      >
-                        👁️ Tandai Dibaca
-                      </button>
-                    )}
+                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
+                      ✓ Sudah Dilihat
+                    </span>
 
                     {isManagementOrOwner && (
                       <button
@@ -310,19 +361,31 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
         )}
       </div>
 
-      {/* MODAL BUAT PENGUMUMAN */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white p-6 rounded-3xl max-w-md w-full space-y-4 relative shadow-2xl border border-neutral-100">
+      {/* MODAL BUAT PENGUMUMAN (PORTAL KE document.body) */}
+      {showCreateModal && createPortal(
+        <div className={`fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] ${
+          isClosingCreateModal ? 'ann-backdrop-out' : 'ann-backdrop-in'
+        }`}>
+          <div className={`bg-white p-6 rounded-3xl max-w-md w-full space-y-4 relative shadow-2xl border border-neutral-100 my-auto text-left ${
+            isClosingCreateModal ? 'ann-modal-out' : 'ann-modal-in'
+          }`}>
             <div className="flex justify-between items-center pb-2 border-b border-neutral-100">
               <h4 className="font-black text-sm text-[#111111]">📢 Buat Broadcast Pengumuman</h4>
               <button
-                onClick={() => setShowCreateModal(false)}
-                className="text-neutral-400 hover:text-black font-bold text-xs cursor-pointer"
+                type="button"
+                onClick={handleCloseCreateModal}
+                className="w-7 h-7 bg-neutral-100 hover:bg-neutral-200 text-neutral-500 hover:text-black rounded-full font-bold text-xs cursor-pointer flex items-center justify-center transition active:scale-90"
               >
                 ✕
               </button>
             </div>
+
+            {modalErrorMessage && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-2xl text-[11px] text-red-600 font-semibold space-y-1">
+                <p className="font-bold">⚠️ Gagal Mengirim Pengumuman:</p>
+                <p className="font-mono text-[10px] bg-white p-2 rounded-xl border border-red-100">{modalErrorMessage}</p>
+              </div>
+            )}
 
             <form onSubmit={handleCreateAnnouncement} className="space-y-3 text-xs">
               <div>
@@ -361,27 +424,42 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
                 ></textarea>
               </div>
 
-              <button
-                type="submit"
-                disabled={submitting}
-                className="w-full py-3 bg-[#d22027] hover:bg-red-700 text-white font-black rounded-xl transition cursor-pointer shadow-md disabled:opacity-50"
-              >
-                {submitting ? 'Mengirim...' : '🚀 Broadcast Pengumuman'}
-              </button>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={handleCloseCreateModal}
+                  className="flex-1 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-bold rounded-xl transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-2 py-3 bg-[#d22027] hover:bg-red-700 text-white font-black rounded-xl transition cursor-pointer shadow-md disabled:opacity-50 active:scale-98"
+                >
+                  {submitting ? 'Mengirim...' : '🚀 Broadcast Pengumuman'}
+                </button>
+              </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {/* MODAL AUDIT STATUS MEMBACA STAF (LENGKAP FOTO & NAMA) */}
-      {auditAnnouncementId && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white p-5 rounded-3xl max-w-sm w-full space-y-3 relative shadow-2xl border border-neutral-100 text-left">
+      {/* MODAL AUDIT STATUS MEMBACA STAF (PORTAL KE document.body) */}
+      {auditAnnouncementId && createPortal(
+        <div className={`fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] ${
+          isClosingAuditModal ? 'ann-backdrop-out' : 'ann-backdrop-in'
+        }`}>
+          <div className={`bg-white p-5 rounded-3xl max-w-sm w-full space-y-3 relative shadow-2xl border border-neutral-100 text-left my-auto ${
+            isClosingAuditModal ? 'ann-modal-out' : 'ann-modal-in'
+          }`}>
             <div className="flex justify-between items-center pb-2 border-b border-neutral-100">
               <h4 className="font-black text-xs text-[#111111]">📋 Audit Staf yang Sudah Membaca</h4>
               <button
-                onClick={() => setAuditAnnouncementId(null)}
-                className="text-neutral-400 hover:text-black font-bold text-xs cursor-pointer"
+                type="button"
+                onClick={handleCloseAuditModal}
+                className="w-7 h-7 bg-neutral-100 hover:bg-neutral-200 text-neutral-500 hover:text-black rounded-full font-bold text-xs cursor-pointer flex items-center justify-center transition active:scale-90"
               >
                 ✕
               </button>
@@ -389,7 +467,7 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
 
             {readAuditList.length === 0 ? (
               <p className="text-xs text-neutral-400 italic py-4 text-center">
-                Belum ada staf yang menandai pengumuman ini sebagai dibaca.
+                Belum ada staf yang melihat pengumuman ini.
               </p>
             ) : (
               <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
@@ -428,7 +506,8 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
               </div>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

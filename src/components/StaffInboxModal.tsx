@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 
 interface CurrentUser {
@@ -21,12 +22,25 @@ export default function StaffInboxModal({ currentUser, isOpen, onClose, onUpdate
   const [mySwaps, setMySwaps] = useState<any[]>([]);
   const [myLeaves, setMyLeaves] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isClosing, setIsClosing] = useState(false);
+
+  // State transisi fade konten tab
+  const [isTabChanging, setIsTabChanging] = useState(false);
+
+  const handleTabChange = (newTab: 'incoming' | 'my_requests') => {
+    if (newTab === activeTab) return;
+    setIsTabChanging(true);
+    setTimeout(() => {
+      setActiveTab(newTab);
+      setIsTabChanging(false);
+    }, 150);
+  };
 
   useEffect(() => {
     if (isOpen) {
+      setIsClosing(false);
       fetchStaffInbox();
 
-      // ⚡ Realtime Listener untuk Update Status Inbox
       const swapChannel = supabase
         .channel('public:shift_swaps_inbox')
         .on(
@@ -52,31 +66,35 @@ export default function StaffInboxModal({ currentUser, isOpen, onClose, onUpdate
     }
   }, [isOpen]);
 
+  const handleAnimatedClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      onClose();
+      setIsClosing(false);
+    }, 250);
+  };
+
   const fetchStaffInbox = async () => {
     setLoading(true);
     try {
-      // 1. Permintaan Tukar Shift Masuk
       const { data: incomingData } = await supabase
         .from('shift_swaps')
         .select('*')
         .eq('target_staff_id', currentUser.staff_id)
         .order('created_at', { ascending: false });
 
-      // 2. Riwayat Tukar Shift Milik Sendiri
       const { data: mySwapData } = await supabase
         .from('shift_swaps')
         .select('*')
         .eq('requester_staff_id', currentUser.staff_id)
         .order('created_at', { ascending: false });
 
-      // 3. Riwayat Izin / Cuti Milik Sendiri
       const { data: myLeaveData } = await supabase
         .from('leave_requests')
         .select('*')
         .eq('staff_id', currentUser.staff_id)
         .order('created_at', { ascending: false });
 
-      // Enrich Data Avatar
       const allStaffIds = Array.from(
         new Set([
           ...(incomingData || []).map((i: any) => i.requester_staff_id),
@@ -119,7 +137,6 @@ export default function StaffInboxModal({ currentUser, isOpen, onClose, onUpdate
     }
   };
 
-  // 🚀 Update target_status dan status sekaligus agar sinkron ke ManagementDashboard
   const handleRespondSwap = async (swapId: number, response: 'accepted' | 'rejected') => {
     try {
       const targetStatusVal = response === 'accepted' ? 'accepted' : 'rejected';
@@ -151,9 +168,34 @@ export default function StaffInboxModal({ currentUser, isOpen, onClose, onUpdate
 
   const pendingIncomingCount = incomingSwaps.filter((s) => s.target_status === 'pending' || s.target_status === 'Pending').length;
 
-  return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl border border-neutral-100 max-h-[85vh] flex flex-col text-left">
+  return createPortal(
+    <div
+      className={`fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 ${
+        isClosing ? 'animate-backdrop-out' : 'animate-backdrop-in'
+      }`}
+    >
+      <style>{`
+        @keyframes modalBackdropIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+        @keyframes modalBackdropOut { 0% { opacity: 1; } 100% { opacity: 0; } }
+        @keyframes modalContentIn {
+          0% { opacity: 0; transform: scale(0.92) translateY(12px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        @keyframes modalContentOut {
+          0% { opacity: 1; transform: scale(1) translateY(0); }
+          100% { opacity: 0; transform: scale(0.95) translateY(8px); }
+        }
+        .animate-backdrop-in { animation: modalBackdropIn 0.3s ease-out forwards; }
+        .animate-backdrop-out { animation: modalBackdropOut 0.25s ease-in forwards; }
+        .animate-modal-in { animation: modalContentIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .animate-modal-out { animation: modalContentOut 0.25s ease-in forwards; }
+      `}</style>
+
+      <div
+        className={`bg-white rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl border border-neutral-100 max-h-[85vh] flex flex-col text-left my-auto ${
+          isClosing ? 'animate-modal-out' : 'animate-modal-in'
+        }`}
+      >
         {/* Header Modal */}
         <div className="flex justify-between items-center pb-3 border-b border-neutral-100">
           <div>
@@ -163,40 +205,56 @@ export default function StaffInboxModal({ currentUser, isOpen, onClose, onUpdate
             <p className="text-xs text-neutral-400">Kelola persetujuan tukar shift dan pantau status izin kamu.</p>
           </div>
           <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-500 font-bold text-xs flex items-center justify-center cursor-pointer"
+            onClick={handleAnimatedClose}
+            className="w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200 text-neutral-500 font-bold text-xs flex items-center justify-center cursor-pointer transition active:scale-90"
           >
             ✕
           </button>
         </div>
 
-        {/* Tab Navigation */}
-        <div className="bg-neutral-100 p-1 rounded-2xl flex gap-1 border border-neutral-200 shrink-0">
+        {/* 🌟 SLIDING TAB SWITCHER BERANIMASI */}
+        <div className="relative bg-neutral-100 p-1 rounded-2xl border border-neutral-200 flex shrink-0 select-none">
+          {/* Highlight Meluncur */}
+          <div
+            className={`absolute top-1 bottom-1 w-[calc(50%-0.25rem)] rounded-xl shadow-sm transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
+              activeTab === 'incoming' 
+                ? 'bg-[#111111] translate-x-0' 
+                : 'bg-[#d22027] translate-x-[calc(100%+0.25rem)]'
+            }`}
+          />
+
           <button
-            onClick={() => setActiveTab('incoming')}
-            className={`flex-1 py-2 text-xs font-extrabold rounded-xl transition cursor-pointer relative ${
-              activeTab === 'incoming' ? 'bg-[#111111] text-white shadow-xs' : 'text-neutral-500 hover:text-black'
+            type="button"
+            onClick={() => handleTabChange('incoming')}
+            className={`relative z-10 flex-1 py-2 text-xs font-extrabold rounded-xl transition-colors duration-200 cursor-pointer flex items-center justify-center gap-1 ${
+              activeTab === 'incoming' ? 'text-white' : 'text-neutral-500 hover:text-black'
             }`}
           >
             📥 Permintaan Masuk
             {pendingIncomingCount > 0 && (
-              <span className="ml-1.5 bg-[#d22027] text-white text-[9px] px-1.5 py-0.2 rounded-full font-black animate-pulse">
+              <span className="ml-1 bg-[#d22027] text-white text-[9px] px-1.5 py-0.2 rounded-full font-black animate-pulse">
                 {pendingIncomingCount}
               </span>
             )}
           </button>
+
           <button
-            onClick={() => setActiveTab('my_requests')}
-            className={`flex-1 py-2 text-xs font-extrabold rounded-xl transition cursor-pointer ${
-              activeTab === 'my_requests' ? 'bg-[#d22027] text-white shadow-xs' : 'text-neutral-500 hover:text-black'
+            type="button"
+            onClick={() => handleTabChange('my_requests')}
+            className={`relative z-10 flex-1 py-2 text-xs font-extrabold rounded-xl transition-colors duration-200 cursor-pointer flex items-center justify-center ${
+              activeTab === 'my_requests' ? 'text-white' : 'text-neutral-500 hover:text-black'
             }`}
           >
             📋 Status Pengajuan Saya
           </button>
         </div>
 
-        {/* Content Section */}
-        <div className="overflow-y-auto flex-1 pr-1 space-y-3">
+        {/* Content Section dengan Animasi Soft Fade */}
+        <div
+          className={`overflow-y-auto flex-1 pr-1 space-y-3 transition-opacity duration-200 ${
+            isTabChanging ? 'opacity-0 scale-[0.99]' : 'opacity-100 scale-100'
+          }`}
+        >
           {loading ? (
             <div className="py-12 text-center text-xs text-neutral-400 animate-pulse">Memuat data inbox...</div>
           ) : activeTab === 'incoming' ? (
@@ -336,6 +394,7 @@ export default function StaffInboxModal({ currentUser, isOpen, onClose, onUpdate
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
