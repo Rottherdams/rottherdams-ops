@@ -115,14 +115,13 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
         .select('*', { count: 'exact', head: true })
         .eq('status', 'Aktif');
 
-      // 2. Staf On Duty Hari Ini (Sertakan Foto Avatar jika Tersedia)
+      // 2. Staf On Duty Hari Ini
       const { data: attendanceData } = await supabase
         .from('attendances')
         .select('*')
         .eq('status', 'On Duty')
         .order('clock_in', { ascending: false });
 
-      // Ambil foto avatar untuk staf yang sedang On-Duty
       let enrichedOnDuty: OnDutyItem[] = [];
       if (attendanceData && attendanceData.length > 0) {
         const staffIds = attendanceData.map((a) => a.staff_id).filter(Boolean);
@@ -159,13 +158,13 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
         .order('created_at', { ascending: false })
         .limit(6);
 
-      // 6. Data Permintaan Tukar Shift Menunggu ACC Management
+      // 6. Data Permintaan Tukar Shift
       const { data: swapData } = await supabase
         .from('shift_swaps')
         .select('*')
         .order('created_at', { ascending: false });
 
-      // 7. Data Permintaan Izin / Cuti / Sakit Menunggu ACC Management
+      // 7. Data Permintaan Izin / Cuti / Sakit
       const { data: leaveData } = await supabase
         .from('leave_requests')
         .select('*')
@@ -254,7 +253,34 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
     }
   }, [pendingSwapCount, pendingLeaveCount, loading]);
 
-  // UPDATE DENGAN DYNAMIC FALLBACK
+  // 🚀 SORTING KHUSUS TUKAR SHIFT (Pending Management ACC di Atas + Urut Tanggal Terbaru)
+  const sortedSwapRequests = [...swapRequests].sort((a, b) => {
+    const aTarget = ((a.target_status && a.target_status !== 'pending' ? a.target_status : a.status) || '').toLowerCase();
+    const bTarget = ((b.target_status && b.target_status !== 'pending' ? b.target_status : b.status) || '').toLowerCase();
+    const aMgmt = (a.management_status || a.status || 'pending').toLowerCase();
+    const bMgmt = (b.management_status || b.status || 'pending').toLowerCase();
+
+    const aNeedsAcc = (aTarget === 'accepted' || aTarget === 'setuju' || aTarget === 'approved') && aMgmt === 'pending';
+    const bNeedsAcc = (bTarget === 'accepted' || bTarget === 'setuju' || bTarget === 'approved') && bMgmt === 'pending';
+
+    if (aNeedsAcc && !bNeedsAcc) return -1;
+    if (!aNeedsAcc && bNeedsAcc) return 1;
+
+    // Urutkan berdasarkan tanggal created_at terbaru
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
+
+  // 🚀 SORTING KHUSUS IZIN & CUTI (Pending ACC di Atas + Urut Tanggal Terbaru)
+  const sortedLeaveRequests = [...leaveRequests].sort((a, b) => {
+    const aPending = a.status?.toLowerCase() === 'pending';
+    const bPending = b.status?.toLowerCase() === 'pending';
+
+    if (aPending && !bPending) return -1;
+    if (!aPending && bPending) return 1;
+
+    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+  });
+
   const handleApproveSwap = async (swapId: number, status: 'approved' | 'rejected') => {
     try {
       const { error: primaryError } = await supabase
@@ -263,7 +289,6 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
         .eq('id', swapId);
 
       if (primaryError) {
-        console.warn('Fallback: update kolom status sebagai pengganti management_status');
         const { error: fallbackError } = await supabase
           .from('shift_swaps')
           .update({ status: status === 'approved' ? 'Approved' : 'Rejected' })
@@ -283,7 +308,6 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
     }
   };
 
-  // ACC / TOLAK IZIN / CUTI
   const handleApproveLeave = async (leaveItem: LeaveRequest, status: 'approved' | 'rejected') => {
     if (status === 'approved') {
       try {
@@ -480,7 +504,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
         </div>
       ) : (
         <>
-          {/* APPROVAL CENTER */}
+          {/* APPROVAL CENTER (MAX 5 ITEM + SCROLL + PRIORITAS PENDING & TANGGAL TERBARU) */}
           <div className="bg-white rounded-3xl p-6 border-2 border-[#d22027]/20 shadow-md space-y-4">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-neutral-100">
               <div>
@@ -515,13 +539,13 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
             {/* TAB 1: TUKAR SHIFT */}
             {approvalTab === 'swap' && (
               <div>
-                {swapRequests.length === 0 ? (
+                {sortedSwapRequests.length === 0 ? (
                   <p className="text-xs text-neutral-400 italic py-6 text-center">Belum ada pengajuan tukar shift.</p>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="bg-neutral-100 text-neutral-700 font-bold border-b border-neutral-200">
+                  <div className="overflow-x-auto max-h-[340px] overflow-y-auto pr-1">
+                    <table className="w-full text-left text-xs relative border-collapse">
+                      <thead className="sticky top-0 bg-neutral-100 text-neutral-700 font-bold border-b border-neutral-200 z-10">
+                        <tr>
                           <th className="p-3">Pemohon</th>
                           <th className="p-3">Pengganti</th>
                           <th className="p-3">Tanggal & Shift</th>
@@ -531,7 +555,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-neutral-100">
-                        {swapRequests.map((item) => {
+                        {sortedSwapRequests.map((item) => {
                           const requesterName = item.requester_staff_name || item.requester_name || 'Staf';
                           const requesterId = item.requester_staff_id || item.requester_id || '-';
                           const targetName = item.target_staff_name || '-';
@@ -551,8 +575,10 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
                           const isMgmtApproved = mgmtStatus === 'approved';
                           const isMgmtRejected = mgmtStatus === 'rejected';
 
+                          const isNeedsMgmtAction = isAcceptedByStaff && !isMgmtApproved && !isMgmtRejected;
+
                           return (
-                            <tr key={item.id} className="hover:bg-neutral-50">
+                            <tr key={item.id} className={`transition ${isNeedsMgmtAction ? 'bg-amber-50/70 font-semibold' : 'hover:bg-neutral-50'}`}>
                               <td className="p-3">
                                 <p className="font-extrabold text-[#111111]">{requesterName}</p>
                                 <p className="text-[10px] text-neutral-400 font-mono">{requesterId}</p>
@@ -634,13 +660,13 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
             {/* TAB 2: IZIN & CUTI */}
             {approvalTab === 'leave' && (
               <div>
-                {leaveRequests.length === 0 ? (
+                {sortedLeaveRequests.length === 0 ? (
                   <p className="text-xs text-neutral-400 italic py-6 text-center">Belum ada pengajuan izin atau sakit.</p>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-left text-xs">
-                      <thead>
-                        <tr className="bg-neutral-100 text-neutral-700 font-bold border-b border-neutral-200">
+                  <div className="overflow-x-auto max-h-[340px] overflow-y-auto pr-1">
+                    <table className="w-full text-left text-xs relative border-collapse">
+                      <thead className="sticky top-0 bg-neutral-100 text-neutral-700 font-bold border-b border-neutral-200 z-10">
+                        <tr>
                           <th className="p-3">Nama Staf</th>
                           <th className="p-3">Tipe Izin</th>
                           <th className="p-3">Tanggal Mulai - Selesai</th>
@@ -650,65 +676,69 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-neutral-100">
-                        {leaveRequests.map((item) => (
-                          <tr key={item.id} className="hover:bg-neutral-50">
-                            <td className="p-3">
-                              <p className="font-extrabold text-[#111111]">{item.staff_name}</p>
-                              <p className="text-[10px] text-neutral-400 font-mono">{item.staff_id}</p>
-                            </td>
-                            <td className="p-3">
-                              <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
-                                item.leave_type === 'Sakit' 
-                                  ? 'bg-blue-50 text-blue-600 border border-blue-200' 
-                                  : item.leave_type === 'Cuti'
-                                  ? 'bg-purple-50 text-purple-600 border border-purple-200'
-                                  : 'bg-amber-50 text-amber-600 border border-amber-200'
-                              }`}>
-                                {item.leave_type}
-                              </span>
-                            </td>
-                            <td className="p-3 font-bold text-neutral-700">
-                              {item.start_date} s/d {item.end_date || item.start_date}
-                            </td>
-                            <td className="p-3 text-neutral-600 max-w-xs">{item.reason || '-'}</td>
-                            <td className="p-3 text-center">
-                              {item.attachment_url ? (
-                                <button
-                                  onClick={() => setSelectedImage(item.attachment_url || null)}
-                                  className="px-2 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg text-[10px] font-bold cursor-pointer transition border border-neutral-200"
-                                >
-                                  🖼️ Lihat Surat
-                                </button>
-                              ) : (
-                                <span className="text-neutral-400 text-[10px] italic">Tidak Ada</span>
-                              )}
-                            </td>
-                            <td className="p-3 text-center">
-                              {item.status?.toLowerCase() === 'pending' ? (
-                                <div className="flex justify-center gap-1.5">
-                                  <button
-                                    onClick={() => handleApproveLeave(item, 'approved')}
-                                    className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer active:scale-95 transition"
-                                  >
-                                    ✅ ACC
-                                  </button>
-                                  <button
-                                    onClick={() => handleApproveLeave(item, 'rejected')}
-                                    className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer active:scale-95 transition"
-                                  >
-                                    ❌ Tolak
-                                  </button>
-                                </div>
-                              ) : (
-                                <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
-                                  item.status?.toLowerCase() === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                        {sortedLeaveRequests.map((item) => {
+                          const isPending = item.status?.toLowerCase() === 'pending';
+
+                          return (
+                            <tr key={item.id} className={`transition ${isPending ? 'bg-amber-50/70 font-semibold' : 'hover:bg-neutral-50'}`}>
+                              <td className="p-3">
+                                <p className="font-extrabold text-[#111111]">{item.staff_name}</p>
+                                <p className="text-[10px] text-neutral-400 font-mono">{item.staff_id}</p>
+                              </td>
+                              <td className="p-3">
+                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+                                  item.leave_type === 'Sakit' 
+                                    ? 'bg-blue-50 text-blue-600 border border-blue-200' 
+                                    : item.leave_type === 'Cuti'
+                                    ? 'bg-purple-50 text-purple-600 border border-purple-200'
+                                    : 'bg-amber-50 text-amber-600 border border-amber-200'
                                 }`}>
-                                  {item.status?.toLowerCase() === 'approved' ? '✅ Disetujui' : '❌ Ditolak'}
+                                  {item.leave_type}
                                 </span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                              <td className="p-3 font-bold text-neutral-700">
+                                {item.start_date} s/d {item.end_date || item.start_date}
+                              </td>
+                              <td className="p-3 text-neutral-600 max-w-xs">{item.reason || '-'}</td>
+                              <td className="p-3 text-center">
+                                {item.attachment_url ? (
+                                  <button
+                                    onClick={() => setSelectedImage(item.attachment_url || null)}
+                                    className="px-2 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg text-[10px] font-bold cursor-pointer transition border border-neutral-200"
+                                  >
+                                    🖼️ Lihat Surat
+                                  </button>
+                                ) : (
+                                  <span className="text-neutral-400 text-[10px] italic">Tidak Ada</span>
+                                )}
+                              </td>
+                              <td className="p-3 text-center">
+                                {isPending ? (
+                                  <div className="flex justify-center gap-1.5">
+                                    <button
+                                      onClick={() => handleApproveLeave(item, 'approved')}
+                                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer active:scale-95 transition"
+                                    >
+                                      ✅ ACC
+                                    </button>
+                                    <button
+                                      onClick={() => handleApproveLeave(item, 'rejected')}
+                                      className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer active:scale-95 transition"
+                                    >
+                                      ❌ Tolak
+                                    </button>
+                                  </div>
+                                ) : (
+                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
+                                    item.status?.toLowerCase() === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                                  }`}>
+                                    {item.status?.toLowerCase() === 'approved' ? '✅ Disetujui' : '❌ Ditolak'}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -820,7 +850,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
             </div>
           </div>
 
-          {/* LIVE SECURITY AUDIT & ON-DUTY MONITOR (DENGAN TAMPILAN FOTO AVATAR) */}
+          {/* LIVE SECURITY AUDIT & ON-DUTY MONITOR */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="bg-[#111111] text-white rounded-3xl p-6 shadow-xl border border-neutral-800 space-y-4">
               <div className="flex justify-between items-center pb-3 border-b border-neutral-800">
@@ -861,7 +891,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
                           </div>
                           <p className="text-[10px] mt-0.5 opacity-80">
                             {isScreenshot ? '⚠️ Intip / Percobaan Screenshot Resep' : '📖 Menampilkan Gramasi Resep'}{' '}
-                            • <strong className="text-white">{log.target_recipe || 'Dokumen Resep'}</strong>
+                            • <strong className="text-[#ffffff]">{log.target_recipe || 'Dokumen Resep'}</strong>
                           </p>
                         </div>
                         <span className="text-[9px] font-mono text-neutral-500 whitespace-nowrap ml-2">

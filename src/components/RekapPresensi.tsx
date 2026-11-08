@@ -58,6 +58,9 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
   // Gamifikasi Jam Kerja (Persentil Keaktifan)
   const [percentileRank, setPercentileRank] = useState<number | null>(null);
 
+  // 🚀 STATE UNTUK ANIMASI SMOOTH ANGKA & CHART
+  const [animatedPercentage, setAnimatedPercentage] = useState<number>(0);
+
   const rawRole = (currentUser?.role || '').toLowerCase();
   
   // Identifikasi Role Owner
@@ -73,7 +76,6 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
     rawRole.includes('finance') ||
     currentUser.staff_id?.startsWith('MNG-');
 
-  // DEFAULT UNTUK OWNER: Otomatis pilih tab 'semua_staf' (Audit Tim) saat pertama kali buka
   useEffect(() => {
     if (isOwner) {
       setViewMode('semua_staf');
@@ -102,7 +104,6 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
   const fetchAttendances = async () => {
     setLoading(true);
 
-    // Ambil riwayat presensi & gabungkan dengan avatar staf dari tabel 'staff'
     const { data: attendanceData, error } = await supabase
       .from('attendances')
       .select('*')
@@ -117,7 +118,6 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
     if (attendanceData && attendanceData.length > 0) {
       const staffIds = Array.from(new Set(attendanceData.map((a: any) => a.staff_id).filter(Boolean)));
       
-      // Ambil avatar_url dari tabel staff
       const { data: staffProfiles } = await supabase
         .from('staff')
         .select('staff_id, avatar_url, first_name, last_name, staff_name')
@@ -213,7 +213,34 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
 
   const myStats = calculateStaffStats();
 
-  // 2. REKAP JAM KERJA STAF LAPANGAN KHUSUS AUDIT TIM (Excl. Owner & Management/Executive)
+  // 🚀 EFEK ANIMASI COUNT-UP PERSENTASE SMOOTH (0% ➔ TARGET %)
+  useEffect(() => {
+    if (loading) {
+      setAnimatedPercentage(0);
+      return;
+    }
+
+    const targetVal = myStats.recognizedPercentage;
+    let startVal = 0;
+    const duration = 1200; // Total durasi animasi 1.2 detik
+    const steps = 30;
+    const increment = targetVal / steps;
+    const stepTime = duration / steps;
+
+    const timer = setInterval(() => {
+      startVal += increment;
+      if (startVal >= targetVal) {
+        setAnimatedPercentage(targetVal);
+        clearInterval(timer);
+      } else {
+        setAnimatedPercentage(Math.round(startVal));
+      }
+    }, stepTime);
+
+    return () => clearInterval(timer);
+  }, [loading, myStats.recognizedPercentage]);
+
+  // 2. REKAP JAM KERJA STAF LAPANGAN KHUSUS AUDIT TIM
   const staffSummaries: StaffSummary[] = Object.values(
     monthlyAttendances
       .filter(item => {
@@ -279,7 +306,7 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
     return matchesName && matchesShift;
   });
 
-  // Helper Render Pie Chart SVG
+  // 🚀 HELPER RENDER PIE CHART SVG DENGAN ANIMASI MEKAR SMOOTH
   const renderPieChart = (stats: ReturnType<typeof calculateStaffStats>) => {
     const { pctHadir, pctSakit, pctCuti, pctIzinUnpaid, pctAlpha } = stats;
 
@@ -300,14 +327,18 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
 
     return (
       <div className="flex flex-col sm:flex-row items-center gap-6 bg-neutral-50 p-5 rounded-3xl border border-neutral-200">
-        <div className="relative w-36 h-36 shrink-0">
-          <svg viewBox="-1 -1 2 2" className="w-full h-full -rotate-90 transform rounded-full">
+        {/* CHART WADAH DENGAN ROTASI ANIMASI & SCALE SMOOTH */}
+        <div className="relative w-36 h-36 shrink-0 group">
+          <svg viewBox="-1 -1 2 2" className="w-full h-full -rotate-90 transform rounded-full transition-transform duration-1000 ease-out scale-95 hover:scale-100">
             {slices.map((slice, index) => {
               if (slice.percentage <= 0) return null;
+              
+              // Animasi potongan pie: jika loading, set rentang kecil
+              const animatedSlicePct = loading ? 0 : (slice.percentage * (animatedPercentage / Math.max(1, stats.recognizedPercentage)));
               const [startX, startY] = getCoordinatesForPercent(cumulativeAngle);
-              cumulativeAngle += slice.percentage / 100;
+              cumulativeAngle += animatedSlicePct / 100;
               const [endX, endY] = getCoordinatesForPercent(cumulativeAngle);
-              const largeArcFlag = slice.percentage / 100 > 0.5 ? 1 : 0;
+              const largeArcFlag = animatedSlicePct / 100 > 0.5 ? 1 : 0;
 
               const pathData = [
                 `M ${startX} ${startY}`,
@@ -315,12 +346,23 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
                 `L 0 0`,
               ].join(' ');
 
-              return <path key={index} d={pathData} fill={slice.color} />;
+              return (
+                <path
+                  key={index}
+                  d={pathData}
+                  fill={slice.color}
+                  className="transition-all duration-700 ease-out"
+                />
+              );
             })}
           </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white rounded-full m-5 shadow-xs">
-            <span className="text-base font-black text-[#111111]">{stats.recognizedPercentage}%</span>
-            <span className="text-[9px] font-bold text-neutral-400 uppercase">Diakui</span>
+
+          {/* TEKS ANGKA PERSENTASE DENGAN EFEK COUNT-UP SMOOTH */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-white rounded-full m-5 shadow-xs transition-all duration-500">
+            <span className="text-base font-black text-[#111111] transition-all">
+              {animatedPercentage}%
+            </span>
+            <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-tighter">Diakui</span>
           </div>
         </div>
 
@@ -368,8 +410,8 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
 
   return (
     <div className="space-y-6 text-left">
-      <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm">
-        {/* Header & Control Actions */}
+      <div className="bg-white rounded-3xl p-4 sm:p-6 border border-neutral-200 shadow-sm overflow-hidden">
+        {/* Header & Responsif Control Actions */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-neutral-100">
           <div>
             <h2 className="text-lg font-black text-[#111111]">📌 Analytics & Rekap Presensi Staf</h2>
@@ -380,14 +422,13 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
             </p>
           </div>
 
-          {/* Akses Kontrol di Kanan Atas */}
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
             {/* Filter Bulan & Tahun */}
-            <div className="flex items-center gap-1.5 bg-neutral-50 p-1.5 rounded-2xl border border-neutral-200">
+            <div className="flex items-center gap-1.5 bg-neutral-50 p-1.5 rounded-2xl border border-neutral-200 justify-between sm:justify-start">
               <select
                 value={selectedMonth}
                 onChange={e => setSelectedMonth(Number(e.target.value))}
-                className="bg-white px-3 py-1.5 rounded-xl border border-neutral-200 text-xs font-bold text-[#111111] focus:outline-none cursor-pointer"
+                className="bg-white px-3 py-1.5 rounded-xl border border-neutral-200 text-xs font-bold text-[#111111] focus:outline-none cursor-pointer flex-1 sm:flex-none"
               >
                 {monthNames.map((m, idx) => (
                   <option key={idx} value={idx}>{m}</option>
@@ -401,28 +442,29 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
               >
                 <option value={2025}>2025</option>
                 <option value={2026}>2026</option>
+                <option value={2027}>2027</option>
               </select>
             </div>
 
-            {/* SWITCH VIEW MODE */}
-            <div className="bg-neutral-100 p-1 rounded-2xl flex border border-neutral-200">
+            {/* SWITCH VIEW MODE TAB */}
+            <div className="bg-neutral-100 p-1 rounded-2xl flex border border-neutral-200 shrink-0 w-full sm:w-auto">
               <button
                 onClick={() => setViewMode('pribadi')}
-                className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
+                className={`flex-1 sm:flex-none px-3.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1 ${
                   viewMode === 'pribadi' ? 'bg-[#111111] text-[#ffffff] shadow-sm' : 'text-neutral-500 hover:text-black'
                 }`}
               >
-                👤 Presensi Saya
+                👤 <span className="whitespace-nowrap">Presensi Saya</span>
               </button>
               
               {isManagementOrOwner && (
                 <button
                   onClick={() => setViewMode('semua_staf')}
-                  className={`px-3 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer ${
+                  className={`flex-1 sm:flex-none px-3.5 py-1.5 text-xs font-bold rounded-xl transition cursor-pointer flex items-center justify-center gap-1 ${
                     viewMode === 'semua_staf' ? 'bg-[#d22027] text-white shadow-sm' : 'text-neutral-500 hover:text-black'
                   }`}
                 >
-                  📊 Audit Tim
+                  📊 <span className="whitespace-nowrap">Audit Tim</span>
                 </button>
               )}
             </div>
@@ -432,10 +474,9 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
         {/* TAMPILAN 1: AUDIT TIM & LEADERBOARD */}
         {viewMode === 'semua_staf' && isManagementOrOwner ? (
           <div className="space-y-6">
-            {/* LEADERBOARD & GAMIFICATION STAF */}
+            {/* Pemanggilan tanpa prop currentUser untuk mencegah error TypeScript ts(2322) */}
             <StaffLeaderboard />
 
-            {/* AUDIT AKUMULASI JAM KERJA STAF */}
             <div className="bg-[#111111] text-white rounded-3xl p-6 md:p-8 shadow-xl border border-neutral-800 space-y-6">
               <div className="flex justify-between items-center pb-4 border-b border-neutral-800">
                 <div>
@@ -522,7 +563,7 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
                 <div className="flex items-center gap-2">
                   <span className="text-base">🏆</span>
                   <p className="font-extrabold text-xs text-emerald-900">
-                    Tingkat Kehadiran Diakui: <span className="text-sm font-black text-emerald-600">{myStats.recognizedPercentage}%</span>
+                    Tingkat Kehadiran Diakui: <span className="text-sm font-black text-emerald-600">{animatedPercentage}%</span>
                   </p>
                 </div>
                 <p className="text-[11px] text-emerald-600 mt-0.5">
@@ -530,7 +571,6 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
                 </p>
               </div>
 
-              {/* BADGE PERSENTIL GAMIFIKASI */}
               {percentileRank !== null && (
                 <div className="bg-white px-3.5 py-2 rounded-xl border border-emerald-200 shadow-2xs flex items-center gap-2 shrink-0">
                   <span className="text-base">🔥</span>
@@ -650,7 +690,6 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
                         {item.work_hours ? `${item.work_hours} Jam` : '-'}
                       </td>
 
-                      {/* AUDIT KEAMANAN LOKASI & FAKE GPS */}
                       {viewMode === 'semua_staf' && (
                         <>
                           <td className="p-3.5 text-center">
@@ -681,7 +720,6 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
                             )}
                           </td>
 
-                          {/* FOTO SELFIE PRESENSI */}
                           <td className="p-3.5 text-center">
                             {item.photo_url ? (
                               <button

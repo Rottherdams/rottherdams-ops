@@ -87,11 +87,19 @@ const getWeekDateRange = (weekNum: number) => {
   };
 };
 
+// 🚀 OTOMATISASI PENENTUAN MINGGU KE- BERDASARKAN HARI SIKLUS ROSTER (SENIN-MINGGU)
 const getCurrentWeekKey = (): number => {
-  const currentDate = new Date().getDate();
-  if (currentDate <= 7) return 1;
-  if (currentDate <= 14) return 2;
-  if (currentDate <= 21) return 3;
+  const today = new Date();
+  const currentDate = today.getDate();
+  
+  // Roster Siklus November 2026:
+  // M1: 2 Nov - 8 Nov (Sampai Minggu malam 8 Nov)
+  // M2: 9 Nov - 15 Nov
+  // M3: 16 Nov - 22 Nov
+  // M4: 23 Nov - 30 Nov
+  if (currentDate <= 8) return 1;
+  if (currentDate <= 15) return 2;
+  if (currentDate <= 22) return 3;
   return 4;
 };
 
@@ -294,7 +302,7 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
       <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6 pb-4 border-b border-neutral-100">
         <div>
           <span className="text-[10px] uppercase font-bold text-[#d22027] tracking-widest">
-            Roster Kerja Karyawan
+            ROSTER KERJA KARYAWAN
           </span>
           <h2 className="text-xl font-bold text-[#111111] mt-0.5">
             Jadwal Operasional Rottherdams
