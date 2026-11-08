@@ -1,26 +1,16 @@
 import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
+import StaffSummaryCards from './staff/StaffSummaryCards';
+import StaffFormModal from './staff/StaffFormModal';
+import type { StaffItem } from './staff/StaffFormModal';
+
+// 🌟 IMPORT UTILS STAF MODULAR
+import { getSortPriority, generateNextStaffId, checkIsManagement } from '../utils/staffHelpers';
 
 interface CurrentUser {
   name: string;
   role: string;
   staff_id: string;
-}
-
-interface StaffItem {
-  id?: number;
-  staff_id: string;
-  staff_name: string;
-  first_name?: string;
-  last_name?: string;
-  role: string;
-  status: 'Aktif' | 'Cuti' | 'Resign' | 'Izin' | string;
-  pin?: string;
-  phone_number?: string;
-  telegram_chat_id?: string;
-  email?: string;
-  avatar_url?: string;
 }
 
 interface DaftarKaryawanProps {
@@ -29,40 +19,6 @@ interface DaftarKaryawanProps {
 
 type SortField = 'staff_id' | 'staff_name' | 'role' | 'status';
 type SortOrder = 'asc' | 'desc';
-
-const ROLE_OPTIONS = [
-  { group: 'Executive & Management', options: [
-    { value: 'owner', label: 'Owner / Co-Founder' },
-    { value: 'general_manager', label: 'General Manager' },
-    { value: 'management', label: 'Store Manager' },
-    { value: 'spv', label: 'Supervisor (SPV)' },
-    { value: 'hrd', label: 'HRD & People Ops' },
-    { value: 'finance', label: 'Finance & Accounting' },
-  ]},
-  { group: 'Front of House (FOH)', options: [
-    { value: 'head_barista', label: 'Head Barista' },
-    { value: 'bar', label: 'Barista / Bartender' },
-    { value: 'kasir', label: 'Kasir / Cashier' },
-    { value: 'server', label: 'Server / Waiters' },
-  ]},
-  { group: 'Back of House (BOH)', options: [
-    { value: 'head_chef', label: 'Head Chef' },
-    { value: 'dapur', label: 'Cook / Staf Dapur' },
-    { value: 'kitchen_helper', label: 'Kitchen Helper' },
-    { value: 'dishwasher', label: 'Dishwasher / Steward' },
-    { value: 'inventory', label: 'Inventory & Stockist' },
-  ]},
-  { group: 'Support & Facilities', options: [
-    { value: 'cleaning', label: 'Cleaning Service' },
-    { value: 'maintenance', label: 'Technician / Maintenance' },
-  ]},
-];
-
-const getSortPriority = (id: string) => {
-  if (id.startsWith('OWN-')) return 1;
-  if (id.startsWith('MNG-')) return 2;
-  return 3;
-};
 
 const INITIAL_STAFF: StaffItem[] = [
   { staff_id: 'OWN-001', staff_name: 'Iqbal', first_name: 'Iqbal', last_name: '', role: 'owner', status: 'Aktif' },
@@ -102,22 +58,16 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
 
   const [editingStaff, setEditingStaff] = useState<StaffItem | null>(null);
 
-  // 🌟 State Nilai Animasi Counter
+  // State Nilai Animasi Counter
   const [animatedTotal, setAnimatedTotal] = useState(0);
   const [animatedActive, setAnimatedActive] = useState(0);
   const [animatedResign, setAnimatedResign] = useState(0);
 
-  // 🌟 State Kontrol Kemunculan Card 2 & 3
+  // State Kontrol Kemunculan Card 2 & 3
   const [showCard2, setShowCard2] = useState(false);
   const [showCard3, setShowCard3] = useState(false);
 
-  const rawRole = (currentUser?.role || '').toLowerCase();
-  const isManagementOrOwner = 
-    !currentUser || 
-    rawRole.includes('management') || 
-    rawRole.includes('owner') ||
-    currentUser.staff_id?.startsWith('MNG-') ||
-    currentUser.staff_id?.startsWith('OWN-');
+  const isManagementOrOwner = !currentUser || checkIsManagement(currentUser.role, currentUser.staff_id);
 
   useEffect(() => {
     fetchStaff();
@@ -127,18 +77,16 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
   const activeTarget = staffList.filter(s => s.status === 'Aktif').length;
   const resignTarget = staffList.filter(s => s.status === 'Resign').length;
 
-  // 🎬 RANTAI ANIMASI SEQUENTIAL PERFECT
+  // Animasi Counter Sequential
   useEffect(() => {
     if (loading || totalTarget === 0) return;
 
-    // Reset State Awal
     setAnimatedTotal(0);
     setAnimatedActive(totalTarget);
     setAnimatedResign(0);
     setShowCard2(false);
     setShowCard3(false);
 
-    // --- STEP 1: Card 1 (0 ➔ Total Target) [0ms - 500ms] ---
     let start1: number | null = null;
     const duration1 = 500;
 
@@ -151,8 +99,6 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
         requestAnimationFrame(animateTotal);
       } else {
         setAnimatedTotal(totalTarget);
-
-        // --- STEP 2: Card 2 (Total Karyawan ➔ Total Aktif) [500ms - 1000ms] ---
         setShowCard2(true);
         setTimeout(() => {
           let start2: number | null = null;
@@ -168,8 +114,6 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
               requestAnimationFrame(animateActive);
             } else {
               setAnimatedActive(activeTarget);
-
-              // --- STEP 3: Card 3 (0 ➔ Total Resign) [1000ms - 1400ms] ---
               setShowCard3(true);
               setTimeout(() => {
                 let start3: number | null = null;
@@ -212,15 +156,22 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     }
   };
 
-  const generateNextStaffId = (role: string) => {
-    let prefix = 'STF-';
-    const r = role.toLowerCase();
-    if (r.includes('management') || r.includes('hrd') || r.includes('finance') || r.includes('general_manager')) prefix = 'MNG-';
-    if (r.includes('owner')) prefix = 'OWN-';
+  const resetForm = () => {
+    setNewFirstName('');
+    setNewLastName('');
+    setNewStaffName('');
+    setNewPhoneNumber('');
+    setNewEmail('');
+    setNewTelegramId('');
+    setNewAvatarUrl('');
+    setNewStaffPin('');
+    setNewStaffRole('bar');
+    setErrorMsg('');
+  };
 
-    const samePrefixStaff = staffList.filter(s => (s.staff_id || '').startsWith(prefix));
-    const nextNum = samePrefixStaff.length + 1;
-    return `${prefix}${String(nextNum).padStart(3, '0')}`;
+  const handleCloseAddModal = () => {
+    setIsAddModalOpen(false);
+    resetForm();
   };
 
   const handleAddStaff = async (e: React.FormEvent) => {
@@ -238,7 +189,7 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     setSaving(true);
     setErrorMsg('');
 
-    const generatedId = generateNextStaffId(newStaffRole);
+    const generatedId = generateNextStaffId(newStaffRole, staffList);
     const displayName = newStaffName.trim() || `${newFirstName.trim()} ${newLastName.trim()}`.trim();
 
     const { error } = await supabase.from('staff').insert([
@@ -260,8 +211,7 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     if (error) {
       setErrorMsg(`Gagal menambah karyawan: ${error.message}`);
     } else {
-      setIsAddModalOpen(false);
-      resetForm();
+      handleCloseAddModal();
       fetchStaff();
     }
     setSaving(false);
@@ -295,18 +245,6 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
       fetchStaff();
     }
     setSaving(false);
-  };
-
-  const resetForm = () => {
-    setNewFirstName('');
-    setNewLastName('');
-    setNewStaffName('');
-    setNewPhoneNumber('');
-    setNewEmail('');
-    setNewTelegramId('');
-    setNewAvatarUrl('');
-    setNewStaffPin('');
-    setNewStaffRole('bar');
   };
 
   const handleStatusChange = async (staff_id: string, newStatus: StaffItem['status']) => {
@@ -408,7 +346,6 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
 
   return (
     <div className="space-y-6 text-left">
-      {/* 🌟 KEYFRAMES ANIMASI SEQUENTIAL */}
       <style>{`
         @keyframes cardPopIn {
           0% { opacity: 0; transform: scale(0.88) translateY(12px); }
@@ -422,37 +359,17 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
         .animate-table-box { animation: cardPopIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) 1.4s forwards; opacity: 0; }
       `}</style>
 
-      {/* CARD RINGKASAN SDM DENGAN SEQUENTIAL ANIMATION */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-        {/* Card 1: Muncul Duluan (0 ➔ Total Target) */}
-        <div className="bg-white p-5 rounded-3xl border border-neutral-100 shadow-sm animate-card-pop">
-          <span className="text-2xl">👥</span>
-          <p className="text-2xl font-black text-[#111111] mt-1 font-mono">{animatedTotal}</p>
-          <p className="text-xs font-bold text-neutral-400">Total Karyawan</p>
-        </div>
-
-        {/* Card 2: Muncul setelah Card 1 selesai (Total Karyawan ➔ Total Aktif) */}
-        {showCard2 && (
-          <div className="bg-white p-5 rounded-3xl border border-neutral-100 shadow-sm animate-card-pop">
-            <span className="text-2xl">🟢</span>
-            <p className="text-2xl font-black text-emerald-600 mt-1 font-mono">{animatedActive}</p>
-            <p className="text-xs font-bold text-neutral-400">Status Aktif</p>
-          </div>
-        )}
-
-        {/* Card 3: Muncul setelah Card 2 selesai (0 ➔ Total Resign) */}
-        {showCard3 && (
-          <div className="bg-white p-5 rounded-3xl border border-neutral-100 shadow-sm col-span-2 sm:col-span-1 animate-card-pop">
-            <span className="text-2xl">🔴</span>
-            <p className="text-2xl font-black text-red-600 mt-1 font-mono">{animatedResign}</p>
-            <p className="text-xs font-bold text-neutral-400">Resign / Non-Aktif</p>
-          </div>
-        )}
-      </div>
+      {/* 🌟 SUB-KOMPONEN 1: KARTU RINGKASAN STAF */}
+      <StaffSummaryCards
+        animatedTotal={animatedTotal}
+        animatedActive={animatedActive}
+        animatedResign={animatedResign}
+        showCard2={showCard2}
+        showCard3={showCard3}
+      />
 
       {/* TABEL DATA KARYAWAN */}
       <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-neutral-100 animate-table-box">
-        {/* Header & Controls */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-6 pb-4 border-b border-neutral-100">
           <div>
             <h2 className="text-xl font-black text-[#111111]">Daftar & Data Karyawan Rottherdams</h2>
@@ -462,7 +379,6 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
-            {/* Dropdown Sorting */}
             <div className="flex items-center gap-2 bg-neutral-50 p-1.5 rounded-2xl border border-neutral-200">
               <span className="text-[11px] font-bold text-neutral-500 pl-2">Urutkan:</span>
               <select
@@ -496,7 +412,6 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
           </div>
         </div>
 
-        {/* SEARCH INPUT */}
         <div className="mb-4">
           <input
             type="text"
@@ -649,262 +564,35 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
         )}
       </div>
 
-      {/* 🌟 MODAL TAMBAH KARYAWAN (Dirennder lewat Portal) */}
-      {isAddModalOpen && createPortal(
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-neutral-200 space-y-4 text-left my-8 animate-card-pop">
-            <div className="flex justify-between items-center pb-3 border-b border-neutral-100">
-              <h3 className="font-black text-base text-[#111111]">➕ Tambah Karyawan Baru</h3>
-              <button onClick={() => setIsAddModalOpen(false)} className="text-neutral-400 hover:text-black font-bold text-sm cursor-pointer">
-                ✕
-              </button>
-            </div>
-
-            {errorMsg && (
-              <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-2xl text-xs font-bold">
-                ⚠️ {errorMsg}
-              </div>
-            )}
-
-            <form onSubmit={handleAddStaff} className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-neutral-600 mb-1">Nama Depan *</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: Budi"
-                    value={newFirstName}
-                    onChange={e => setNewFirstName(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-bold focus:outline-none focus:border-[#d22027]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-neutral-600 mb-1">Nama Belakang</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: Santoso"
-                    value={newLastName}
-                    onChange={e => setNewLastName(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-bold focus:outline-none focus:border-[#d22027]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-neutral-600 mb-1">Nama Panggilan di Roster (Opsional)</label>
-                <input
-                  type="text"
-                  placeholder="Kosongkan jika sama dengan Nama Depan"
-                  value={newStaffName}
-                  onChange={e => setNewStaffName(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-bold focus:outline-none focus:border-[#d22027]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-neutral-600 mb-1">No HP / WhatsApp</label>
-                  <input
-                    type="text"
-                    placeholder="08123456789"
-                    value={newPhoneNumber}
-                    onChange={e => setNewPhoneNumber(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-bold focus:outline-none focus:border-[#d22027]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-neutral-600 mb-1">Telegram Chat ID (Opsional)</label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: 5428521206"
-                    value={newTelegramId}
-                    onChange={e => setNewTelegramId(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-mono font-bold focus:outline-none focus:border-[#d22027]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-neutral-600 mb-1">Email Staf</label>
-                <input
-                  type="email"
-                  placeholder="budi@gmail.com"
-                  value={newEmail}
-                  onChange={e => setNewEmail(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-bold focus:outline-none focus:border-[#d22027]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-neutral-600 mb-1">Divisi / Role *</label>
-                  <select
-                    value={newStaffRole}
-                    onChange={e => setNewStaffRole(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-bold focus:outline-none cursor-pointer focus:border-[#d22027]"
-                  >
-                    {ROLE_OPTIONS.map(group => (
-                      <optgroup key={group.group} label={group.group}>
-                        {group.options.map(opt => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                  <p className="text-[10px] text-neutral-400 mt-0.5">
-                    ID: <strong className="text-black font-mono">{generateNextStaffId(newStaffRole)}</strong>
-                  </p>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-neutral-600 mb-1">PIN Akses *</label>
-                  <input
-                    type="password"
-                    maxLength={6}
-                    required
-                    placeholder="Min 4 digit angka"
-                    value={newStaffPin}
-                    onChange={e => setNewStaffPin(e.target.value.replace(/\D/g, ''))}
-                    className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-mono font-bold focus:outline-none focus:border-[#d22027]"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-3 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="flex-1 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs font-bold rounded-2xl transition cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 py-2.5 bg-[#d22027] hover:bg-red-700 text-white text-xs font-black rounded-2xl transition cursor-pointer shadow-md disabled:opacity-50"
-                >
-                  {saving ? 'Menyimpan...' : 'Simpan Karyawan'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* 🌟 MODAL EDIT KARYAWAN (Dirennder lewat Portal) */}
-      {editingStaff && createPortal(
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-neutral-200 space-y-4 text-left my-8 animate-card-pop">
-            <div className="flex justify-between items-center pb-3 border-b border-neutral-100">
-              <h3 className="font-black text-base text-[#111111]">✏️ Edit Data Staf ({editingStaff.staff_id})</h3>
-              <button onClick={() => setEditingStaff(null)} className="text-neutral-400 hover:text-black font-bold text-sm cursor-pointer">
-                ✕
-              </button>
-            </div>
-
-            <form onSubmit={handleUpdateStaff} className="space-y-3">
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-neutral-600 mb-1">Nama Depan</label>
-                  <input
-                    type="text"
-                    value={editingStaff.first_name || ''}
-                    onChange={e => setEditingStaff({ ...editingStaff, first_name: e.target.value })}
-                    className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-bold focus:outline-none focus:border-[#d22027]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-neutral-600 mb-1">Nama Belakang</label>
-                  <input
-                    type="text"
-                    value={editingStaff.last_name || ''}
-                    onChange={e => setEditingStaff({ ...editingStaff, last_name: e.target.value })}
-                    className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-bold focus:outline-none focus:border-[#d22027]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-neutral-600 mb-1">Nama Panggilan Roster</label>
-                <input
-                  type="text"
-                  value={editingStaff.staff_name || ''}
-                  onChange={e => setEditingStaff({ ...editingStaff, staff_name: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-bold focus:outline-none focus:border-[#d22027]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-neutral-600 mb-1">No HP / WhatsApp</label>
-                  <input
-                    type="text"
-                    value={editingStaff.phone_number || ''}
-                    onChange={e => setEditingStaff({ ...editingStaff, phone_number: e.target.value })}
-                    className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-bold focus:outline-none focus:border-[#d22027]"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-neutral-600 mb-1">Telegram Chat ID</label>
-                  <input
-                    type="text"
-                    value={editingStaff.telegram_chat_id || ''}
-                    onChange={e => setEditingStaff({ ...editingStaff, telegram_chat_id: e.target.value })}
-                    className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-mono font-bold focus:outline-none focus:border-[#d22027]"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-neutral-600 mb-1">Email</label>
-                <input
-                  type="email"
-                  value={editingStaff.email || ''}
-                  onChange={e => setEditingStaff({ ...editingStaff, email: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-bold focus:outline-none focus:border-[#d22027]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-neutral-600 mb-1">Divisi / Role *</label>
-                <select
-                  value={(editingStaff.role || '').toLowerCase()}
-                  onChange={e => setEditingStaff({ ...editingStaff, role: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-bold focus:outline-none cursor-pointer focus:border-[#d22027]"
-                >
-                  {ROLE_OPTIONS.map(group => (
-                    <optgroup key={group.group} label={group.group}>
-                      {group.options.map(opt => (
-                        <option key={opt.value} value={opt.value}>{opt.label}</option>
-                      ))}
-                    </optgroup>
-                  ))}
-                </select>
-              </div>
-
-              <div className="pt-3 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setEditingStaff(null)}
-                  className="flex-1 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 text-xs font-bold rounded-2xl transition cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 py-2.5 bg-[#d22027] hover:bg-red-700 text-white text-xs font-black rounded-2xl transition cursor-pointer shadow-md disabled:opacity-50"
-                >
-                  {saving ? 'Menyimpan...' : 'Update Staf'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
+      {/* 🌟 SUB-KOMPONEN 2: MODAL FORM TAMBAH & EDIT KARYAWAN */}
+      <StaffFormModal
+        isAddModalOpen={isAddModalOpen}
+        onCloseAddModal={handleCloseAddModal}
+        editingStaff={editingStaff}
+        onCloseEditModal={() => setEditingStaff(null)}
+        newFirstName={newFirstName}
+        setNewFirstName={setNewFirstName}
+        newLastName={newLastName}
+        setNewLastName={setNewLastName}
+        newStaffName={newStaffName}
+        setNewStaffName={setNewStaffName}
+        newPhoneNumber={newPhoneNumber}
+        setNewPhoneNumber={setNewPhoneNumber}
+        newEmail={newEmail}
+        setNewEmail={setNewEmail}
+        newTelegramId={newTelegramId}
+        setNewTelegramId={setNewTelegramId}
+        newStaffRole={newStaffRole}
+        setNewStaffRole={setNewStaffRole}
+        newStaffPin={newStaffPin}
+        setNewStaffPin={setNewStaffPin}
+        saving={saving}
+        errorMsg={errorMsg}
+        generatedNextId={generateNextStaffId(newStaffRole, staffList)}
+        onAddSubmit={handleAddStaff}
+        onUpdateSubmit={handleUpdateStaff}
+        setEditingStaff={setEditingStaff}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
+import ImagePreviewModal from '../common/ImagePreviewModal';
 
 interface CurrentUser {
   staff_id: string;
@@ -34,6 +35,10 @@ export default function LeaveRequestModal({
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isClosing, setIsClosing] = useState(false);
+
+  // State Pratinjau Gambar Lampiran
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
   useEffect(() => {
     if (isOpen && currentUser?.staff_id) {
@@ -85,8 +90,16 @@ export default function LeaveRequestModal({
       }
 
       setFile(selectedFile);
+
+      if (selectedFile.type.startsWith('image/')) {
+        const url = URL.createObjectURL(selectedFile);
+        setPreviewImageUrl(url);
+      } else {
+        setPreviewImageUrl(null);
+      }
     } else {
       setFile(null);
+      setPreviewImageUrl(null);
     }
   };
 
@@ -211,7 +224,6 @@ export default function LeaveRequestModal({
           </button>
         </div>
 
-        {/* Info Kuota Cuti */}
         <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-2xl flex justify-between items-center">
           <div>
             <p className="text-[10px] uppercase font-bold text-purple-600">Sisa Kuota Cuti Tahunan</p>
@@ -296,6 +308,15 @@ export default function LeaveRequestModal({
               onChange={handleFileChange}
               className="w-full text-xs text-neutral-500 file:mr-3 file:rounded-xl file:border-0 file:bg-neutral-100 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-neutral-700 hover:file:bg-neutral-200 cursor-pointer"
             />
+            {previewImageUrl && (
+              <button
+                type="button"
+                onClick={() => setIsPreviewOpen(true)}
+                className="mt-2 text-[11px] font-bold text-[#d22027] hover:underline flex items-center gap-1 cursor-pointer"
+              >
+                🔍 Lihat Pratinjau Lampiran
+              </button>
+            )}
             <p className="mt-1 text-[10px] text-neutral-400">
               Format yang didukung: JPG, PNG, WEBP, PDF
             </p>
@@ -320,6 +341,13 @@ export default function LeaveRequestModal({
           </div>
         </form>
       </div>
+
+      <ImagePreviewModal
+        isOpen={isPreviewOpen}
+        imageUrl={previewImageUrl}
+        title="Pratinjau Surat Dokter / Lampiran"
+        onClose={() => setIsPreviewOpen(false)}
+      />
     </div>,
     document.body
   );

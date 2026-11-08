@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { supabase } from '../lib/supabase';
+import { supabase } from '../../lib/supabase';
+import { DAYS, getWeekDateRange } from '../../utils/dateUtils';
 
 interface CurrentUser {
   name: string;
@@ -42,23 +43,6 @@ interface TukarShiftModalProps {
   onSuccess: () => void;
 }
 
-const DAYS = ['Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu', 'Minggu'];
-
-const getWeekDateRange = (weekNum: number) => {
-  const baseMonday = new Date(2026, 10, 2); 
-  
-  const startDate = new Date(baseMonday);
-  startDate.setDate(baseMonday.getDate() + (weekNum - 1) * 7);
-
-  const endDate = new Date(startDate);
-  endDate.setDate(startDate.getDate() + 6);
-
-  return {
-    start: startDate.toISOString().split('T')[0],
-    end: endDate.toISOString().split('T')[0],
-  };
-};
-
 export default function TukarShiftModal({
   isOpen,
   onClose,
@@ -71,8 +55,6 @@ export default function TukarShiftModal({
   const [loading, setLoading] = useState(false);
   const [fetchingShifts, setFetchingShifts] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
-
-  // State transisi fade konten tab
   const [isTabChanging, setIsTabChanging] = useState(false);
 
   const handleTabChange = (newTab: 'form' | 'history') => {
@@ -364,9 +346,7 @@ export default function TukarShiftModal({
           </button>
         </div>
 
-        {/* 🌟 SLIDING TAB SWITCHER BERANIMASI */}
         <div className="relative bg-neutral-100 p-1 rounded-2xl my-4 flex shrink-0 select-none border border-neutral-200">
-          {/* Highlight Meluncur */}
           <div
             className={`absolute top-1 bottom-1 w-[calc(50%-0.25rem)] bg-[#111111] rounded-xl shadow-sm transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
               activeTab === 'history' ? 'translate-x-[calc(100%+0.25rem)]' : 'translate-x-0'
@@ -393,7 +373,6 @@ export default function TukarShiftModal({
           </button>
         </div>
 
-        {/* Content Section dengan Animasi Fade */}
         <div
           className={`flex-1 overflow-y-auto pr-1 transition-opacity duration-200 ${
             isTabChanging ? 'opacity-0 scale-[0.99]' : 'opacity-100 scale-100'

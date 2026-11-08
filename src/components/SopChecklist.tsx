@@ -1,23 +1,14 @@
-import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import AddSopModal from './sop/AddSopModal';
+import SopItemRow from './sop/SopItemRow';
+import type { SopItem } from './sop/SopItemRow';
 
 interface CurrentUser {
   name: string;
   role: string;
   staff_id: string;
   avatar_url?: string;
-}
-
-interface SopItem {
-  id: number;
-  shift: string;
-  task_name: string;
-  category: string;
-  is_completed: boolean;
-  completed_by?: string | null;
-  completed_at?: string | null;
-  completed_by_avatar?: string | null;
 }
 
 interface SopChecklistProps {
@@ -31,10 +22,8 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
   const [loading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   
-  // State animasi switching antar shift
   const [isSwitchingShift, setIsSwitchingShift] = useState(false);
 
-  // State Modal Tambah SOP + Animasi In/Out
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isClosingModal, setIsClosingModal] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
@@ -43,7 +32,7 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const rawRole = (currentUser?.role || '').toLowerCase();
-  const isManagementOrOwner = currentUser && (
+  const isManagementOrOwner = Boolean(currentUser && (
     rawRole.includes('management') || 
     rawRole.includes('owner') ||
     rawRole.includes('general_manager') ||
@@ -52,18 +41,16 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
     rawRole.includes('finance') ||
     currentUser.staff_id?.startsWith('MNG-') ||
     currentUser.staff_id?.startsWith('OWN-')
-  );
+  ));
   const currentShift = activeShift.toLowerCase().includes('night') ? 'night' : 'morning';
 
   useEffect(() => {
-    // Picu animasi transisi fade saat perpindahan shift
     setIsSwitchingShift(true);
     const timer = setTimeout(() => {
       fetchSopTasks();
       setIsSwitchingShift(false);
     }, 120);
 
-    // INTEGRASI REALTIME SUPABASE
     const sopChannel = supabase
       .channel('sop_realtime_channel')
       .on(
@@ -165,14 +152,13 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
     }
   };
 
-  // 🌟 FUNGSI PENUTUP MODAL DENGAN ANIMASI OUT
   const handleCloseModal = () => {
     setIsClosingModal(true);
     setTimeout(() => {
       setIsAddModalOpen(false);
       setIsClosingModal(false);
       setNewTaskName('');
-    }, 200); // Sesuai durasi animasi out CSS (200ms)
+    }, 200);
   };
 
   const handleOpenModal = () => {
@@ -233,95 +219,25 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
           </span>
         </div>
       )}
-      {taskList.map((task, index) => {
-        const isLockedForStaff = task.is_completed && !isManagementOrOwner;
-
-        return (
-          <div
-            key={task.id}
-            onClick={() => toggleTask(task.id, task.is_completed)}
-            style={{ animationDelay: `${index * 45}ms` }}
-            className={`sop-item-fade p-3.5 rounded-2xl border transition duration-200 flex items-center justify-between gap-3 group ${
-              isLockedForStaff
-                ? 'cursor-not-allowed bg-neutral-50/80 border-neutral-200 opacity-80'
-                : 'cursor-pointer ' + (task.is_completed ? 'bg-neutral-50 border-neutral-200' : 'bg-white border-neutral-200 hover:border-[#d22027]')
-            }`}
-          >
-            <div className="flex items-center gap-3 flex-1 min-w-0">
-              <input
-                type="checkbox"
-                checked={task.is_completed}
-                disabled={isLockedForStaff}
-                onChange={() => {}}
-                className={`w-4 h-4 accent-[#d22027] rounded shrink-0 ${
-                  isLockedForStaff ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'
-                }`}
-              />
-              <div className="min-w-0">
-                <p
-                  className={`text-xs font-bold truncate transition-all duration-300 ${
-                    task.is_completed ? 'line-through text-neutral-400' : 'text-[#111111]'
-                  }`}
-                >
-                  {task.task_name}
-                </p>
-                <p className="text-[10px] text-neutral-400 flex items-center gap-1.5 flex-wrap mt-0.5">
-                  <span className="font-bold text-neutral-600">{task.category?.replace(/_/g, ' ')}</span>
-                  <span>•</span>
-                  <span className="uppercase font-medium">{task.shift}</span>
-                  {task.completed_by && (
-                    <span className="text-emerald-600 font-semibold flex items-center gap-1 ml-1">
-                      • Oleh: 
-                      {task.completed_by_avatar ? (
-                        <img
-                          src={task.completed_by_avatar}
-                          alt={task.completed_by}
-                          className="w-3.5 h-3.5 rounded-full object-cover inline-block"
-                        />
-                      ) : null}
-                      <strong>{task.completed_by}</strong>
-                    </span>
-                  )}
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {task.is_completed && (
-                <span className="text-[9px] bg-emerald-50 text-emerald-600 font-semibold px-2 py-0.5 rounded-md shrink-0 flex items-center gap-1">
-                  Selesai {isLockedForStaff && <span title="Terkunci untuk staf biasa">🔒</span>}
-                </span>
-              )}
-
-              {isManagementOrOwner && (
-                <button
-                  onClick={e => handleDeleteTask(task.id, task.task_name, e)}
-                  className="p-1 text-neutral-300 hover:text-red-500 rounded-lg transition opacity-0 group-hover:opacity-100 cursor-pointer"
-                  title="Hapus SOP"
-                >
-                  🗑️
-                </button>
-              )}
-            </div>
-          </div>
-        );
-      })}
+      {taskList.map((task, index) => (
+        <SopItemRow
+          key={task.id}
+          task={task}
+          index={index}
+          isManagementOrOwner={isManagementOrOwner}
+          onToggle={toggleTask}
+          onDelete={handleDeleteTask}
+        />
+      ))}
     </div>
   );
 
   return (
     <div className="bg-white rounded-3xl p-5 border border-neutral-200 shadow-sm mb-8 text-left relative">
-      {/* 🌟 KEYFRAMES ANIMASI IN & OUT MODAL TERPISAH */}
       <style>{`
         @keyframes sopItemSlideUp {
-          0% {
-            opacity: 0;
-            transform: translateY(12px);
-          }
-          100% {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          0% { opacity: 0; transform: translateY(12px); }
+          100% { opacity: 1; transform: translateY(0); }
         }
         @keyframes modalOverlayIn {
           0% { opacity: 0; }
@@ -332,24 +248,12 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
           100% { opacity: 0; }
         }
         @keyframes modalBoxIn {
-          0% {
-            opacity: 0;
-            transform: scale(0.92) translateY(10px);
-          }
-          100% {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
+          0% { opacity: 0; transform: scale(0.92) translateY(10px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
         }
         @keyframes modalBoxOut {
-          0% {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-          100% {
-            opacity: 0;
-            transform: scale(0.92) translateY(10px);
-          }
+          0% { opacity: 1; transform: scale(1) translateY(0); }
+          100% { opacity: 0; transform: scale(0.92) translateY(10px); }
         }
 
         .sop-item-fade {
@@ -423,85 +327,19 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
         )}
       </div>
 
-      {/* 🌟 MODAL TAMBAH SOP DENGAN ANIMASI IN & OUT LENGKAP */}
-      {isAddModalOpen && createPortal(
-        <div
-          onClick={handleCloseModal}
-          className={`fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 ${
-            isClosingModal ? 'modal-backdrop-out' : 'modal-backdrop-in'
-          }`}
-        >
-          <div
-            onClick={e => e.stopPropagation()}
-            className={`bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-neutral-100 text-left my-auto ${
-              isClosingModal ? 'modal-box-out' : 'modal-box-in'
-            }`}
-          >
-            <h3 className="text-base font-black text-[#111111] mb-1">Tambah Tugas SOP Baru</h3>
-            <p className="text-xs text-neutral-400 mb-4">Masukkan tugas operasional baru untuk tim.</p>
-
-            <form onSubmit={handleAddTask} className="space-y-4">
-              <div>
-                <label className="block text-[11px] font-bold text-neutral-600 mb-1">Nama Tugas SOP</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Misal: Clean & Descale Grinder"
-                  value={newTaskName}
-                  onChange={e => setNewTaskName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-[#d22027]"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-neutral-600 mb-1">Kategori / Divisi</label>
-                  <select
-                    value={newCategory}
-                    onChange={e => setNewCategory(e.target.value)}
-                    className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-[#d22027] cursor-pointer"
-                  >
-                    <option value="Bar">Barista / Bar</option>
-                    <option value="Kasir">Cashier / Floor</option>
-                    <option value="Kitchen">Kitchen / Cook</option>
-                    <option value="General">General / Operasional</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-neutral-600 mb-1">Shift Target</label>
-                  <select
-                    value={newShift}
-                    onChange={e => setNewShift(e.target.value as 'morning' | 'night')}
-                    className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-[#d22027] cursor-pointer"
-                  >
-                    <option value="morning">Morning (Opening)</option>
-                    <option value="night">Night (Closing)</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={handleCloseModal}
-                  className="flex-1 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl text-xs font-bold transition cursor-pointer"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="flex-1 py-2.5 bg-[#d22027] hover:bg-[#bb2026] text-white rounded-xl text-xs font-bold transition cursor-pointer disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Simpan...' : 'Simpan SOP'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
+      <AddSopModal
+        isOpen={isAddModalOpen}
+        isClosing={isClosingModal}
+        newTaskName={newTaskName}
+        newCategory={newCategory}
+        newShift={newShift}
+        isSubmitting={isSubmitting}
+        setNewTaskName={setNewTaskName}
+        setNewCategory={setNewCategory}
+        setNewShift={setNewShift}
+        onClose={handleCloseModal}
+        onSubmit={handleAddTask}
+      />
     </div>
   );
 }
