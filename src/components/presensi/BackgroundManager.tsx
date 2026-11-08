@@ -17,6 +17,8 @@ export default function BackgroundManager({ isOpen, onClose, onUpdateSuccess }: 
     setBlurLevel,
     overlayOpacity,
     setOverlayOpacity,
+    isRandom,
+    setIsRandom,
     loading,
     submitting,
     toast,
@@ -24,6 +26,7 @@ export default function BackgroundManager({ isOpen, onClose, onUpdateSuccess }: 
     handleAddUrl,
     executeDeleteUrl,
     saveSettingsToDb,
+    saveToSupabase,
   } = useBackgroundRotator(isOpen, onUpdateSuccess);
 
   const [newImageUrl, setNewImageUrl] = useState('');
@@ -34,7 +37,6 @@ export default function BackgroundManager({ isOpen, onClose, onUpdateSuccess }: 
   const isVideoUrl = (url?: string): boolean => {
     if (!url) return false;
     
-    // 1. Cek parameter filename dari URL (misal: filename=...mp4 atau filename=...jpg)
     const filenameMatch = url.match(/filename=([^&]+)/i);
     if (filenameMatch && filenameMatch[1]) {
       const fn = decodeURIComponent(filenameMatch[1]).toLowerCase();
@@ -42,7 +44,6 @@ export default function BackgroundManager({ isOpen, onClose, onUpdateSuccess }: 
       if (fn.endsWith('.jpg') || fn.endsWith('.jpeg') || fn.endsWith('.png') || fn.endsWith('.webp')) return false;
     }
 
-    // 2. Fallback cek path URL utama sebelum query parameter (?)
     const mainPath = url.split('?')[0].toLowerCase();
     return (
       mainPath.endsWith('.mp4') ||
@@ -50,6 +51,13 @@ export default function BackgroundManager({ isOpen, onClose, onUpdateSuccess }: 
       mainPath.endsWith('.mov') ||
       mainPath.endsWith('.m4v')
     );
+  };
+
+  // Fungsi mengacak susunan array media galeri
+  const handleShuffleUrls = async () => {
+    if (backgroundUrls.length <= 1) return;
+    const shuffled = [...backgroundUrls].sort(() => Math.random() - 0.5);
+    await saveToSupabase(shuffled);
   };
 
   const handleAnimatedClose = () => {
@@ -125,9 +133,23 @@ export default function BackgroundManager({ isOpen, onClose, onUpdateSuccess }: 
         <div className="py-4 space-y-3 border-b border-neutral-100">
           <div className="flex justify-between items-center">
             <p className="text-xs font-bold text-neutral-500">Daftar Media Aktif Dalam Rotator ({backgroundUrls.length})</p>
-            <button onClick={fetchBackgrounds} className="text-[10px] text-neutral-400 hover:text-[#d22027] font-bold cursor-pointer transition flex items-center gap-1">
-              🔄 Refresh Data
-            </button>
+            <div className="flex items-center gap-2">
+              <button 
+                type="button" 
+                onClick={handleShuffleUrls} 
+                disabled={backgroundUrls.length <= 1 || submitting} 
+                className="text-[10px] text-neutral-600 hover:text-[#d22027] font-bold cursor-pointer transition flex items-center gap-1 bg-neutral-100 hover:bg-neutral-200 px-2.5 py-1 rounded-lg border border-neutral-200/60 disabled:opacity-50"
+              >
+                🎲 Acak Urutan
+              </button>
+              <button 
+                type="button" 
+                onClick={fetchBackgrounds} 
+                className="text-[10px] text-neutral-400 hover:text-[#d22027] font-bold cursor-pointer transition flex items-center gap-1"
+              >
+                🔄 Refresh Data
+              </button>
+            </div>
           </div>
 
           <div className="min-h-[140px] flex items-center">
@@ -174,17 +196,34 @@ export default function BackgroundManager({ isOpen, onClose, onUpdateSuccess }: 
           </div>
         </div>
 
-        {/* CONTROL SLIDERS */}
+        {/* CONTROL SLIDERS & CHECKBOX RANDOM OPTION */}
         <div className="pt-4 space-y-4">
           <div className="flex justify-between items-center">
-            <p className="text-xs font-extrabold text-[#111111] uppercase tracking-wider">🎛️ Pengaturan Efek Visual Banner</p>
+            <p className="text-xs font-extrabold text-[#111111] uppercase tracking-wider">🎛️ Pengaturan Efek & Rotasi Visual</p>
             <button
-              onClick={() => saveSettingsToDb(blurLevel, overlayOpacity)}
+              onClick={() => saveSettingsToDb(blurLevel, overlayOpacity, isRandom)}
               disabled={submitting}
               className="px-3 py-1.5 bg-[#d22027] hover:bg-[#b0181e] text-white text-[11px] font-bold rounded-lg transition active:scale-95 cursor-pointer disabled:opacity-50 shadow-xs"
             >
               {submitting ? 'Simpan...' : 'Simpan Efek'}
             </button>
+          </div>
+
+          {/* OPSI CHECKBOX RANDOMIZE */}
+          <div className="p-3.5 bg-neutral-50 rounded-2xl border border-neutral-200/80 flex items-center justify-between">
+            <div className="space-y-0.5">
+              <label htmlFor="checkbox-random-bg" className="text-xs font-bold text-neutral-800 flex items-center gap-1.5 cursor-pointer select-none">
+                <span>🎲 Putar Acak (Randomized)</span>
+              </label>
+              <p className="text-[10px] text-neutral-500 font-medium">Acak otomatis media awal & urutan putar tiap kali web dibuka/direfresh.</p>
+            </div>
+            <input
+              id="checkbox-random-bg"
+              type="checkbox"
+              checked={isRandom}
+              onChange={(e) => setIsRandom(e.target.checked)}
+              className="w-4 h-4 accent-[#d22027] cursor-pointer rounded"
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-neutral-50 p-4 rounded-2xl border border-neutral-200/60">

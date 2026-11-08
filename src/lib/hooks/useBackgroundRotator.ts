@@ -7,10 +7,11 @@ export interface ToastState {
   type: 'success' | 'error' | 'info';
 }
 
-export function useBackgroundRotator(isOpen: boolean, onUpdateSuccess?: (urls: string[]) => void) {
+export function useBackgroundRotator(isOpen?: boolean, onUpdateSuccess?: (urls: string[]) => void) {
   const [backgroundUrls, setBackgroundUrls] = useState<string[]>([]);
   const [blurLevel, setBlurLevel] = useState<number>(4); // default 4px
   const [overlayOpacity, setOverlayOpacity] = useState<number>(80); // default 80%
+  const [isRandom, setIsRandom] = useState<boolean>(false); // default false
   
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -24,7 +25,8 @@ export function useBackgroundRotator(isOpen: boolean, onUpdateSuccess?: (urls: s
   };
 
   useEffect(() => {
-    if (isOpen) {
+    // Membaca data jika modal terbuka (isOpen === true) atau jika digunakan langsung di layar utama (isOpen === undefined)
+    if (isOpen === undefined || isOpen) {
       fetchBackgrounds();
       fetchSettings();
     }
@@ -66,27 +68,37 @@ export function useBackgroundRotator(isOpen: boolean, onUpdateSuccess?: (urls: s
       const { data } = await supabase
         .from('system_settings')
         .select('key, value')
-        .in('key', ['presence_bg_blur', 'presence_bg_overlay']);
+        .in('key', ['presence_bg_blur', 'presence_bg_overlay', 'presence_bg_random']);
 
       if (data) {
         data.forEach((row: any) => {
           if (row.key === 'presence_bg_blur') setBlurLevel(Number(row.value) || 4);
           if (row.key === 'presence_bg_overlay') setOverlayOpacity(Number(row.value) || 80);
+          if (row.key === 'presence_bg_random') setIsRandom(row.value === 'true' || row.value === true);
         });
       }
     } catch (err) {
-      console.error('Error reading slider settings:', err);
+      console.error('Error reading settings:', err);
     }
   };
 
-  const saveSettingsToDb = async (newBlur: number, newOverlay: number) => {
+  const saveSettingsToDb = async (newBlur: number, newOverlay: number, newIsRandom?: boolean) => {
     setSubmitting(true);
-    await supabase.from('system_settings').upsert([
+    const targetRandom = newIsRandom !== undefined ? newIsRandom : isRandom;
+
+    const { error } = await supabase.from('system_settings').upsert([
       { key: 'presence_bg_blur', value: String(newBlur), updated_at: new Date().toISOString() },
-      { key: 'presence_bg_overlay', value: String(newOverlay), updated_at: new Date().toISOString() }
+      { key: 'presence_bg_overlay', value: String(newOverlay), updated_at: new Date().toISOString() },
+      { key: 'presence_bg_random', value: String(targetRandom), updated_at: new Date().toISOString() }
     ]);
+
     setSubmitting(false);
-    showToast('Pengaturan efek visual berhasil disimpan!', 'success');
+
+    if (error) {
+      showToast('Gagal menyimpan pengaturan: ' + error.message, 'error');
+    } else {
+      showToast('Pengaturan efek & rotasi visual berhasil disimpan!', 'success');
+    }
   };
 
   const saveToSupabase = async (urls: string[]) => {
@@ -137,6 +149,8 @@ export function useBackgroundRotator(isOpen: boolean, onUpdateSuccess?: (urls: s
     setBlurLevel,
     overlayOpacity,
     setOverlayOpacity,
+    isRandom,
+    setIsRandom,
     loading,
     submitting,
     toast,
@@ -144,5 +158,6 @@ export function useBackgroundRotator(isOpen: boolean, onUpdateSuccess?: (urls: s
     handleAddUrl,
     executeDeleteUrl,
     saveSettingsToDb,
+    saveToSupabase,
   };
 }

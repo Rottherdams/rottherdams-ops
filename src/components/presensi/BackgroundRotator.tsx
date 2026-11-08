@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 
 interface BackgroundRotatorProps {
-  images: string[];          // Array URL (bisa berisi foto .jpg/.png ATAU video .mp4)
+  images: string[];          // Array URL (media campuran: foto .jpg/.png ATAU video .mp4)
   intervalMs?: number;       // Durasi default untuk FOTO (default: 7000ms)
   blurLevel?: number;        // Level keburaman
   overlayOpacity?: number;   // Kepekatan overlay hitam
+  isRandom?: boolean;        // Opsi acak urutan & media awal
   children?: React.ReactNode; 
 }
 
@@ -13,11 +14,12 @@ export default function BackgroundRotator({
   intervalMs = 7000,
   blurLevel = 4,
   overlayOpacity = 80,
+  isRandom = false,
   children,
 }: BackgroundRotatorProps) {
-  const activeImages = images;
+  const activeMediaList = images;
 
-  const [currentIndex, setCurrentIndex] = useState(0);
+  const [currentIndex, setCurrentIndex] = useState<number | null>(null);
   const [nextIndex, setNextIndex] = useState(0);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -42,13 +44,38 @@ export default function BackgroundRotator({
     );
   };
 
-  const currentMedia = activeImages[currentIndex];
+  // Inisialisasi Media Pertama (Foto / Video): Langsung diacak secara instan begitu data Supabase siap
+  useEffect(() => {
+    if (activeMediaList && activeMediaList.length > 0) {
+      if (isRandom && activeMediaList.length > 1) {
+        const randomIndex = Math.floor(Math.random() * activeMediaList.length);
+        setCurrentIndex(randomIndex);
+      } else if (currentIndex === null) {
+        setCurrentIndex(0);
+      }
+    }
+  }, [activeMediaList, isRandom]);
+
+  const activeIndex = currentIndex ?? 0;
+  const currentMedia = activeMediaList[activeIndex];
   const isCurrentVideo = isVideoUrl(currentMedia);
 
   const goToNextMedia = () => {
-    if (activeImages.length <= 1) return;
+    if (activeMediaList.length <= 1) return;
 
-    const upcomingIndex = (currentIndex + 1) % activeImages.length;
+    let upcomingIndex: number;
+
+    if (isRandom) {
+      // Pilih indeks acak foto/video yang berbeda dari media saat ini
+      upcomingIndex = Math.floor(Math.random() * activeMediaList.length);
+      if (upcomingIndex === activeIndex) {
+        upcomingIndex = (activeIndex + 1) % activeMediaList.length;
+      }
+    } else {
+      // Urutan linier normal
+      upcomingIndex = (activeIndex + 1) % activeMediaList.length;
+    }
+
     setNextIndex(upcomingIndex);
     setIsTransitioning(true);
 
@@ -58,18 +85,20 @@ export default function BackgroundRotator({
     }, 1200);
   };
 
+  // Timer Rotasi Otomatis (Hanya untuk Foto)
   useEffect(() => {
-    if (activeImages.length <= 1 || isCurrentVideo) return;
+    if (activeMediaList.length <= 1 || isCurrentVideo || currentIndex === null) return;
 
     const timer = setTimeout(() => {
       goToNextMedia();
     }, intervalMs);
 
     return () => clearTimeout(timer);
-  }, [currentIndex, activeImages.length, intervalMs, isCurrentVideo]);
+  }, [currentIndex, activeMediaList.length, intervalMs, isCurrentVideo, isRandom]);
 
+  // Handler saat Video selesai diputar (Video Ended Event)
   const handleVideoEnded = () => {
-    if (activeImages.length > 1) {
+    if (activeMediaList.length > 1) {
       goToNextMedia();
     } else if (videoRef.current) {
       videoRef.current.currentTime = 0;
@@ -77,7 +106,7 @@ export default function BackgroundRotator({
     }
   };
 
-  if (activeImages.length === 0) {
+  if (activeMediaList.length === 0 || currentIndex === null) {
     return (
       <div className="relative w-full h-full overflow-hidden rounded-3xl bg-neutral-900 border border-neutral-800 text-left">
         <div className="relative z-10 w-full h-full">{children}</div>
@@ -99,11 +128,11 @@ export default function BackgroundRotator({
         }
       `}</style>
 
-      {/* LAYER 1: BASE MEDIA */}
+      {/* LAYER 1: BASE MEDIA (FOTO ATAU VIDEO) */}
       {isCurrentVideo ? (
         <video
           ref={videoRef}
-          key={`video-${currentIndex}`}
+          key={`video-${activeIndex}`}
           src={currentMedia}
           autoPlay
           muted
@@ -114,7 +143,7 @@ export default function BackgroundRotator({
         />
       ) : (
         <div
-          key={`img-${currentIndex}`}
+          key={`img-${activeIndex}`}
           className="absolute inset-0 bg-cover bg-center animate-ken-burns pointer-events-none"
           style={{ 
             backgroundImage: `url('${currentMedia}')`,
@@ -123,12 +152,12 @@ export default function BackgroundRotator({
         />
       )}
 
-      {/* LAYER 2: INCOMING MEDIA */}
-      {activeImages.length > 1 && (
-        isVideoUrl(activeImages[nextIndex]) ? (
+      {/* LAYER 2: INCOMING MEDIA (TRANSISI CROSSFADE SAMA UNTUK FOTO & VIDEO) */}
+      {activeMediaList.length > 1 && (
+        isVideoUrl(activeMediaList[nextIndex]) ? (
           <video
             key={`next-video-${nextIndex}`}
-            src={activeImages[nextIndex]}
+            src={activeMediaList[nextIndex]}
             muted
             playsInline
             className={`absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-[1200ms] cubic-bezier(0.4, 0, 0.2, 1) ${
@@ -143,7 +172,7 @@ export default function BackgroundRotator({
               isTransitioning ? 'opacity-100' : 'opacity-0'
             }`}
             style={{ 
-              backgroundImage: `url('${activeImages[nextIndex]}')`,
+              backgroundImage: `url('${activeMediaList[nextIndex]}')`,
               filter: `blur(${blurLevel}px)`
             }}
           />
