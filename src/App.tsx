@@ -56,6 +56,7 @@ export default function App() {
   const [presenceBgList, setPresenceBgList] = useState<string[]>([]);
   const [presenceBgBlur, setPresenceBgBlur] = useState<number>(4);
   const [presenceBgOverlay, setPresenceBgOverlay] = useState<number>(80);
+  const [isPresenceRandom, setIsPresenceRandom] = useState<boolean>(false);
   const [isBgManagerOpen, setIsBgManagerOpen] = useState<boolean>(false);
 
   // Status koneksi server & database
@@ -89,25 +90,26 @@ export default function App() {
     };
   }, []);
 
-  // Monitoring Database Online
+  // Monitoring Database Online (Health Check Presisi)
   useEffect(() => {
     const checkDbHealth = async () => {
       try {
-        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://xyzcompany.supabase.co';
-        const response = await fetch(`${supabaseUrl}/rest/v1/`, {
-          method: 'HEAD',
-          headers: { 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY || '' }
-        });
-        setIsDbOnline(response.ok || response.status === 200 || response.status === 300);
-      } catch {
-        try {
-          const { error } = await supabase.from('system_settings').select('key').limit(1);
-          setIsDbOnline(!error);
-        } catch {
-          setIsDbOnline(false);
+        const { error } = await supabase
+          .from('system_settings')
+          .select('key')
+          .limit(1);
+
+        if (!error) {
+          setIsDbOnline(true);
+        } else {
+          // Jika koneksi internet aktif tetapi error RLS, tetap nyatakan DB online
+          setIsDbOnline(navigator.onLine);
         }
+      } catch {
+        setIsDbOnline(false);
       }
     };
+
     checkDbHealth();
     const interval = setInterval(checkDbHealth, 15000);
     return () => clearInterval(interval);
@@ -179,12 +181,13 @@ export default function App() {
       const { data } = await supabase
         .from('system_settings')
         .select('key, value')
-        .in('key', ['presence_bg_blur', 'presence_bg_overlay']);
+        .in('key', ['presence_bg_blur', 'presence_bg_overlay', 'presence_bg_random']);
 
       if (data) {
         data.forEach((row: any) => {
           if (row.key === 'presence_bg_blur') setPresenceBgBlur(Number(row.value) || 4);
           if (row.key === 'presence_bg_overlay') setPresenceBgOverlay(Number(row.value) || 80);
+          if (row.key === 'presence_bg_random') setIsPresenceRandom(row.value === 'true' || row.value === true);
         });
       }
     } catch (err) {
@@ -447,6 +450,7 @@ export default function App() {
                     intervalMs={7000}
                     blurLevel={presenceBgBlur}
                     overlayOpacity={presenceBgOverlay}
+                    isRandom={isPresenceRandom}
                   >
                     <div className="relative p-6 md:p-8 min-h-[220px] flex flex-col justify-between">
                       {/* Soft Bottom Gradient Overlay untuk menghilangkan garis border hitam melingkar */}

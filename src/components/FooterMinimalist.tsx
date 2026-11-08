@@ -4,11 +4,10 @@ interface FooterMinimalistProps {
 }
 
 export default function FooterMinimalist({ isHostOnline, isDbOnline }: FooterMinimalistProps) {
-  // 🌟 KALKULASI VERSI OTOMATIS BERDASARKAN TOTAL DEPLOY / COMMIT COUNT
-  const deployCount = parseInt(import.meta.env.CF_PAGES_COMMIT_COUNT || '120', 10);
-  const major = Math.floor(deployCount / 100);
-  const minor = Math.floor((deployCount % 100) / 10);
-  const computedVersion = `${major}.${minor}`;
+  // 🌟 KALKULASI VERSI DINAMIS BERDASARKAN TOTAL DEPLOY (COMMIT COUNT)
+  // Contoh: 12 deploy -> v0.12 | 50 deploy -> v0.50 | 125 deploy -> v1.25 | 299 deploy -> v2.99
+  const deployCount = parseInt(import.meta.env.CF_PAGES_COMMIT_COUNT || '125', 10);
+  const computedVersion = (deployCount / 100).toFixed(2);
 
   const commitSha = import.meta.env.CF_PAGES_COMMIT_SHA?.substring(0, 7);
   const appVersion = commitSha ? `${computedVersion} (${commitSha})` : computedVersion;
@@ -22,7 +21,7 @@ export default function FooterMinimalist({ isHostOnline, isDbOnline }: FooterMin
           <div className="flex items-center gap-2">
             <span className="font-black text-sm tracking-wider uppercase text-[#d22027]">ROTTHERDAMS</span>
             <span className="text-[9px] bg-[#d22027]/10 text-[#d22027] border border-[#d22027]/20 px-2 py-0.5 rounded-full font-bold">
-              OPS v{appVersion}
+              Ops v{appVersion}
             </span>
           </div>
           <p className="text-[11px] text-neutral-400">
@@ -30,7 +29,7 @@ export default function FooterMinimalist({ isHostOnline, isDbOnline }: FooterMin
           </p>
         </div>
 
-        {/* Section 2: Ringkas Dot Status (Server & DB) + Link Direct Maps & Instagram */}
+        {/* Section 2: Status Indicator (Server & DB) + Link Sosial */}
         <div className="flex flex-wrap items-center gap-4 text-xs font-medium text-neutral-600">
           
           <div className="flex items-center gap-2.5 bg-white px-3 py-1 rounded-full border border-neutral-200 text-[11px]">

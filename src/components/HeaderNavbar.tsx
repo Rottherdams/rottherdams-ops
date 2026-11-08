@@ -27,16 +27,6 @@ export default function HeaderNavbar({
   onLogout,
   onOpenAvatarPreview
 }: HeaderNavbarProps) {
-  // 🌟 KALKULASI VERSI OTOMATIS BERDASARKAN TOTAL DEPLOY / COMMIT COUNT
-  // Di localhost default commit count 120 (menghasilkan v1.2)
-  const deployCount = parseInt(import.meta.env.CF_PAGES_COMMIT_COUNT || '120', 10);
-  const major = Math.floor(deployCount / 100);
-  const minor = Math.floor((deployCount % 100) / 10);
-  const computedVersion = `${major}.${minor}`;
-
-  const commitSha = import.meta.env.CF_PAGES_COMMIT_SHA?.substring(0, 7);
-  const appVersion = commitSha ? `${computedVersion} (${commitSha})` : computedVersion;
-
   const formatDisplayRole = (role?: string, staffId?: string): string => {
     const r = (role || '').toLowerCase();
     const id = (staffId || '').toUpperCase();
@@ -64,8 +54,8 @@ export default function HeaderNavbar({
           
           <div className="flex items-center gap-3 shrink-0 cursor-pointer" onClick={() => onNavChange('home')}>
             <img src="/logo.svg" alt="Rottherdams Logo" className="h-7 md:h-8 w-auto object-contain" />
-            <span className="text-[9px] bg-black/25 text-white border border-white/20 px-2 py-0.5 rounded-full font-bold tracking-wider uppercase">
-              OPS v{appVersion}
+            <span className="text-[9px] bg-black/25 text-white border border-white/20 px-2 py-0.5 rounded-full font-bold tracking-wider">
+              Ops
             </span>
           </div>
 
