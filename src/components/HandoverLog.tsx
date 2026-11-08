@@ -26,8 +26,9 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [filterCategory, setFilterCategory] = useState<string>('All');
 
-  // Form State
+  // Form State + Animasi In/Out Modal
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [isClosingModal, setIsClosingModal] = useState<boolean>(false);
   const [category, setCategory] = useState<string>('Stok & Inventaris');
   const [title, setTitle] = useState<string>('');
   const [description, setDescription] = useState<string>('');
@@ -91,7 +92,19 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
       onRequireLogin();
       return;
     }
+    setIsClosingModal(false);
     setIsModalOpen(true);
+  };
+
+  // 🌟 FUNGSI PENUTUP MODAL DENGAN ANIMASI OUT
+  const handleCloseModal = () => {
+    setIsClosingModal(true);
+    setTimeout(() => {
+      setIsModalOpen(false);
+      setIsClosingModal(false);
+      setTitle('');
+      setDescription('');
+    }, 200); // Sesuai durasi animasi out CSS (200ms)
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -115,9 +128,7 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
     setIsSubmitting(false);
 
     if (!error) {
-      setTitle('');
-      setDescription('');
-      setIsModalOpen(false);
+      handleCloseModal();
       fetchLogs();
     } else {
       alert('Gagal menyimpan catatan handover: ' + error.message);
@@ -155,7 +166,7 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
 
   return (
     <div className="space-y-6 text-left">
-      {/* 🌟 CSS Keyframes Animasi Staggered Entrance Per Kartu */}
+      {/* 🌟 KEYFRAMES ANIMASI STAGGERED & ANIMASI IN/OUT MODAL */}
       <style>{`
         @keyframes handoverCardSlideUp {
           0% {
@@ -167,9 +178,50 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
             transform: translateY(0) scale(1);
           }
         }
+        @keyframes modalOverlayIn {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
+        }
+        @keyframes modalOverlayOut {
+          0% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        @keyframes modalBoxIn {
+          0% {
+            opacity: 0;
+            transform: scale(0.92) translateY(10px);
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+        @keyframes modalBoxOut {
+          0% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+          100% {
+            opacity: 0;
+            transform: scale(0.92) translateY(10px);
+          }
+        }
+
         .handover-card-fade {
           animation: handoverCardSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
           opacity: 0;
+        }
+        .modal-backdrop-in {
+          animation: modalOverlayIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .modal-backdrop-out {
+          animation: modalOverlayOut 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .modal-box-in {
+          animation: modalBoxIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .modal-box-out {
+          animation: modalBoxOut 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
       `}</style>
 
@@ -293,12 +345,22 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
         </div>
       )}
 
-      {/* Modal Buat Catatan Handover (Portal ke document.body) */}
+      {/* 🌟 MODAL HANDOVER DENGAN ANIMASI IN & OUT LENGKAP */}
       {isModalOpen && createPortal(
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-neutral-100 animate-in fade-in zoom-in-95 duration-150 relative text-left my-auto">
+        <div
+          onClick={handleCloseModal}
+          className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 ${
+            isClosingModal ? 'modal-backdrop-out' : 'modal-backdrop-in'
+          }`}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className={`bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-neutral-100 relative text-left my-auto ${
+              isClosingModal ? 'modal-box-out' : 'modal-box-in'
+            }`}
+          >
             <button
-              onClick={() => setIsModalOpen(false)}
+              onClick={handleCloseModal}
               className="absolute right-4 top-4 w-8 h-8 rounded-full bg-neutral-100 text-neutral-400 font-bold hover:bg-neutral-200 transition cursor-pointer flex items-center justify-center text-xs"
             >
               ✕
@@ -361,7 +423,7 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
               <div className="pt-2 flex gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsModalOpen(false)}
+                  onClick={handleCloseModal}
                   className="flex-1 py-3 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl font-bold text-xs transition cursor-pointer"
                 >
                   Batal

@@ -34,8 +34,9 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
   // State animasi switching antar shift
   const [isSwitchingShift, setIsSwitchingShift] = useState(false);
 
-  // State Modal Tambah SOP
+  // State Modal Tambah SOP + Animasi In/Out
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isClosingModal, setIsClosingModal] = useState(false);
   const [newTaskName, setNewTaskName] = useState('');
   const [newCategory, setNewCategory] = useState('Bar');
   const [newShift, setNewShift] = useState<'morning' | 'night'>('morning');
@@ -164,6 +165,21 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
     }
   };
 
+  // 🌟 FUNGSI PENUTUP MODAL DENGAN ANIMASI OUT
+  const handleCloseModal = () => {
+    setIsClosingModal(true);
+    setTimeout(() => {
+      setIsAddModalOpen(false);
+      setIsClosingModal(false);
+      setNewTaskName('');
+    }, 200); // Sesuai durasi animasi out CSS (200ms)
+  };
+
+  const handleOpenModal = () => {
+    setIsClosingModal(false);
+    setIsAddModalOpen(true);
+  };
+
   const handleAddTask = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTaskName.trim()) return;
@@ -183,8 +199,7 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
     if (error) {
       alert('Gagal menambahkan SOP: ' + error.message);
     } else {
-      setNewTaskName('');
-      setIsAddModalOpen(false);
+      handleCloseModal();
       fetchSopTasks();
     }
   };
@@ -296,6 +311,7 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
 
   return (
     <div className="bg-white rounded-3xl p-5 border border-neutral-200 shadow-sm mb-8 text-left relative">
+      {/* 🌟 KEYFRAMES ANIMASI IN & OUT MODAL TERPISAH */}
       <style>{`
         @keyframes sopItemSlideUp {
           0% {
@@ -307,9 +323,50 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
             transform: translateY(0);
           }
         }
+        @keyframes modalOverlayIn {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
+        }
+        @keyframes modalOverlayOut {
+          0% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        @keyframes modalBoxIn {
+          0% {
+            opacity: 0;
+            transform: scale(0.92) translateY(10px);
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+        @keyframes modalBoxOut {
+          0% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+          100% {
+            opacity: 0;
+            transform: scale(0.92) translateY(10px);
+          }
+        }
+
         .sop-item-fade {
           animation: sopItemSlideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
           opacity: 0;
+        }
+        .modal-backdrop-in {
+          animation: modalOverlayIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .modal-backdrop-out {
+          animation: modalOverlayOut 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .modal-box-in {
+          animation: modalBoxIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .modal-box-out {
+          animation: modalBoxOut 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
       `}</style>
 
@@ -335,7 +392,7 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
 
         {isManagementOrOwner && (
           <button
-            onClick={() => setIsAddModalOpen(true)}
+            onClick={handleOpenModal}
             className="px-3.5 py-1.5 bg-[#111111] hover:bg-neutral-800 text-white rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
           >
             <span>➕</span> Tambah SOP
@@ -366,10 +423,20 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
         )}
       </div>
 
-      {/* Modal Pop-Up Tambah SOP */}
+      {/* 🌟 MODAL TAMBAH SOP DENGAN ANIMASI IN & OUT LENGKAP */}
       {isAddModalOpen && createPortal(
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-neutral-100 text-left animate-in fade-in zoom-in-95 duration-150 my-auto">
+        <div
+          onClick={handleCloseModal}
+          className={`fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 ${
+            isClosingModal ? 'modal-backdrop-out' : 'modal-backdrop-in'
+          }`}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            className={`bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-neutral-100 text-left my-auto ${
+              isClosingModal ? 'modal-box-out' : 'modal-box-in'
+            }`}
+          >
             <h3 className="text-base font-black text-[#111111] mb-1">Tambah Tugas SOP Baru</h3>
             <p className="text-xs text-neutral-400 mb-4">Masukkan tugas operasional baru untuk tim.</p>
 
@@ -417,7 +484,7 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
               <div className="flex gap-2 pt-2">
                 <button
                   type="button"
-                  onClick={() => setIsAddModalOpen(false)}
+                  onClick={handleCloseModal}
                   className="flex-1 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl text-xs font-bold transition cursor-pointer"
                 >
                   Batal
