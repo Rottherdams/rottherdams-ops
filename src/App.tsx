@@ -46,7 +46,10 @@ export default function App() {
   // 🚀 STATE UNTUK ANIMASI TRANSISI FADE PERPINDAHAN PAGE NAVBAR
   const [isPageFading, setIsPageFading] = useState<boolean>(false);
 
+  // 🌟 STATE USER MENU DROPDOWN + ANIMASI IN/OUT
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [isClosingUserMenu, setIsClosingUserMenu] = useState(false);
+
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false); // Drawer "Lainnya" Mobile
   
   // State Modal Edit Profil
@@ -56,11 +59,29 @@ export default function App() {
   const [isLoginOpen, setIsLoginOpen] = useState<boolean>(false);
 
   const [isClockInOpen, setIsClockInOpen] = useState<boolean>(false);
-  const [showClockOutModal, setShowClockOutModal] = useState<boolean>(false); // 🚪 State Modal Clock Out
+  const [showClockOutModal, setShowClockOutModal] = useState<boolean>(false); 
   const [onDutyList, setOnDutyList] = useState<OnDutyStaff[]>([]);
   const [isClockingOut, setIsClockingOut] = useState<boolean>(false);
 
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // 🌟 FUNGSI CLOSING DROPDOWN USER MENU DENGAN ANIMASI OUT
+  const handleCloseUserMenu = () => {
+    setIsClosingUserMenu(true);
+    setTimeout(() => {
+      setIsUserMenuOpen(false);
+      setIsClosingUserMenu(false);
+    }, 150); // Sesuai durasi CSS transition 150ms
+  };
+
+  const handleToggleUserMenu = () => {
+    if (isUserMenuOpen) {
+      handleCloseUserMenu();
+    } else {
+      setIsClosingUserMenu(false);
+      setIsUserMenuOpen(true);
+    }
+  };
 
   // 🚀 HELPER PERPINDAHAN TAB DENGAN EFEK SMOOTH FADE TRANSITION
   const handleNavChange = (newNav: typeof activeNav) => {
@@ -69,7 +90,7 @@ export default function App() {
     setTimeout(() => {
       setActiveNav(newNav);
       setIsPageFading(false);
-    }, 150); // Transisi 150ms agar mengalir mulus
+    }, 150);
   };
 
   // 👑 Helper Formatting Role Kanan Atas
@@ -134,7 +155,6 @@ export default function App() {
     fetchOnDutyStaff();
   }, []);
 
-  // 🔍 FUNGSI FETCH DETAIL PROFIL TERBARU
   const fetchUserProfile = async (staffId: string, localUser: CurrentUser) => {
     try {
       const { data, error } = await supabase
@@ -188,7 +208,6 @@ export default function App() {
     }
   };
 
-  // 🚪 FUNGSI LOGOUT MANUAL / AUTO IDLE WITH AUDIT LOG
   const handleLogout = async (actionType: 'LOGOUT' | 'AUTO_LOGOUT_IDLE' = 'LOGOUT') => {
     if (currentUser) {
       try {
@@ -201,7 +220,7 @@ export default function App() {
     localStorage.removeItem('rottherdams_user');
     setCurrentUser(null);
     handleNavChange('home');
-    setIsUserMenuOpen(false);
+    handleCloseUserMenu();
     setIsMoreMenuOpen(false);
   };
 
@@ -221,7 +240,6 @@ export default function App() {
     ? onDutyList.find(item => item.staff_id === currentUser.staff_id)
     : null;
 
-  // 🚪 HANDLER KONFIRMASI CLOCK OUT DARI MODAL CUSTOM
   const handleConfirmClockOut = async () => {
     if (!activeUserAttendance) return;
 
@@ -247,6 +265,36 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#ffffff] text-[#111111] font-sans antialiased pb-24 md:pb-12 selection:bg-[#d22027] selection:text-white">
+      {/* 🌟 KEYFRAMES ANIMASI DROPDOWN & TRANSISI */}
+      <style>{`
+        @keyframes menuDropdownIn {
+          0% {
+            opacity: 0;
+            transform: scale(0.95) translateY(-8px);
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+        @keyframes menuDropdownOut {
+          0% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+          100% {
+            opacity: 0;
+            transform: scale(0.95) translateY(-8px);
+          }
+        }
+        .user-dropdown-in {
+          animation: menuDropdownIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .user-dropdown-out {
+          animation: menuDropdownOut 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+      `}</style>
+
       {/* Modal Login PIN */}
       <LoginModal
         isOpen={isLoginOpen}
@@ -267,7 +315,7 @@ export default function App() {
         onSuccess={fetchOnDutyStaff}
       />
 
-      {/* 🚪 Modal Clock Out Presensi Custom */}
+      {/* Modal Clock Out Presensi Custom */}
       <ClockOutModal
         isOpen={showClockOutModal}
         onClose={() => setShowClockOutModal(false)}
@@ -367,7 +415,7 @@ export default function App() {
             <div className="relative shrink-0">
               {currentUser ? (
                 <button 
-                  onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
+                  onClick={handleToggleUserMenu}
                   className="flex items-center gap-2.5 cursor-pointer hover:opacity-90 transition p-1 rounded-full md:rounded-xl hover:bg-black/10"
                 >
                   <div className="text-right hidden sm:block">
@@ -398,9 +446,13 @@ export default function App() {
                 </button>
               )}
 
-              {/* Dropdown Menu User */}
+              {/* 🌟 DROPDOWN MENU USER DENGAN ANIMASI IN & OUT LENGKAP */}
               {isUserMenuOpen && currentUser && (
-                <div className="absolute right-0 mt-2 w-56 bg-white text-[#111111] rounded-2xl shadow-2xl border border-neutral-100 py-2 z-50 animate-dropdown-down">
+                <div
+                  className={`absolute right-0 mt-2 w-56 bg-white text-[#111111] rounded-2xl shadow-2xl border border-neutral-100 py-2 z-50 ${
+                    isClosingUserMenu ? 'user-dropdown-out' : 'user-dropdown-in'
+                  }`}
+                >
                   <div className="px-4 py-2 border-b border-neutral-100">
                     <p className="text-xs font-bold">{currentUser.name}</p>
                     <p className="text-[10px] text-neutral-400 font-mono uppercase mt-0.5">
@@ -410,7 +462,7 @@ export default function App() {
 
                   <button
                     onClick={() => {
-                      setIsUserMenuOpen(false);
+                      handleCloseUserMenu();
                       setIsEditProfileOpen(true);
                     }}
                     className="w-full text-left px-4 py-2 text-xs text-neutral-700 hover:bg-neutral-50 flex items-center gap-2 transition cursor-pointer font-bold mt-1"
@@ -432,7 +484,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* 🚀 Main Content Area (Ditolong dengan Animasi Fade & Scale Transisi Halus) */}
+      {/* Main Content Area */}
       <main className="max-w-md md:max-w-4xl mx-auto px-5 py-6 md:py-10">
         <section className="mb-6 md:mb-8 border-b border-neutral-100 pb-5 md:pb-6 text-left">
           <p className="text-[11px] md:text-xs font-bold uppercase tracking-widest text-[#d22027] mb-1">
@@ -446,7 +498,6 @@ export default function App() {
           </p>
         </section>
 
-        {/* 🚀 WADAH ANIMASI PERPINDAHAN TAB/HALAMAN */}
         <div
           className={`transition-all duration-300 ease-in-out transform ${
             isPageFading ? 'opacity-0 scale-[0.99] translate-y-1' : 'opacity-100 scale-100 translate-y-0'
@@ -471,10 +522,8 @@ export default function App() {
             <SopChecklist isFullView={true} currentUser={currentUser as any} />
           ) : (
             <div>
-              {/* 🌟 SLIDING TAB SWITCHER SHIFT (SMOOTH SLIDING PILL ANIMATION) */}
               {isManagementOrOwner && (
                 <div className="relative bg-neutral-100 p-1.5 rounded-2xl border border-neutral-200 flex mb-6 shadow-inner max-w-md mx-auto md:mx-0 select-none">
-                  {/* Highlight Pill Hitam yang Meluncur secara Mulus */}
                   <div
                     className={`absolute top-1.5 bottom-1.5 w-[calc(50%-0.375rem)] bg-[#111111] rounded-xl shadow-md transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
                       activeTab === 'night' ? 'translate-x-[calc(100%+0.375rem)]' : 'translate-x-0'
@@ -562,7 +611,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* 📢 WIDGET BROADCAST ANNOUNCEMENT BULLETIN BOARD */}
               {currentUser && (
                 <div className="mb-8">
                   <AnnouncementBanner currentUser={currentUser as any} />
@@ -681,7 +729,7 @@ export default function App() {
         </div>
       </main>
 
-      {/* 📱 Bottom Navigation Mobile */}
+      {/* Bottom Navigation Mobile */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-neutral-200 px-4 py-2 z-40 shadow-2xl">
         <div className="max-w-md mx-auto flex justify-around items-center">
           <button
@@ -728,7 +776,6 @@ export default function App() {
             </>
           )}
 
-          {/* Tab Lainnya */}
           <button
             onClick={() => setIsMoreMenuOpen(true)}
             className={`flex flex-col items-center gap-0.5 cursor-pointer transition ${
@@ -741,7 +788,7 @@ export default function App() {
         </div>
       </nav>
 
-      {/* ⚡ Mobile Slide-Up Drawer Menu "Lainnya" */}
+      {/* Mobile Drawer Menu "Lainnya" */}
       {isMoreMenuOpen && (
         <div className="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end animate-fade-in">
           <div className="w-full bg-white rounded-t-3xl p-6 space-y-4 animate-slide-up border-t border-neutral-100 shadow-2xl">

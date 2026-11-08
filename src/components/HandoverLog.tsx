@@ -96,7 +96,6 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
     setIsModalOpen(true);
   };
 
-  // 🌟 FUNGSI PENUTUP MODAL DENGAN ANIMASI OUT
   const handleCloseModal = () => {
     setIsClosingModal(true);
     setTimeout(() => {
@@ -104,7 +103,7 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
       setIsClosingModal(false);
       setTitle('');
       setDescription('');
-    }, 200); // Sesuai durasi animasi out CSS (200ms)
+    }, 200);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -113,7 +112,7 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
 
     setIsSubmitting(true);
 
-    const newLogPayload = {
+    const primaryPayload = {
       category,
       title: title.trim(),
       description: description.trim(),
@@ -123,7 +122,22 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
       status: 'Pending',
     };
 
-    const { error } = await supabase.from('handover_logs').insert([newLogPayload]);
+    // Percobaan insert utama
+    let { error } = await supabase.from('handover_logs').insert([primaryPayload]);
+
+    // Fallback otomatis jika kolom staff_id belum ada di tabel Supabase
+    if (error && error.message.includes('staff_id')) {
+      const fallbackPayload = {
+        category,
+        title: title.trim(),
+        description: description.trim(),
+        shift,
+        created_by: currentUser?.name || 'Staff On-Duty',
+        status: 'Pending',
+      };
+      const fallbackRes = await supabase.from('handover_logs').insert([fallbackPayload]);
+      error = fallbackRes.error;
+    }
 
     setIsSubmitting(false);
 
@@ -166,7 +180,6 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
 
   return (
     <div className="space-y-6 text-left">
-      {/* 🌟 KEYFRAMES ANIMASI STAGGERED & ANIMASI IN/OUT MODAL */}
       <style>{`
         @keyframes handoverCardSlideUp {
           0% {
@@ -345,7 +358,7 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
         </div>
       )}
 
-      {/* 🌟 MODAL HANDOVER DENGAN ANIMASI IN & OUT LENGKAP */}
+      {/* MODAL HANDOVER */}
       {isModalOpen && createPortal(
         <div
           onClick={handleCloseModal}

@@ -35,6 +35,9 @@ export default function EditProfileModal({
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
 
+  // 🌟 STATE ANIMASI OUT MODAL EDIT PROFIL
+  const [isClosingModal, setIsClosingModal] = useState(false);
+
   // --- STATE MODAL CROP FOTO ---
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -45,6 +48,7 @@ export default function EditProfileModal({
 
   useEffect(() => {
     if (isOpen && currentUser.staff_id) {
+      setIsClosingModal(false);
       fetchStaffDetails();
     }
   }, [isOpen, currentUser]);
@@ -71,12 +75,20 @@ export default function EditProfileModal({
     }
   };
 
+  // 🌟 FUNGSI PENUTUP MODAL DENGAN ANIMASI OUT
+  const handleCloseModal = () => {
+    setIsClosingModal(true);
+    setTimeout(() => {
+      onClose();
+      setIsClosingModal(false);
+    }, 200); // Sesuai durasi animasi out CSS (200ms)
+  };
+
   // 1. PILIH FILE FOTO (VALIDASI JPG/PNG & MAX 5MB)
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validasi Tipe File (JPG & PNG saja)
     const validTypes = ['image/jpeg', 'image/png', 'image/jpg'];
     if (!validTypes.includes(file.type)) {
       alert('Format file tidak didukung! Harap pilih gambar bertipe JPG atau PNG.');
@@ -84,7 +96,6 @@ export default function EditProfileModal({
       return;
     }
 
-    // Validasi Ukuran Max 5MB
     if (file.size > 5 * 1024 * 1024) {
       alert('Ukuran foto terlalu besar! Maksimal 5MB.');
       e.target.value = '';
@@ -110,23 +121,20 @@ export default function EditProfileModal({
     try {
       const img = imageRef.current;
       const canvas = document.createElement('canvas');
-      const size = 400; // Resolusi output avatar (400x400px)
+      const size = 400; 
       canvas.width = size;
       canvas.height = size;
       const ctx = canvas.getContext('2d');
 
       if (!ctx) throw new Error('Gagal memproses gambar');
 
-      // Potong bentuk lingkaran di canvas
       ctx.beginPath();
       ctx.arc(size / 2, size / 2, size / 2, 0, Math.PI * 2);
       ctx.clip();
 
-      // Latar belakang putih jika ada area kosong saat zoom out
       ctx.fillStyle = '#ffffff';
       ctx.fillRect(0, 0, size, size);
 
-      // Hitung skala berdasarkan ukuran container preview (256px / w-64)
       const containerSize = 256;
       const scaleFactor = size / containerSize;
 
@@ -148,7 +156,6 @@ export default function EditProfileModal({
 
       ctx.drawImage(img, drawX, drawY, drawWidth, drawHeight);
 
-      // Konversi hasil Canvas ke Blob PNG
       const blob = await new Promise<Blob | null>((resolve) =>
         canvas.toBlob(resolve, 'image/png', 0.95)
       );
@@ -158,7 +165,6 @@ export default function EditProfileModal({
       const fileName = `${currentUser.staff_id}_${Date.now()}.png`;
       const filePath = `avatars/${fileName}`;
 
-      // Upload ke Bucket 'avatars' Supabase
       const { error: uploadError } = await supabase.storage
         .from('avatars')
         .upload(filePath, blob, { upsert: true, contentType: 'image/png' });
@@ -171,7 +177,7 @@ export default function EditProfileModal({
 
       if (publicUrlData?.publicUrl) {
         setAvatarUrl(publicUrlData.publicUrl);
-        setCropImageSrc(null); // Tutup modal crop setelah berhasil
+        setCropImageSrc(null);
       }
     } catch (err: any) {
       alert('Gagal mengunggah foto: ' + (err.message || 'Pastikan bucket "avatars" sudah publik.'));
@@ -237,13 +243,68 @@ export default function EditProfileModal({
       localStorage.setItem('rottherdams_user', JSON.stringify(updatedUser));
       onUpdateSuccess(updatedUser);
       alert('Profil & PIN berhasil diperbarui!');
-      onClose();
+      handleCloseModal();
     }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-neutral-100 text-left my-8 space-y-4">
+    <div
+      onClick={handleCloseModal}
+      className={`fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto ${
+        isClosingModal ? 'modal-backdrop-out' : 'modal-backdrop-in'
+      }`}
+    >
+      {/* 🌟 KEYFRAMES ANIMASI MODAL IN & OUT */}
+      <style>{`
+        @keyframes modalOverlayIn {
+          0% { opacity: 0; }
+          100% { opacity: 1; }
+        }
+        @keyframes modalOverlayOut {
+          0% { opacity: 1; }
+          100% { opacity: 0; }
+        }
+        @keyframes modalBoxIn {
+          0% {
+            opacity: 0;
+            transform: scale(0.92) translateY(10px);
+          }
+          100% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+        }
+        @keyframes modalBoxOut {
+          0% {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
+          100% {
+            opacity: 0;
+            transform: scale(0.92) translateY(10px);
+          }
+        }
+
+        .modal-backdrop-in {
+          animation: modalOverlayIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .modal-backdrop-out {
+          animation: modalOverlayOut 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .modal-box-in {
+          animation: modalBoxIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .modal-box-out {
+          animation: modalBoxOut 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+      `}</style>
+
+      <div
+        onClick={e => e.stopPropagation()}
+        className={`bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-neutral-100 text-left my-8 space-y-4 ${
+          isClosingModal ? 'modal-box-out' : 'modal-box-in'
+        }`}
+      >
         {/* Header Modal */}
         <div className="flex justify-between items-center pb-3 border-b border-neutral-100">
           <div>
@@ -253,7 +314,7 @@ export default function EditProfileModal({
             </p>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleCloseModal}
             className="text-neutral-400 hover:text-neutral-700 text-sm font-bold p-1 cursor-pointer"
           >
             ✕
@@ -436,7 +497,7 @@ export default function EditProfileModal({
           <div className="flex gap-2 pt-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleCloseModal}
               className="flex-1 py-2.5 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl text-xs font-bold transition cursor-pointer"
             >
               Batal
