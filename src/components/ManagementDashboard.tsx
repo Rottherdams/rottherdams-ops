@@ -154,14 +154,14 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
         .order('created_at', { ascending: false })
         .limit(5);
 
-      // 5. Log Security Audit Terbaru (Dipakai untuk tampilan feed log rotasi 6 terbawah)
+      // 5. Log Security Audit Terbaru
       const { data: secData } = await supabase
         .from('security_audit_logs')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(6);
 
-      // 🚀 FIX: Total Akumulatif Permanen Percobaan Screenshot / Switch App dari Database (Tidak Reset)
+      // Total Akumulatif Permanen Percobaan Screenshot / Switch App dari Database
       const { count: totalScreenshotCount } = await supabase
         .from('security_audit_logs')
         .select('*', { count: 'exact', head: true })
@@ -264,7 +264,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
     }
   }, [pendingSwapCount, pendingLeaveCount, loading]);
 
-  // SORTING KHUSUS TUKAR SHIFT (Pending Management ACC di Atas + Urut Tanggal Terbaru)
+  // SORTING KHUSUS TUKAR SHIFT
   const sortedSwapRequests = [...swapRequests].sort((a, b) => {
     const aTarget = ((a.target_status && a.target_status !== 'pending' ? a.target_status : a.status) || '').toLowerCase();
     const bTarget = ((b.target_status && b.target_status !== 'pending' ? b.target_status : b.status) || '').toLowerCase();
@@ -280,7 +280,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
   });
 
-  // SORTING KHUSUS IZIN & CUTI (Pending ACC di Atas + Urut Tanggal Terbaru)
+  // SORTING KHUSUS IZIN & CUTI
   const sortedLeaveRequests = [...leaveRequests].sort((a, b) => {
     const aPending = a.status?.toLowerCase() === 'pending';
     const bPending = b.status?.toLowerCase() === 'pending';
@@ -476,7 +476,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
 
   return (
     <div className="space-y-6 text-left">
-      {/* 🌟 CSS Keyframes Animasi Staggered Entrance Muncul Berurutan */}
+      {/* 🌟 CSS KEYFRAMES & SLIDING INDICATOR ANIMATIONS */}
       <style>{`
         @keyframes fadeSlideUp {
           0% {
@@ -488,9 +488,23 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
             transform: translateY(0);
           }
         }
+        @keyframes slideInFromLeft {
+          0% { opacity: 0; transform: translateX(-16px); }
+          100% { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes slideInFromRight {
+          0% { opacity: 0; transform: translateX(16px); }
+          100% { opacity: 1; transform: translateX(0); }
+        }
         .animate-section-fade {
           animation: fadeSlideUp 0.45s ease-out forwards;
           opacity: 0;
+        }
+        .animate-tab-left {
+          animation: slideInFromLeft 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .animate-tab-right {
+          animation: slideInFromRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
         }
       `}</style>
 
@@ -548,19 +562,32 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
                 </p>
               </div>
 
-              <div className="bg-neutral-100 p-1 rounded-2xl flex gap-1 border border-neutral-200">
+              {/* 🌟 SLIDING PILL INDICATOR TAB CONTAINER */}
+              <div className="relative bg-neutral-100 p-1 rounded-2xl flex border border-neutral-200">
+                {/* Background Slider Aktif yang Bergerak Mulus */}
+                <div
+                  className={`absolute top-1 bottom-1 w-[calc(50%-4px)] rounded-xl transition-all duration-300 ease-out shadow-sm ${
+                    approvalTab === 'swap'
+                      ? 'left-1 bg-[#111111]'
+                      : 'left-[calc(50%+2px)] bg-[#d22027]'
+                  }`}
+                />
+
+                {/* Tombol Tab 1: Tukar Shift */}
                 <button
                   onClick={() => setApprovalTab('swap')}
-                  className={`px-3 py-1.5 text-xs font-extrabold rounded-xl transition cursor-pointer ${
-                    approvalTab === 'swap' ? 'bg-[#111111] text-white shadow-xs' : 'text-neutral-500 hover:text-black'
+                  className={`relative z-10 flex-1 px-3.5 py-1.5 text-xs font-extrabold rounded-xl transition-colors duration-200 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                    approvalTab === 'swap' ? 'text-white' : 'text-neutral-500 hover:text-black'
                   }`}
                 >
                   🔄 Tukar Shift ({pendingSwapCount})
                 </button>
+
+                {/* Tombol Tab 2: Izin & Cuti */}
                 <button
                   onClick={() => setApprovalTab('leave')}
-                  className={`px-3 py-1.5 text-xs font-extrabold rounded-xl transition cursor-pointer ${
-                    approvalTab === 'leave' ? 'bg-[#d22027] text-white shadow-xs' : 'text-neutral-500 hover:text-black'
+                  className={`relative z-10 flex-1 px-3.5 py-1.5 text-xs font-extrabold rounded-xl transition-colors duration-200 cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
+                    approvalTab === 'leave' ? 'text-white' : 'text-neutral-500 hover:text-black'
                   }`}
                 >
                   📄 Izin & Cuti ({pendingLeaveCount})
@@ -568,215 +595,218 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
               </div>
             </div>
 
-            {/* TAB 1: TUKAR SHIFT */}
-            {approvalTab === 'swap' && (
-              <div>
-                {sortedSwapRequests.length === 0 ? (
-                  <p className="text-xs text-neutral-400 italic py-6 text-center">Belum ada pengajuan tukar shift.</p>
-                ) : (
-                  <div className="overflow-x-auto max-h-[340px] overflow-y-auto pr-1">
-                    <table className="w-full text-left text-xs relative border-collapse">
-                      <thead className="sticky top-0 bg-neutral-100 text-neutral-700 font-bold border-b border-neutral-200 z-10">
-                        <tr>
-                          <th className="p-3">Pemohon</th>
-                          <th className="p-3">Pengganti</th>
-                          <th className="p-3">Tanggal & Shift</th>
-                          <th className="p-3">Alasan</th>
-                          <th className="p-3">Status Pengganti</th>
-                          <th className="p-3 text-center">ACC Management</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-100">
-                        {sortedSwapRequests.map((item) => {
-                          const requesterName = item.requester_staff_name || item.requester_name || 'Staf';
-                          const requesterId = item.requester_staff_id || item.requester_id || '-';
-                          const targetName = item.target_staff_name || '-';
-                          const targetId = item.target_staff_id || '-';
+            {/* TAB CONTENT CONTAINER WITH SLIDE DIRECTION */}
+            <div key={approvalTab} className={approvalTab === 'swap' ? 'animate-tab-left' : 'animate-tab-right'}>
+              {/* TAB 1: TUKAR SHIFT */}
+              {approvalTab === 'swap' && (
+                <div>
+                  {sortedSwapRequests.length === 0 ? (
+                    <p className="text-xs text-neutral-400 italic py-6 text-center">Belum ada pengajuan tukar shift.</p>
+                  ) : (
+                    <div className="overflow-x-auto max-h-[340px] overflow-y-auto pr-1">
+                      <table className="w-full text-left text-xs relative border-collapse">
+                        <thead className="sticky top-0 bg-neutral-100 text-neutral-700 font-bold border-b border-neutral-200 z-10">
+                          <tr>
+                            <th className="p-3">Pemohon</th>
+                            <th className="p-3">Pengganti</th>
+                            <th className="p-3">Tanggal & Shift</th>
+                            <th className="p-3">Alasan</th>
+                            <th className="p-3">Status Pengganti</th>
+                            <th className="p-3 text-center">ACC Management</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-neutral-100">
+                          {sortedSwapRequests.map((item) => {
+                            const requesterName = item.requester_staff_name || item.requester_name || 'Staf';
+                            const requesterId = item.requester_staff_id || item.requester_id || '-';
+                            const targetName = item.target_staff_name || '-';
+                            const targetId = item.target_staff_id || '-';
 
-                          const rawSwapDate = item.swap_date || item.shift_date || item.date;
-                          const formattedDateDisplay = formatFullDate(rawSwapDate, item.created_at);
-                          const shiftInfo = item.requester_shift || item.shift_type || 'Shift';
+                            const rawSwapDate = item.swap_date || item.shift_date || item.date;
+                            const formattedDateDisplay = formatFullDate(rawSwapDate, item.created_at);
+                            const shiftInfo = item.requester_shift || item.shift_type || 'Shift';
 
-                          const targetStatusRaw = (item.target_status && item.target_status !== 'pending' ? item.target_status : item.status) || '';
-                          const targetStatusLower = targetStatusRaw.toLowerCase();
+                            const targetStatusRaw = (item.target_status && item.target_status !== 'pending' ? item.target_status : item.status) || '';
+                            const targetStatusLower = targetStatusRaw.toLowerCase();
 
-                          const isAcceptedByStaff = targetStatusLower === 'accepted' || targetStatusLower === 'setuju' || targetStatusLower === 'approved';
-                          const isRejectedByStaff = targetStatusLower === 'rejected' || targetStatusLower === 'tolak';
+                            const isAcceptedByStaff = targetStatusLower === 'accepted' || targetStatusLower === 'setuju' || targetStatusLower === 'approved';
+                            const isRejectedByStaff = targetStatusLower === 'rejected' || targetStatusLower === 'tolak';
 
-                          const mgmtStatus = (item.management_status || item.status || 'pending').toLowerCase();
-                          const isMgmtApproved = mgmtStatus === 'approved';
-                          const isMgmtRejected = mgmtStatus === 'rejected';
+                            const mgmtStatus = (item.management_status || item.status || 'pending').toLowerCase();
+                            const isMgmtApproved = mgmtStatus === 'approved';
+                            const isMgmtRejected = mgmtStatus === 'rejected';
 
-                          const isNeedsMgmtAction = isAcceptedByStaff && !isMgmtApproved && !isMgmtRejected;
+                            const isNeedsMgmtAction = isAcceptedByStaff && !isMgmtApproved && !isMgmtRejected;
 
-                          return (
-                            <tr key={item.id} className={`transition ${isNeedsMgmtAction ? 'bg-amber-50/70 font-semibold' : 'hover:bg-neutral-50'}`}>
-                              <td className="p-3">
-                                <p className="font-extrabold text-[#111111]">{requesterName}</p>
-                                <p className="text-[10px] text-neutral-400 font-mono">{requesterId}</p>
-                              </td>
-                              <td className="p-3">
-                                <p className="font-extrabold text-[#111111]">{targetName}</p>
-                                <p className="text-[10px] text-neutral-400 font-mono">{targetId}</p>
-                              </td>
-                              <td className="p-3 font-bold text-neutral-700">
-                                {formattedDateDisplay} 
-                                <span className="block text-[10px] text-[#d22027] font-extrabold uppercase mt-0.5">
-                                  {shiftInfo}
-                                </span>
-                              </td>
-                              <td className="p-3 text-neutral-600 max-w-xs">{item.reason || '-'}</td>
-                              
-                              <td className="p-3">
-                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
-                                  isAcceptedByStaff
-                                    ? 'bg-emerald-50 text-emerald-600'
-                                    : isRejectedByStaff
-                                    ? 'bg-red-50 text-red-600'
-                                    : 'bg-amber-50 text-amber-600'
-                                }`}>
-                                  {isAcceptedByStaff
-                                    ? '🟢 Setuju'
-                                    : isRejectedByStaff
-                                    ? '❌ Menolak'
-                                    : '⏳ Menunggu Staf'}
-                                </span>
-                              </td>
-
-                              <td className="p-3 text-center">
-                                {isRejectedByStaff ? (
-                                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-neutral-100 text-neutral-400">
-                                    🚫 Batal (Ditolak Staf)
+                            return (
+                              <tr key={item.id} className={`transition ${isNeedsMgmtAction ? 'bg-amber-50/70 font-semibold' : 'hover:bg-neutral-50'}`}>
+                                <td className="p-3">
+                                  <p className="font-extrabold text-[#111111]">{requesterName}</p>
+                                  <p className="text-[10px] text-neutral-400 font-mono">{requesterId}</p>
+                                </td>
+                                <td className="p-3">
+                                  <p className="font-extrabold text-[#111111]">{targetName}</p>
+                                  <p className="text-[10px] text-neutral-400 font-mono">{targetId}</p>
+                                </td>
+                                <td className="p-3 font-bold text-neutral-700">
+                                  {formattedDateDisplay} 
+                                  <span className="block text-[10px] text-[#d22027] font-extrabold uppercase mt-0.5">
+                                    {shiftInfo}
                                   </span>
-                                ) : isAcceptedByStaff && !isMgmtApproved && !isMgmtRejected ? (
-                                  <div className="flex justify-center gap-1.5">
-                                    <button
-                                      onClick={() => handleApproveSwap(item.id, 'approved')}
-                                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer active:scale-95 transition"
-                                    >
-                                      ✅ ACC
-                                    </button>
-                                    <button
-                                      onClick={() => handleApproveSwap(item.id, 'rejected')}
-                                      className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer active:scale-95 transition"
-                                    >
-                                      ❌ Tolak
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
-                                    isMgmtApproved
-                                      ? 'bg-emerald-100 text-emerald-700' 
-                                      : isMgmtRejected
-                                      ? 'bg-red-100 text-red-700' 
-                                      : 'bg-amber-100 text-amber-700'
+                                </td>
+                                <td className="p-3 text-neutral-600 max-w-xs">{item.reason || '-'}</td>
+                                
+                                <td className="p-3">
+                                  <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${
+                                    isAcceptedByStaff
+                                      ? 'bg-emerald-50 text-emerald-600'
+                                      : isRejectedByStaff
+                                      ? 'bg-red-50 text-red-600'
+                                      : 'bg-amber-50 text-amber-600'
                                   }`}>
-                                    {isMgmtApproved 
-                                      ? '✅ Approved' 
-                                      : isMgmtRejected 
-                                      ? '❌ Rejected' 
+                                    {isAcceptedByStaff
+                                      ? '🟢 Setuju'
+                                      : isRejectedByStaff
+                                      ? '❌ Menolak'
                                       : '⏳ Menunggu Staf'}
                                   </span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
+                                </td>
 
-            {/* TAB 2: IZIN & CUTI */}
-            {approvalTab === 'leave' && (
-              <div>
-                {sortedLeaveRequests.length === 0 ? (
-                  <p className="text-xs text-neutral-400 italic py-6 text-center">Belum ada pengajuan izin atau sakit.</p>
-                ) : (
-                  <div className="overflow-x-auto max-h-[340px] overflow-y-auto pr-1">
-                    <table className="w-full text-left text-xs relative border-collapse">
-                      <thead className="sticky top-0 bg-neutral-100 text-neutral-700 font-bold border-b border-neutral-200 z-10">
-                        <tr>
-                          <th className="p-3">Nama Staf</th>
-                          <th className="p-3">Tipe Izin</th>
-                          <th className="p-3">Tanggal Mulai - Selesai</th>
-                          <th className="p-3">Alasan / Catatan</th>
-                          <th className="p-3 text-center">Bukti Dokumen</th>
-                          <th className="p-3 text-center">Aksi ACC Management</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-neutral-100">
-                        {sortedLeaveRequests.map((item) => {
-                          const isPending = item.status?.toLowerCase() === 'pending';
+                                <td className="p-3 text-center">
+                                  {isRejectedByStaff ? (
+                                    <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-neutral-100 text-neutral-400">
+                                      🚫 Batal (Ditolak Staf)
+                                    </span>
+                                  ) : isAcceptedByStaff && !isMgmtApproved && !isMgmtRejected ? (
+                                    <div className="flex justify-center gap-1.5">
+                                      <button
+                                        onClick={() => handleApproveSwap(item.id, 'approved')}
+                                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer active:scale-95 transition"
+                                      >
+                                        ✅ ACC
+                                      </button>
+                                      <button
+                                        onClick={() => handleApproveSwap(item.id, 'rejected')}
+                                        className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer active:scale-95 transition"
+                                      >
+                                        ❌ Tolak
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
+                                      isMgmtApproved
+                                        ? 'bg-emerald-100 text-emerald-700' 
+                                        : isMgmtRejected
+                                        ? 'bg-red-100 text-red-700' 
+                                        : 'bg-amber-100 text-amber-700'
+                                    }`}>
+                                      {isMgmtApproved 
+                                        ? '✅ Approved' 
+                                        : isMgmtRejected 
+                                        ? '❌ Rejected' 
+                                        : '⏳ Menunggu Staf'}
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
 
-                          return (
-                            <tr key={item.id} className={`transition ${isPending ? 'bg-amber-50/70 font-semibold' : 'hover:bg-neutral-50'}`}>
-                              <td className="p-3">
-                                <p className="font-extrabold text-[#111111]">{item.staff_name}</p>
-                                <p className="text-[10px] text-neutral-400 font-mono">{item.staff_id}</p>
-                              </td>
-                              <td className="p-3">
-                                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
-                                  item.leave_type === 'Sakit' 
-                                    ? 'bg-blue-50 text-blue-600 border border-blue-200' 
-                                    : item.leave_type === 'Cuti'
-                                    ? 'bg-purple-50 text-purple-600 border border-purple-200'
-                                    : 'bg-amber-50 text-amber-600 border border-amber-200'
-                                }`}>
-                                  {item.leave_type}
-                                </span>
-                              </td>
-                              <td className="p-3 font-bold text-neutral-700">
-                                {item.start_date} s/d {item.end_date || item.start_date}
-                              </td>
-                              <td className="p-3 text-neutral-600 max-w-xs">{item.reason || '-'}</td>
-                              <td className="p-3 text-center">
-                                {item.attachment_url ? (
-                                  <button
-                                    onClick={() => setSelectedImage(item.attachment_url || null)}
-                                    className="px-2 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg text-[10px] font-bold cursor-pointer transition border border-neutral-200"
-                                  >
-                                    🖼️ Lihat Surat
-                                  </button>
-                                ) : (
-                                  <span className="text-neutral-400 text-[10px] italic">Tidak Ada</span>
-                                )}
-                              </td>
-                              <td className="p-3 text-center">
-                                {isPending ? (
-                                  <div className="flex justify-center gap-1.5">
-                                    <button
-                                      onClick={() => handleApproveLeave(item, 'approved')}
-                                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer active:scale-95 transition"
-                                    >
-                                      ✅ ACC
-                                    </button>
-                                    <button
-                                      onClick={() => handleApproveLeave(item, 'rejected')}
-                                      className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer active:scale-95 transition"
-                                    >
-                                      ❌ Tolak
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
-                                    item.status?.toLowerCase() === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+              {/* TAB 2: IZIN & CUTI */}
+              {approvalTab === 'leave' && (
+                <div>
+                  {sortedLeaveRequests.length === 0 ? (
+                    <p className="text-xs text-neutral-400 italic py-6 text-center">Belum ada pengajuan izin atau sakit.</p>
+                  ) : (
+                    <div className="overflow-x-auto max-h-[340px] overflow-y-auto pr-1">
+                      <table className="w-full text-left text-xs relative border-collapse">
+                        <thead className="sticky top-0 bg-neutral-100 text-neutral-700 font-bold border-b border-neutral-200 z-10">
+                          <tr>
+                            <th className="p-3">Nama Staf</th>
+                            <th className="p-3">Tipe Izin</th>
+                            <th className="p-3">Tanggal Mulai - Selesai</th>
+                            <th className="p-3">Alasan / Catatan</th>
+                            <th className="p-3 text-center">Bukti Dokumen</th>
+                            <th className="p-3 text-center">Aksi ACC Management</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-neutral-100">
+                          {sortedLeaveRequests.map((item) => {
+                            const isPending = item.status?.toLowerCase() === 'pending';
+
+                            return (
+                              <tr key={item.id} className={`transition ${isPending ? 'bg-amber-50/70 font-semibold' : 'hover:bg-neutral-50'}`}>
+                                <td className="p-3">
+                                  <p className="font-extrabold text-[#111111]">{item.staff_name}</p>
+                                  <p className="text-[10px] text-neutral-400 font-mono">{item.staff_id}</p>
+                                </td>
+                                <td className="p-3">
+                                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black ${
+                                    item.leave_type === 'Sakit' 
+                                      ? 'bg-blue-50 text-blue-600 border border-blue-200' 
+                                      : item.leave_type === 'Cuti'
+                                      ? 'bg-purple-50 text-purple-600 border border-purple-200'
+                                      : 'bg-amber-50 text-amber-600 border border-amber-200'
                                   }`}>
-                                    {item.status?.toLowerCase() === 'approved' ? '✅ Disetujui' : '❌ Ditolak'}
+                                    {item.leave_type}
                                   </span>
-                                )}
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
+                                </td>
+                                <td className="p-3 font-bold text-neutral-700">
+                                  {item.start_date} s/d {item.end_date || item.start_date}
+                                </td>
+                                <td className="p-3 text-neutral-600 max-w-xs">{item.reason || '-'}</td>
+                                <td className="p-3 text-center">
+                                  {item.attachment_url ? (
+                                    <button
+                                      onClick={() => setSelectedImage(item.attachment_url || null)}
+                                      className="px-2 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-lg text-[10px] font-bold cursor-pointer transition border border-neutral-200"
+                                    >
+                                      🖼️ Lihat Surat
+                                    </button>
+                                  ) : (
+                                    <span className="text-neutral-400 text-[10px] italic">Tidak Ada</span>
+                                  )}
+                                </td>
+                                <td className="p-3 text-center">
+                                  {isPending ? (
+                                    <div className="flex justify-center gap-1.5">
+                                      <button
+                                        onClick={() => handleApproveLeave(item, 'approved')}
+                                        className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer active:scale-95 transition"
+                                      >
+                                        ✅ ACC
+                                      </button>
+                                      <button
+                                        onClick={() => handleApproveLeave(item, 'rejected')}
+                                        className="px-2.5 py-1 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold text-[11px] shadow-xs cursor-pointer active:scale-95 transition"
+                                      >
+                                        ❌ Tolak
+                                      </button>
+                                    </div>
+                                  ) : (
+                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
+                                      item.status?.toLowerCase() === 'approved' ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-700'
+                                    }`}>
+                                      {item.status?.toLowerCase() === 'approved' ? '✅ Disetujui' : '❌ Ditolak'}
+                                    </span>
+                                  )}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* 3. METRIC SUMMARY CARDS (Delay: 200ms) */}
@@ -878,7 +908,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
               <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200 space-y-2">
                 <div className="flex justify-between items-center text-xs font-bold">
                   <span>🧹 Floor & Cashier</span>
-                  <span className="text-blue-600 font-black">{floorSopPct}%</span>
+                  <span className="text-[#d22027] font-black">{floorSopPct}%</span>
                 </div>
                 <div className="w-full bg-neutral-200 rounded-full h-2.5 overflow-hidden">
                   <div className="bg-blue-500 h-full rounded-full transition-all duration-500" style={{ width: `${floorSopPct}%` }}></div>
