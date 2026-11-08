@@ -16,7 +16,7 @@ import { recordLoginLog } from './lib/security';
 
 export interface CurrentUser {
   name: string;
-  role: 'management' | 'kasir' | 'bar' | 'dapur' | 'owner' | string;
+  role: string;
   staff_id: string;
   avatar_url?: string;
   status?: string;
@@ -56,7 +56,7 @@ export default function App() {
 
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 👑 Helper Formatting Role Kanan Atas (Owner / Management / Staff)
+  // 👑 Helper Formatting Role Kanan Atas
   const formatDisplayRole = (role?: string, staffId?: string): string => {
     const r = (role || '').toLowerCase();
     const id = (staffId || '').toUpperCase();
@@ -64,10 +64,17 @@ export default function App() {
     if (r.includes('owner') || id.startsWith('OWN-')) {
       return 'OWNER';
     }
-    if (r.includes('management') || id.startsWith('MNG-')) {
-      return 'MANAGEMENT';
+    if (
+      r.includes('management') || 
+      r.includes('general_manager') ||
+      r.includes('spv') ||
+      r.includes('hrd') ||
+      r.includes('finance') ||
+      id.startsWith('MNG-')
+    ) {
+      return (role || '').replace(/_/g, ' ').toUpperCase();
     }
-    return (role || '').toUpperCase();
+    return (role || '').replace(/_/g, ' ').toUpperCase();
   };
 
   // 🛡️ 1. Inactivity Tracker (Auto Logout 5 Menit)
@@ -183,9 +190,14 @@ export default function App() {
     setIsMoreMenuOpen(false);
   };
 
+  const rawRole = (currentUser?.role || '').toLowerCase();
   const isManagementOrOwner = currentUser && (
-    currentUser.role?.toLowerCase().includes('management') || 
-    currentUser.role?.toLowerCase().includes('owner') ||
+    rawRole.includes('management') || 
+    rawRole.includes('owner') ||
+    rawRole.includes('general_manager') ||
+    rawRole.includes('spv') ||
+    rawRole.includes('hrd') ||
+    rawRole.includes('finance') ||
     currentUser.staff_id?.startsWith('MNG-') ||
     currentUser.staff_id?.startsWith('OWN-')
   );
@@ -271,7 +283,7 @@ export default function App() {
               </span>
             </div>
 
-            {/* Desktop Navbar Clean (Hover Dropdown dengan Animasi Slide Down) */}
+            {/* Desktop Navbar Clean */}
             <nav className="hidden lg:flex items-center gap-2 bg-black/15 p-1 rounded-xl border border-white/10">
               <button
                 onClick={() => setActiveNav('home')}
@@ -555,7 +567,7 @@ export default function App() {
                       <div>
                         <p className="text-xs font-black text-[#111111] leading-tight">{staf.staff_name}</p>
                         <p className="text-[10px] text-neutral-400 capitalize">
-                          {staf.role} • {staf.shift}
+                          {staf.role?.replace(/_/g, ' ')} • {staf.shift}
                         </p>
                         <p className="text-[9px] font-mono text-emerald-600 font-bold mt-0.5">
                           In: {new Date(staf.clock_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA
@@ -635,7 +647,7 @@ export default function App() {
         )}
       </main>
 
-      {/* 📱 Bottom Navigation Mobile (Ringkas 5 Tab Utama) */}
+      {/* 📱 Bottom Navigation Mobile */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-neutral-200 px-4 py-2 z-40 shadow-2xl">
         <div className="max-w-md mx-auto flex justify-around items-center">
           <button
@@ -682,7 +694,7 @@ export default function App() {
             </>
           )}
 
-          {/* Tab Lainnya (Membuka Slide-up Drawer) */}
+          {/* Tab Lainnya */}
           <button
             onClick={() => setIsMoreMenuOpen(true)}
             className={`flex flex-col items-center gap-0.5 cursor-pointer transition ${
@@ -695,7 +707,7 @@ export default function App() {
         </div>
       </nav>
 
-      {/* ⚡ Mobile Slide-Up Drawer Menu "Lainnya" (Dengan Animasi Slide-Up & Fade-In) */}
+      {/* ⚡ Mobile Slide-Up Drawer Menu "Lainnya" */}
       {isMoreMenuOpen && (
         <div className="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end animate-fade-in">
           <div className="w-full bg-white rounded-t-3xl p-6 space-y-4 animate-slide-up border-t border-neutral-100 shadow-2xl">
@@ -703,7 +715,7 @@ export default function App() {
               <h3 className="font-extrabold text-sm text-[#111111]">Menu & Fitur Lainnya</h3>
               <button 
                 onClick={() => setIsMoreMenuOpen(false)}
-                className="w-7 h-7 bg-neutral-100 text-neutral-500 rounded-full font-bold flex items-center justify-center text-xs cursor-pointer active:scale-90 transition-transform"
+                className="w-7 h-7 bg-neutral-100 text-neutral-500 rounded-full font-bold flex flex-center justify-center text-xs cursor-pointer active:scale-90 transition-transform"
               >
                 ✕
               </button>

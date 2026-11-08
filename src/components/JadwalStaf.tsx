@@ -7,7 +7,7 @@ import StaffInboxModal from './StaffInboxModal';
 
 interface CurrentUser {
   name: string;
-  role: 'management' | 'kasir' | 'bar' | 'dapur' | 'owner' | string;
+  role: string;
   staff_id: string;
   avatar_url?: string;
 }
@@ -133,10 +133,15 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
   const [isInboxOpen, setIsInboxOpen] = useState<boolean>(false);
   const [pendingInboxCount, setPendingInboxCount] = useState<number>(0);
 
+  // 👑 Validasi Manajemen/Owner yang Mendukung Daftar Role Terstruktur Baru
   const rawRole = (currentUser?.role || userRole || '').toLowerCase();
   const isManagement = 
     rawRole.includes('management') || 
     rawRole.includes('owner') ||
+    rawRole.includes('general_manager') ||
+    rawRole.includes('spv') ||
+    rawRole.includes('hrd') ||
+    rawRole.includes('finance') ||
     (currentUser?.staff_id || '').startsWith('MNG-') ||
     (currentUser?.staff_id || '').startsWith('OWN-');
 
@@ -172,15 +177,27 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
       const { start, end, dateFormattedLabels } = getWeekDateRange(selectedWeek);
       setDateLabels(dateFormattedLabels);
 
-      // 2. Ambil Data Staf Operasional (Termasuk First Name, Last Name & Avatar URL)
+      // 2. Ambil Data Staf Operasional (Kecualikan Eksekutif & Manajemen)
       const { data: staffData, error: staffError } = await supabase
         .from('staff')
         .select('staff_id, staff_name, first_name, last_name, avatar_url, role, status')
-        .neq('status', 'Resign')
-        .not('role', 'ilike', 'owner')
-        .not('role', 'ilike', 'management');
+        .neq('status', 'Resign');
 
       if (staffError) throw staffError;
+
+      // Filter di level aplikasi untuk menyaring staf non-operasional
+      const operationalStaffData = (staffData || []).filter(s => {
+        const r = (s.role || '').toLowerCase();
+        return (
+          !r.includes('management') &&
+          !r.includes('owner') &&
+          !r.includes('manajer') &&
+          !r.includes('general_manager') &&
+          !r.includes('spv') &&
+          !r.includes('hrd') &&
+          !r.includes('finance')
+        );
+      });
 
       // 3. Ambil Data Jadwal dari Tabel 'schedules' Berdasarkan Range Tanggal & Filter Minggu
       const { data: scheduleData, error: scheduleError } = await supabase
@@ -203,7 +220,7 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
       });
 
       // 4. Susun Data Roster dan Deteksi Rest Time Warning (Shift 2 -> Shift 1)
-      const summaries: StaffSummary[] = (staffData || []).map(staf => {
+      const summaries: StaffSummary[] = operationalStaffData.map(staf => {
         const shifts: { [day: string]: string } = {};
         const restWarnings: { [day: string]: boolean } = {};
         let total_shift_1 = 0;
@@ -366,7 +383,6 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
       {/* Tab Filter Hari untuk Tampilan Mobile */}
       <div className="md:hidden flex gap-1 overflow-x-auto pb-3 scrollbar-none mb-3 border-b border-neutral-100">
         {DAYS.map((day, idx) => {
-          // 🔴 Indikator Hari Ini HANYA aktif jika tanggal hari di minggu terpilih presisi hari ini
           const isToday = isSameDate(currentSelectedWeekDates[idx]);
           const isActive = selectedDay === day;
 
@@ -505,7 +521,7 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
                           </div>
                         </div>
                       </td>
-                      <td className="p-3 text-neutral-500 capitalize">{staff.role}</td>
+                      <td className="p-3 text-neutral-500 capitalize">{staff.role?.replace(/_/g, ' ')}</td>
                       
                       {DAYS.map(day => {
                         const shift = staff.shifts[day] || 'OFF';
@@ -598,7 +614,7 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
                           </span>
                         )}
                       </h3>
-                      <p className="text-[10px] text-neutral-400 capitalize">{staff.role}</p>
+                      <p className="text-[10px] text-neutral-400 capitalize">{staff.role?.replace(/_/g, ' ')}</p>
 
                       {isRestWarningToday && (
                         <span className="mt-1 inline-block text-[9px] bg-amber-100 text-amber-800 border border-amber-300 font-bold px-2 py-0.5 rounded-full">

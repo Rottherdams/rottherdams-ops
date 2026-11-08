@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 
 interface CurrentUser {
   name: string;
-  role: 'management' | 'kasir' | 'bar' | 'dapur' | 'owner' | string;
+  role: string;
   staff_id: string;
   avatar_url?: string;
 }
@@ -204,7 +204,6 @@ export default function EditProfileModal({
 
     const displayName = staffName.trim() || `${firstName.trim()} ${lastName.trim()}`.trim();
 
-    // Field 'name' tidak diikutsertakan karena tidak ada di schema DB
     const updateData: any = {
       first_name: firstName.trim(),
       last_name: lastName.trim(),
@@ -216,7 +215,7 @@ export default function EditProfileModal({
     };
 
     if (pin) {
-      updateData.pin_code = pin.trim();
+      updateData.pin = pin.trim();
     }
 
     const { error } = await supabase
@@ -250,7 +249,7 @@ export default function EditProfileModal({
           <div>
             <h3 className="text-base font-black text-[#111111]">Pengaturan Profil Saya</h3>
             <p className="text-[11px] text-neutral-400 font-mono uppercase mt-0.5">
-              ID: {currentUser.staff_id} • {currentUser.role}
+              ID: {currentUser.staff_id} • <span className="font-bold text-neutral-700 capitalize">{currentUser.role.replace(/_/g, ' ')}</span>
             </p>
           </div>
           <button
@@ -342,7 +341,7 @@ export default function EditProfileModal({
             />
           </div>
 
-          {/* KONTAK & TELEGRAM (DISABLED) */}
+          {/* KONTAK & TELEGRAM */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-bold text-neutral-600 mb-1">
@@ -370,7 +369,7 @@ export default function EditProfileModal({
             </div>
           </div>
 
-          {/* BANNER CONNECT TELEGRAM BOT (DISABLED) */}
+          {/* BANNER CONNECT TELEGRAM BOT */}
           <div className="p-3 bg-neutral-100 border border-neutral-200 rounded-2xl flex items-center justify-between gap-2 opacity-75">
             <div>
               <p className="text-xs font-bold text-neutral-500">🤖 Telegram Notification</p>

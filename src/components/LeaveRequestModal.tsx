@@ -123,7 +123,7 @@ export default function LeaveRequestModal({
       const displayName = staffData?.staff_name || 
         (staffData?.first_name ? `${staffData.first_name} ${staffData.last_name || ''}`.trim() : currentUser.name);
 
-      // 3. Insert data ke tabel leave_requests
+      // 3. Insert data ke tabel leave_requests dengan role terstruktur
       const { error: insertError } = await supabase
         .from('leave_requests')
         .insert([
@@ -182,6 +182,11 @@ export default function LeaveRequestModal({
           <div>
             <p className="text-[10px] uppercase font-bold text-purple-600">Sisa Kuota Cuti Tahunan</p>
             <p className="text-xs font-black text-purple-900">{currentUser?.name}</p>
+            {currentUser?.role && (
+              <p className="text-[9px] font-bold text-purple-700 capitalize">
+                Divisi: {currentUser.role.replace(/_/g, ' ')}
+              </p>
+            )}
           </div>
           <span className="text-sm font-black text-purple-700 bg-purple-100 px-3 py-1 rounded-xl">
             {leaveQuota} Hari

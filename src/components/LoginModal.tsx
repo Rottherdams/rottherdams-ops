@@ -4,7 +4,7 @@ import { recordLoginLog } from '../lib/security';
 
 interface UserSession {
   name: string;
-  role: 'management' | 'kasir' | 'bar' | 'dapur' | string;
+  role: string;
   staff_id: string;
   avatar_url?: string;
 }
@@ -83,11 +83,11 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
     setIsLoading(true);
     setErrorMsg('');
 
-    // Query ke Supabase: Cek staff_name, first_name, atau staff_id
+    // Query ke Supabase: Cek staff_name, first_name, last_name, atau staff_id
     const { data, error } = await supabase
       .from('staff')
       .select('staff_id, staff_name, first_name, last_name, avatar_url, role, pin, status')
-      .or(`staff_name.ilike.${queryTerm},first_name.ilike.${queryTerm},staff_id.ilike.${queryTerm}`)
+      .or(`staff_name.ilike.${queryTerm},first_name.ilike.${queryTerm},last_name.ilike.${queryTerm},staff_id.ilike.${queryTerm}`)
       .maybeSingle();
 
     if (error || !data) {
@@ -107,23 +107,12 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
     const correctPin = data.pin || '1234';
 
     if (pin === correctPin) {
-      const isManagementRole = 
-        data.role.toLowerCase().includes('management') || 
-        data.role.toLowerCase().includes('manager') || 
-        data.role.toLowerCase().includes('owner') ||
-        data.staff_id.startsWith('OWN-') ||
-        data.staff_id.startsWith('MNG-');
-
-      const mappedRole = isManagementRole 
-        ? 'management' 
-        : (data.role.toLowerCase() as any) || 'bar';
-
       const displayName = data.staff_name || 
         (data.first_name ? `${data.first_name} ${data.last_name || ''}`.trim() : data.staff_id);
 
       const userSession: UserSession = {
         name: displayName,
-        role: mappedRole,
+        role: data.role ? data.role.toLowerCase() : 'bar',
         staff_id: data.staff_id,
         avatar_url: data.avatar_url || undefined,
       };

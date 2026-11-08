@@ -45,10 +45,15 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
   const [auditAnnouncementId, setAuditAnnouncementId] = useState<number | null>(null);
   const [readAuditList, setReadAuditList] = useState<ReadAuditItem[]>([]);
 
+  // 👑 Validasi Manajemen/Owner yang Mendukung Daftar Role Terstruktur Baru
   const rawRole = (currentUser?.role || '').toLowerCase();
   const isManagementOrOwner =
     rawRole.includes('management') ||
     rawRole.includes('owner') ||
+    rawRole.includes('general_manager') ||
+    rawRole.includes('spv') ||
+    rawRole.includes('hrd') ||
+    rawRole.includes('finance') ||
     currentUser.staff_id?.startsWith('MNG-') ||
     currentUser.staff_id?.startsWith('OWN-');
 

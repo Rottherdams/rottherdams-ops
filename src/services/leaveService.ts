@@ -130,12 +130,24 @@ export const getAllLeaveRequests = async () => {
 
 /**
  * Memperbarui status pengajuan (Approved / Rejected) oleh Manajemen
+ * Jika pengajuan Cuti disetujui, otomatis mengurangi kuota cuti tahunan staf
  */
 export const updateLeaveStatus = async (
   requestId: number,
   status: 'approved' | 'rejected' | 'Approved' | 'Rejected'
 ) => {
   const formattedStatus = status.toLowerCase() === 'approved' ? 'approved' : 'rejected';
+
+  // Ambil detail permohonan terlebih dahulu
+  const { data: leaveItem, error: fetchError } = await supabase
+    .from('leave_requests')
+    .select('*')
+    .eq('id', requestId)
+    .single();
+
+  if (fetchError || !leaveItem) {
+    throw new Error('Data pengajuan izin tidak ditemukan.');
+  }
 
   const { data, error } = await supabase
     .from('leave_requests')
@@ -145,6 +157,22 @@ export const updateLeaveStatus = async (
 
   if (error) {
     throw new Error(`Gagal memperbarui status pengajuan: ${error.message}`);
+  }
+
+  // Potong Kuota Cuti Tahunan jika disetujui & bertipe 'Cuti'
+  if (formattedStatus === 'approved' && (leaveItem.leave_type || '').toLowerCase() === 'cuti') {
+    const start = new Date(leaveItem.start_date);
+    const end = new Date(leaveItem.end_date || leaveItem.start_date);
+    const diffTime = Math.abs(end.getTime() - start.getTime());
+    const leaveDaysCount = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+    const currentQuota = await getStaffLeaveQuota(leaveItem.staff_id);
+    const newQuota = Math.max(0, currentQuota - leaveDaysCount);
+
+    await supabase
+      .from('staff')
+      .update({ annual_leave_quota: newQuota })
+      .eq('staff_id', String(leaveItem.staff_id));
   }
 
   return data[0];

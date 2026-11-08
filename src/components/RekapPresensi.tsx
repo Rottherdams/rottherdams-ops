@@ -4,7 +4,7 @@ import StaffLeaderboard from './StaffLeaderboard';
 
 interface CurrentUser {
   name: string;
-  role: 'management' | 'kasir' | 'bar' | 'dapur' | 'owner' | string;
+  role: string;
   staff_id: string;
   avatar_url?: string;
 }
@@ -63,10 +63,14 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
   // Identifikasi Role Owner
   const isOwner = rawRole.includes('owner') || currentUser.staff_id?.startsWith('OWN-');
 
-  // Identifikasi Management & Owner untuk Akses Fitur Audit Tim
+  // Identifikasi Management, Executive & Owner untuk Akses Fitur Audit Tim
   const isManagementOrOwner = 
     isOwner || 
     rawRole.includes('management') || 
+    rawRole.includes('general_manager') ||
+    rawRole.includes('spv') ||
+    rawRole.includes('hrd') ||
+    rawRole.includes('finance') ||
     currentUser.staff_id?.startsWith('MNG-');
 
   // DEFAULT UNTUK OWNER: Otomatis pilih tab 'semua_staf' (Audit Tim) saat pertama kali buka
@@ -209,16 +213,22 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
 
   const myStats = calculateStaffStats();
 
-  // 2. REKAP JAM KERJA STAF LAPANGAN KHUSUS AUDIT TIM
+  // 2. REKAP JAM KERJA STAF LAPANGAN KHUSUS AUDIT TIM (Excl. Owner & Management/Executive)
   const staffSummaries: StaffSummary[] = Object.values(
     monthlyAttendances
       .filter(item => {
-        const roleLower = (item.role || '').toLowerCase();
+        const r = (item.role || '').toLowerCase();
         const idUpper = (item.staff_id || '').toUpperCase();
-        return !roleLower.includes('management') && 
-               !roleLower.includes('owner') && 
-               !idUpper.startsWith('MNG-') && 
-               !idUpper.startsWith('OWN-');
+        return (
+          !r.includes('management') && 
+          !r.includes('owner') && 
+          !r.includes('general_manager') &&
+          !r.includes('spv') &&
+          !r.includes('hrd') &&
+          !r.includes('finance') &&
+          !idUpper.startsWith('MNG-') && 
+          !idUpper.startsWith('OWN-')
+        );
       })
       .reduce((acc: { [key: string]: StaffSummary }, curr) => {
         if (!acc[curr.staff_id]) {
@@ -359,7 +369,7 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
   return (
     <div className="space-y-6 text-left">
       <div className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm">
-        {/* Header & Control Actions (Diperbaiki agar selalu simetris di kanan atas) */}
+        {/* Header & Control Actions */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6 pb-4 border-b border-neutral-100">
           <div>
             <h2 className="text-lg font-black text-[#111111]">📌 Analytics & Rekap Presensi Staf</h2>
@@ -394,7 +404,7 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
               </select>
             </div>
 
-            {/* SWITCH VIEW MODE (Satu Baris Sejajar dengan Filter Bulan) */}
+            {/* SWITCH VIEW MODE */}
             <div className="bg-neutral-100 p-1 rounded-2xl flex border border-neutral-200">
               <button
                 onClick={() => setViewMode('pribadi')}
@@ -462,8 +472,8 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
                               </div>
                             )}
                             <span className="font-extrabold text-white">{staf.staff_name}</span>
-                            <span className="text-[9px] px-2 py-0.5 bg-neutral-800 text-neutral-400 rounded-md uppercase font-mono">
-                              {staf.role}
+                            <span className="text-[9px] px-2 py-0.5 bg-neutral-800 text-neutral-400 rounded-md uppercase font-mono capitalize">
+                              {staf.role?.replace(/_/g, ' ')}
                             </span>
                             {isLeastHours && (
                               <span className="text-[9px] bg-red-600 text-white font-black px-2 py-0.5 rounded-full animate-pulse">
@@ -620,7 +630,7 @@ export default function RekapPresensi({ currentUser }: RekapPresensiProps) {
                       </td>
 
                       <td className="p-3.5 capitalize">
-                        <span className="font-semibold text-neutral-700">{item.role}</span>
+                        <span className="font-semibold text-neutral-700">{item.role?.replace(/_/g, ' ')}</span>
                         <span className="block text-[10px] text-neutral-400">
                           {item.shift === 'morning' ? '☀️ Morning' : '🌙 Night'}
                         </span>

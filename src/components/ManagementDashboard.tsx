@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 
 interface CurrentUser {
   name: string;
-  role: 'management' | 'kasir' | 'bar' | 'dapur' | 'owner' | string;
+  role: string;
   staff_id: string;
 }
 
@@ -200,11 +200,11 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
         const barItems = sopData.filter((i) => (i.category || i.role || '').toLowerCase().includes('bar'));
         const kitchenItems = sopData.filter((i) => {
           const cat = (i.category || i.role || '').toLowerCase();
-          return cat.includes('kitchen') || cat.includes('dapur');
+          return cat.includes('kitchen') || cat.includes('dapur') || cat.includes('chef') || cat.includes('cook');
         });
         const floorItems = sopData.filter((i) => {
           const cat = (i.category || i.role || '').toLowerCase();
-          return cat.includes('kasir') || cat.includes('server') || cat.includes('floor');
+          return cat.includes('kasir') || cat.includes('cashier') || cat.includes('server') || cat.includes('floor');
         });
 
         setSopStats({
@@ -435,6 +435,13 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
     return '-';
   };
 
+  const userRoleLower = (currentUser?.role || '').toLowerCase();
+  const roleBadgeLabel = userRoleLower.includes('owner') 
+    ? 'Owner Executive Suite' 
+    : userRoleLower.includes('general_manager') 
+    ? 'General Manager Suite' 
+    : 'Management Control Panel';
+
   return (
     <div className="space-y-6 text-left">
       {/* HEADER EXECUTIVE DASHBOARD */}
@@ -442,7 +449,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
         <div>
           <div className="flex items-center gap-2">
             <span className="text-[10px] bg-[#d22027] text-white px-3 py-1 rounded-full font-black uppercase tracking-wider">
-              {currentUser.role === 'owner' ? 'Owner Executive Suite' : 'Management Control Panel'}
+              {roleBadgeLabel}
             </span>
             <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-bold">
               ● Live Systems
@@ -722,7 +729,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
               <p className="text-2xl font-black text-[#111111]">
                 {onDutyList.length} <span className="text-xs font-normal text-neutral-400">/ {totalStaff} Staf</span>
               </p>
-              <p className="text-[11px] font-bold text-neutral-500 mt-1">Staf On-Duty Bar & Dapur</p>
+              <p className="text-[11px] font-bold text-neutral-500 mt-1">Staf On-Duty FOH & BOH</p>
             </div>
 
             <div className="bg-white p-5 rounded-3xl border border-neutral-200 shadow-xs hover:border-neutral-300 transition">
@@ -846,6 +853,11 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
                             <span className="text-[9px] px-1.5 py-0.2 bg-white/10 rounded font-mono text-neutral-400">
                               {log.staff_id}
                             </span>
+                            {log.role && (
+                              <span className="text-[9px] text-neutral-400 capitalize">
+                                ({log.role.replace(/_/g, ' ')})
+                              </span>
+                            )}
                           </div>
                           <p className="text-[10px] mt-0.5 opacity-80">
                             {isScreenshot ? '⚠️ Intip / Percobaan Screenshot Resep' : '📖 Menampilkan Gramasi Resep'}{' '}
@@ -893,7 +905,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
                       <div className="overflow-hidden">
                         <p className="font-extrabold text-xs text-[#111111] truncate">{staf.staff_name}</p>
                         <p className="text-[10px] text-neutral-400 capitalize">
-                          {staf.role} • {staf.shift} Shift
+                          {staf.role?.replace(/_/g, ' ')} • {staf.shift} Shift
                         </p>
                         <p className="text-[9px] text-emerald-600 font-mono font-bold mt-0.5">
                           In: {new Date(staf.clock_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA

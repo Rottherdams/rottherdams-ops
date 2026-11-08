@@ -46,14 +46,35 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
   // Ref untuk timer auto-blur 15 detik
   const autoBlurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Normalisasi role & status
+  // 👑 Normalisasi Role Terstruktur Baru & Status Staf
   const rawRole = (currentUser?.role || '').toLowerCase();
   const rawStatus = (currentUser?.status || '').toLowerCase();
 
   const isResign = rawStatus.includes('resign');
-  const isManagementOrOwner = rawRole.includes('management') || rawRole.includes('owner');
-  const isBar = rawRole.includes('bar');
-  const isDapur = rawRole.includes('dapur') || rawRole.includes('kitchen');
+  
+  // Executive & Management Roles
+  const isManagementOrOwner = 
+    rawRole.includes('management') || 
+    rawRole.includes('owner') || 
+    rawRole.includes('general_manager') || 
+    rawRole.includes('spv') || 
+    rawRole.includes('hrd') || 
+    rawRole.includes('finance') ||
+    currentUser?.staff_id?.startsWith('MNG-') ||
+    currentUser?.staff_id?.startsWith('OWN-');
+
+  // Front of House (Bar & Beverage)
+  const isBar = rawRole.includes('bar') || rawRole.includes('head_barista');
+
+  // Back of House (Kitchen & Food/Pastry)
+  const isDapur = 
+    rawRole.includes('dapur') || 
+    rawRole.includes('kitchen') || 
+    rawRole.includes('head_chef') || 
+    rawRole.includes('kitchen_helper') || 
+    rawRole.includes('dishwasher');
+
+  // Kasir & Support (Dibatasi secara default jika tidak punya akses bar/dapur/manajemen)
   const isKasir = rawRole.includes('kasir') || rawRole.includes('cashier');
 
   const formattedDate = new Date().toLocaleString('id-ID', {
@@ -220,7 +241,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
     }
   };
 
-  // FILTER STRICT PER DIVISI
+  // FILTER STRICT PER DIVISI BASED ON NEW ROLE SYSTEM
   const getAllowedRecipes = () => {
     if (isBar && !isManagementOrOwner) {
       return recipes.filter(r => (r.category || '').toLowerCase() === 'beverage');
@@ -251,7 +272,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
         <p className="text-xs text-neutral-500 max-w-md mx-auto">
           {isResign
             ? 'Akun Anda berstatus Resign. Akses ke dokumen dan rahasia resep perusahaan telah dinonaktifkan.'
-            : 'Divisi Kasir tidak diizinkan mengakses buku resep dan standar gramasi. Resep hanya dapat diakses oleh tim Bar, Kitchen, dan Management.'}
+            : 'Divisi Kasir / Support tidak diizinkan mengakses buku resep dan standar gramasi. Resep hanya dapat diakses oleh tim Barista, Kitchen, dan Management.'}
         </p>
       </div>
     );

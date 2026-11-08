@@ -376,6 +376,9 @@ export default function ClockInModal({
                 Status: On Duty Active
               </p>
               <p className="text-xs font-bold">{currentUser?.name}</p>
+              <p className="text-[10px] font-bold text-neutral-500 uppercase mt-0.5">
+                Divisi: {currentUser?.role?.replace(/_/g, ' ')}
+              </p>
               <p className="text-[11px] text-emerald-700 mt-1">
                 Clock In: {new Date(activeAttendance.clock_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA
               </p>

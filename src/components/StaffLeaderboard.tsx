@@ -64,9 +64,13 @@ export default function StaffLeaderboard() {
         const idUpper = String(staf.staff_id || '').toUpperCase().trim();
         const nameLower = String(staf.staff_name || staf.first_name || '').toLowerCase().trim();
 
-        const isManagement = 
+        const isManagementOrExecutive = 
           roleLower.includes('management') || 
           roleLower.includes('mng') || 
+          roleLower.includes('general_manager') ||
+          roleLower.includes('spv') ||
+          roleLower.includes('hrd') ||
+          roleLower.includes('finance') ||
           idUpper.startsWith('MNG') ||
           nameLower.includes('renal'); // Safety check tambahan
 
@@ -76,7 +80,7 @@ export default function StaffLeaderboard() {
           idUpper.startsWith('OWN');
 
         // Hanya masukkan staf jika BUKAN management & BUKAN owner
-        return !isManagement && !isOwner && staf.status !== 'Resign';
+        return !isManagementOrExecutive && !isOwner && staf.status !== 'Resign';
       });
 
       setStaffList(filteredStaff);
@@ -207,8 +211,8 @@ export default function StaffLeaderboard() {
                         {staf.stats.displayName}
                       </h4>
                       
-                      <span className="text-[9px] px-2 py-0.5 bg-neutral-100 text-neutral-600 rounded-md uppercase font-mono border border-neutral-200">
-                        {staf.role}
+                      <span className="text-[9px] px-2 py-0.5 bg-neutral-100 text-neutral-600 rounded-md uppercase font-mono border border-neutral-200 capitalize">
+                        {staf.role?.replace(/_/g, ' ')}
                       </span>
 
                       {/* Badges Achievement */}

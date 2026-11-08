@@ -21,6 +21,10 @@
 
 body {
   font-family: var(--font-sans);
+  margin: 0;
+  padding: 0;
+  background-color: #ffffff;
+  color: #111111;
 }
 
 /* 2. Keyframes Animasi Mobile & Desktop */

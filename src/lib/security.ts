@@ -18,7 +18,7 @@ export const recordLoginLog = async (
     let longitude: number | null = null;
     let gpsAccuracy: number | null = null;
 
-    // 1. Ambil IP Address & Kota dari API
+    // 1. Ambil IP Address & Kota dari API ipapi
     try {
       const ipRes = await fetch('https://ipapi.co/json/');
       if (ipRes.ok) {
@@ -52,7 +52,7 @@ export const recordLoginLog = async (
         staff_id: user.staff_id,
         staff_name: user.name,
         role: user.role,
-        action_type: actionType, // 📝 Kolom aksi (LOGIN, LOGOUT, AUTO_LOGOUT_IDLE)
+        action_type: actionType,
         ip_address: ipAddress,
         location_city: locationCity,
         latitude,
@@ -63,5 +63,29 @@ export const recordLoginLog = async (
     ]);
   } catch (err) {
     console.error('Gagal rekam login/logout log:', err);
+  }
+};
+
+/**
+ * 🛡️ REKAM LOG AUDIT KEAMANAN RESEP DIGITAL & KEJADIAN PENTING
+ */
+export const recordSecurityLog = async (
+  user: UserSessionPayload,
+  actionType: string,
+  targetRecipe?: string
+) => {
+  try {
+    await supabase.from('security_audit_logs').insert([
+      {
+        staff_id: user.staff_id,
+        staff_name: user.name,
+        role: user.role,
+        action_type: actionType,
+        target_recipe: targetRecipe || 'Digital Recipe Manual',
+        device_info: navigator.userAgent,
+      },
+    ]);
+  } catch (err) {
+    console.error('Gagal rekam audit log keamanan:', err);
   }
 };

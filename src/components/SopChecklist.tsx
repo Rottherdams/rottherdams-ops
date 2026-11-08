@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 
 interface CurrentUser {
   name: string;
-  role: 'management' | 'kasir' | 'bar' | 'dapur' | 'owner' | string;
+  role: string;
   staff_id: string;
   avatar_url?: string;
 }
@@ -41,6 +41,10 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
   const isManagementOrOwner = currentUser && (
     rawRole.includes('management') || 
     rawRole.includes('owner') ||
+    rawRole.includes('general_manager') ||
+    rawRole.includes('spv') ||
+    rawRole.includes('hrd') ||
+    rawRole.includes('finance') ||
     currentUser.staff_id?.startsWith('MNG-') ||
     currentUser.staff_id?.startsWith('OWN-')
   );
@@ -239,7 +243,7 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
                   {task.task_name}
                 </p>
                 <p className="text-[10px] text-neutral-400 flex items-center gap-1.5 flex-wrap mt-0.5">
-                  <span className="font-bold text-neutral-600">{task.category}</span>
+                  <span className="font-bold text-neutral-600">{task.category?.replace(/_/g, ' ')}</span>
                   <span>•</span>
                   <span className="uppercase font-medium">{task.shift}</span>
                   {task.completed_by && (
@@ -357,16 +361,16 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-bold text-neutral-600 mb-1">Kategori</label>
+                  <label className="block text-[11px] font-bold text-neutral-600 mb-1">Kategori / Divisi</label>
                   <select
                     value={newCategory}
                     onChange={e => setNewCategory(e.target.value)}
                     className="w-full px-3 py-2.5 bg-neutral-50 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-[#d22027] cursor-pointer"
                   >
-                    <option value="Bar">Bar</option>
-                    <option value="Kasir">Kasir</option>
-                    <option value="Kitchen">Kitchen</option>
-                    <option value="General">General</option>
+                    <option value="Bar">Barista / Bar</option>
+                    <option value="Kasir">Cashier / Floor</option>
+                    <option value="Kitchen">Kitchen / Cook</option>
+                    <option value="General">General / Operasional</option>
                   </select>
                 </div>
 

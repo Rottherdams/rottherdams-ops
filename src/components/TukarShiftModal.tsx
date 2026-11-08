@@ -81,10 +81,16 @@ export default function TukarShiftModal({
   const [targetShift, setTargetShift] = useState('Memuat...');
   const [reason, setReason] = useState('');
 
-  const isManagement = currentUser?.role?.toLowerCase().includes('management') || 
-                       currentUser?.role?.toLowerCase().includes('owner') ||
-                       currentUser?.staff_id?.startsWith('MNG-') ||
-                       currentUser?.staff_id?.startsWith('OWN-');
+  const rawRole = (currentUser?.role || '').toLowerCase();
+  const isManagement = 
+    rawRole.includes('management') || 
+    rawRole.includes('owner') ||
+    rawRole.includes('general_manager') ||
+    rawRole.includes('spv') ||
+    rawRole.includes('hrd') ||
+    rawRole.includes('finance') ||
+    currentUser?.staff_id?.startsWith('MNG-') ||
+    currentUser?.staff_id?.startsWith('OWN-');
 
   // Ambil objek staf target berdasarkan ID yang dipilih
   const selectedTargetStaff = staffList.find(s => String(s.staff_id) === String(targetStaffId));
@@ -115,15 +121,28 @@ export default function TukarShiftModal({
     const { data } = await supabase
       .from('staff')
       .select('staff_id, staff_name, first_name, last_name, avatar_url, role')
-      .neq('status', 'Resign')
-      .not('role', 'ilike', 'owner')
-      .not('role', 'ilike', 'management');
+      .neq('status', 'Resign');
 
     if (data) {
-      const formatted = data.map(s => ({
-        ...s,
-        staff_name: s.staff_name || (s.first_name ? `${s.first_name} ${s.last_name || ''}`.trim() : s.staff_id)
-      }));
+      const formatted = data
+        .filter(s => {
+          const r = (s.role || '').toLowerCase();
+          const idUpper = (s.staff_id || '').toUpperCase();
+          return (
+            !r.includes('owner') &&
+            !r.includes('management') &&
+            !r.includes('general_manager') &&
+            !r.includes('spv') &&
+            !r.includes('hrd') &&
+            !r.includes('finance') &&
+            !idUpper.startsWith('OWN-') &&
+            !idUpper.startsWith('MNG-')
+          );
+        })
+        .map(s => ({
+          ...s,
+          staff_name: s.staff_name || (s.first_name ? `${s.first_name} ${s.last_name || ''}`.trim() : s.staff_id)
+        }));
       setStaffList(formatted.filter(s => String(s.staff_id) !== String(currentUser?.staff_id)));
     }
   };
@@ -349,7 +368,7 @@ export default function TukarShiftModal({
                   <option value="">-- Pilih Rekan Kerjasama --</option>
                   {staffList.map(staf => (
                     <option key={staf.staff_id} value={staf.staff_id}>
-                      {staf.staff_name} ({staf.role})
+                      {staf.staff_name} ({staf.role?.replace(/_/g, ' ')})
                     </option>
                   ))}
                 </select>

@@ -10,6 +10,7 @@ interface LogItem {
   created_by: string;
   staff_id?: string;
   avatar_url?: string;
+  role?: string;
   status: 'Pending' | 'Resolved';
   created_at: string;
 }
@@ -52,26 +53,29 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
     }
 
     if (logData && logData.length > 0) {
-      // 2. Ambil ID Staf unik dari log untuk mengambil avatar_url
+      // 2. Ambil ID Staf unik dari log untuk mengambil avatar_url & role
       const staffIds = Array.from(new Set(logData.map((l: any) => l.staff_id || l.created_by).filter(Boolean)));
       
       const { data: staffProfiles } = await supabase
         .from('staff')
-        .select('staff_id, avatar_url, staff_name, first_name')
+        .select('staff_id, avatar_url, staff_name, first_name, role')
         .or(`staff_id.in.(${staffIds.join(',')}),staff_name.in.(${staffIds.join(',')})`);
 
-      const avatarMap: { [key: string]: string } = {};
+      const profileMap: { [key: string]: { avatar?: string; role?: string } } = {};
       (staffProfiles || []).forEach((s: any) => {
-        if (s.avatar_url) {
-          avatarMap[s.staff_id] = s.avatar_url;
-          avatarMap[s.staff_name] = s.avatar_url;
-        }
+        const info = { avatar: s.avatar_url, role: s.role };
+        if (s.staff_id) profileMap[s.staff_id] = info;
+        if (s.staff_name) profileMap[s.staff_name] = info;
       });
 
-      const enrichedLogs = logData.map((item: any) => ({
-        ...item,
-        avatar_url: avatarMap[item.staff_id] || avatarMap[item.created_by] || undefined,
-      }));
+      const enrichedLogs = logData.map((item: any) => {
+        const profile = profileMap[item.staff_id] || profileMap[item.created_by];
+        return {
+          ...item,
+          avatar_url: profile?.avatar,
+          role: profile?.role || item.role,
+        };
+      });
 
       setLogs(enrichedLogs);
     } else {
@@ -244,7 +248,12 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
                     </div>
                   )}
                   <div className="text-[10px] text-neutral-500">
-                    <span className="font-bold text-neutral-700">{item.created_by}</span> • <span className="italic">{item.shift}</span>
+                    <span className="font-bold text-neutral-700">{item.created_by}</span>
+                    {item.role && (
+                      <span className="text-neutral-400 font-medium capitalize"> ({item.role.replace(/_/g, ' ')})</span>
+                    )}
+                    <span> • </span>
+                    <span className="italic">{item.shift}</span>
                   </div>
                 </div>
 

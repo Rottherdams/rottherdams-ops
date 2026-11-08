@@ -22,19 +22,27 @@ const SHIFTS = ['Shift 1', 'Shift 2', 'OFF'];
 
 // Data Staf Fallback jika di Supabase belum ada record tabel staff (Hanya Staf Operasional)
 const INITIAL_STAFF_OPTIONS: StaffOption[] = [
-  { staff_id: 'STF-001', staff_name: 'Yusuf', first_name: 'Yusuf', role: 'Dapur', status: 'Aktif' },
-  { staff_id: 'STF-002', staff_name: 'Indah', first_name: 'Indah', role: 'Dapur', status: 'Aktif' },
-  { staff_id: 'STF-003', staff_name: 'Tika', first_name: 'Tika', role: 'Dapur', status: 'Aktif' },
-  { staff_id: 'STF-004', staff_name: 'Rico', first_name: 'Rico', role: 'Bar & Server', status: 'Aktif' },
-  { staff_id: 'STF-005', staff_name: 'Jamil', first_name: 'Jamil', role: 'Bar & Server', status: 'Aktif' },
-  { staff_id: 'STF-006', staff_name: 'Opang', first_name: 'Opang', role: 'Bar & Server', status: 'Aktif' },
-  { staff_id: 'STF-007', staff_name: 'Cece', first_name: 'Cece', role: 'Kasir', status: 'Aktif' },
+  { staff_id: 'STF-001', staff_name: 'Yusuf', first_name: 'Yusuf', role: 'dapur', status: 'Aktif' },
+  { staff_id: 'STF-002', staff_name: 'Indah', first_name: 'Indah', role: 'dapur', status: 'Aktif' },
+  { staff_id: 'STF-003', staff_name: 'Tika', first_name: 'Tika', role: 'dapur', status: 'Aktif' },
+  { staff_id: 'STF-004', staff_name: 'Rico', first_name: 'Rico', role: 'bar', status: 'Aktif' },
+  { staff_id: 'STF-005', staff_name: 'Jamil', first_name: 'Jamil', role: 'bar', status: 'Aktif' },
+  { staff_id: 'STF-006', staff_name: 'Opang', first_name: 'Opang', role: 'bar', status: 'Aktif' },
+  { staff_id: 'STF-007', staff_name: 'Cece', first_name: 'Cece', role: 'kasir', status: 'Aktif' },
 ];
 
-// Helper Function: Cek apakah role termasuk manajemen/owner
+// Helper Function: Cek apakah role termasuk manajemen/owner/eksekutif
 const isOperationalStaff = (roleStr: string) => {
-  const roleLower = (roleStr || '').toLowerCase();
-  return !roleLower.includes('management') && !roleLower.includes('owner') && !roleLower.includes('manajer');
+  const r = (roleStr || '').toLowerCase();
+  return (
+    !r.includes('management') &&
+    !r.includes('owner') &&
+    !r.includes('manajer') &&
+    !r.includes('general_manager') &&
+    !r.includes('spv') &&
+    !r.includes('hrd') &&
+    !r.includes('finance')
+  );
 };
 
 export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWeek }: EditRosterModalProps) {
@@ -59,7 +67,7 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
       .order('staff_id', { ascending: true });
 
     if (!error && data && data.length > 0) {
-      // Filter: Pegawai status Aktif / Izin (bukan Resign) DAN HANYA OPERASIONAL (Bukan Management & Owner)
+      // Filter: Pegawai status Aktif / Izin (bukan Resign) DAN HANYA OPERASIONAL (Bukan Executive/Management/Owner)
       const operationalStaff = data.filter(
         s => s.status !== 'Resign' && isOperationalStaff(s.role)
       );
@@ -139,19 +147,20 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4 text-xs text-left">
-          {/* Pilih Karyawan (Hanya Operasional: Bar, Server, Dapur, Kasir) */}
+          {/* Pilih Karyawan (Hanya Staf Operasional FOH & BOH) */}
           <div>
             <label className="block font-bold text-neutral-700 mb-1">Pilih Staf Operasional:</label>
             <select
               value={selectedStaffId}
               onChange={e => setSelectedStaffId(e.target.value)}
-              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-bold text-neutral-800 focus:outline-none focus:border-[#d22027]"
+              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-bold text-neutral-800 focus:outline-none focus:border-[#d22027] capitalize cursor-pointer"
             >
               {staffList.map(s => {
                 const nameDisplay = s.staff_name || `${s.first_name || ''} ${s.last_name || ''}`.trim();
+                const roleFormatted = (s.role || '').replace(/_/g, ' ');
                 return (
                   <option key={s.staff_id} value={s.staff_id}>
-                    {s.staff_id} - {nameDisplay} ({s.role})
+                    {s.staff_id} - {nameDisplay} ({roleFormatted})
                   </option>
                 );
               })}
@@ -165,7 +174,7 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
               <select
                 value={week}
                 onChange={e => setWeek(Number(e.target.value))}
-                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-medium text-neutral-800 focus:outline-none focus:border-[#d22027]"
+                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-medium text-neutral-800 focus:outline-none focus:border-[#d22027] cursor-pointer"
               >
                 {[1, 2, 3, 4].map(w => (
                   <option key={w} value={w}>
@@ -181,7 +190,7 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
               <select
                 value={day}
                 onChange={e => setDay(e.target.value)}
-                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-medium text-neutral-800 focus:outline-none focus:border-[#d22027]"
+                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2.5 font-medium text-neutral-800 focus:outline-none focus:border-[#d22027] cursor-pointer"
               >
                 {DAYS.map(d => (
                   <option key={d} value={d}>

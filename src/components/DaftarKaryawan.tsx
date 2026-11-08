@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 
 interface CurrentUser {
   name: string;
-  role: 'management' | 'kasir' | 'bar' | 'dapur' | 'owner' | string;
+  role: string;
   staff_id: string;
 }
 
@@ -15,7 +15,7 @@ interface StaffItem {
   last_name?: string;
   role: string;
   status: 'Aktif' | 'Cuti' | 'Resign' | 'Izin' | string;
-  pin_code?: string;
+  pin?: string;
   phone_number?: string;
   telegram_chat_id?: string;
   email?: string;
@@ -29,7 +29,35 @@ interface DaftarKaryawanProps {
 type SortField = 'staff_id' | 'staff_name' | 'role' | 'status';
 type SortOrder = 'asc' | 'desc';
 
-// Fungsi pembantu untuk menentukan bobot urutan ID default (OWN -> MNG -> STF)
+// Daftar Role Resmi Rottherdams Ops
+const ROLE_OPTIONS = [
+  { group: 'Executive & Management', options: [
+    { value: 'owner', label: 'Owner / Co-Founder' },
+    { value: 'general_manager', label: 'General Manager' },
+    { value: 'management', label: 'Store Manager' },
+    { value: 'spv', label: 'Supervisor (SPV)' },
+    { value: 'hrd', label: 'HRD & People Ops' },
+    { value: 'finance', label: 'Finance & Accounting' },
+  ]},
+  { group: 'Front of House (FOH)', options: [
+    { value: 'head_barista', label: 'Head Barista' },
+    { value: 'bar', label: 'Barista / Bartender' },
+    { value: 'kasir', label: 'Kasir / Cashier' },
+    { value: 'server', label: 'Server / Waiters' },
+  ]},
+  { group: 'Back of House (BOH)', options: [
+    { value: 'head_chef', label: 'Head Chef' },
+    { value: 'dapur', label: 'Cook / Staf Dapur' },
+    { value: 'kitchen_helper', label: 'Kitchen Helper' },
+    { value: 'dishwasher', label: 'Dishwasher / Steward' },
+    { value: 'inventory', label: 'Inventory & Stockist' },
+  ]},
+  { group: 'Support & Facilities', options: [
+    { value: 'cleaning', label: 'Cleaning Service' },
+    { value: 'maintenance', label: 'Technician / Maintenance' },
+  ]},
+];
+
 const getSortPriority = (id: string) => {
   if (id.startsWith('OWN-')) return 1;
   if (id.startsWith('MNG-')) return 2;
@@ -40,15 +68,15 @@ const INITIAL_STAFF: StaffItem[] = [
   { staff_id: 'OWN-001', staff_name: 'Iqbal', first_name: 'Iqbal', last_name: '', role: 'owner', status: 'Aktif' },
   { staff_id: 'OWN-002', staff_name: 'Gilang', first_name: 'Gilang', last_name: '', role: 'owner', status: 'Aktif' },
   { staff_id: 'MNG-001', staff_name: 'Renal', first_name: 'Renal', last_name: '', role: 'management', status: 'Aktif' },
-  { staff_id: 'STF-001', staff_name: 'Yusuf', first_name: 'Yusuf', last_name: '', role: 'Dapur', status: 'Aktif' },
-  { staff_id: 'STF-002', staff_name: 'Indah', first_name: 'Indah', last_name: '', role: 'Dapur', status: 'Aktif' },
-  { staff_id: 'STF-003', staff_name: 'Tika', first_name: 'Tika', last_name: '', role: 'Dapur', status: 'Aktif' },
-  { staff_id: 'STF-004', staff_name: 'Rico', first_name: 'Rico', last_name: '', role: 'Bar & Server', status: 'Aktif' },
-  { staff_id: 'STF-005', staff_name: 'Jamil', first_name: 'Jamil', last_name: '', role: 'Bar & Server', status: 'Aktif' },
-  { staff_id: 'STF-006', staff_name: 'Opang', first_name: 'Opang', last_name: '', role: 'Bar & Server', status: 'Aktif' },
-  { staff_id: 'STF-007', staff_name: 'Alya', first_name: 'Alya', last_name: '', role: 'Kasir', status: 'Resign' },
-  { staff_id: 'STF-008', staff_name: 'Firda', first_name: 'Firda', last_name: '', role: 'Kasir', status: 'Resign' },
-  { staff_id: 'STF-009', staff_name: 'Cece', first_name: 'Cece', last_name: '', role: 'Kasir', status: 'Aktif' },
+  { staff_id: 'STF-001', staff_name: 'Yusuf', first_name: 'Yusuf', last_name: '', role: 'dapur', status: 'Aktif' },
+  { staff_id: 'STF-002', staff_name: 'Indah', first_name: 'Indah', last_name: '', role: 'dapur', status: 'Aktif' },
+  { staff_id: 'STF-003', staff_name: 'Tika', first_name: 'Tika', last_name: '', role: 'dapur', status: 'Aktif' },
+  { staff_id: 'STF-004', staff_name: 'Rico', first_name: 'Rico', last_name: '', role: 'bar', status: 'Aktif' },
+  { staff_id: 'STF-005', staff_name: 'Jamil', first_name: 'Jamil', last_name: '', role: 'bar', status: 'Aktif' },
+  { staff_id: 'STF-006', staff_name: 'Opang', first_name: 'Opang', last_name: '', role: 'bar', status: 'Aktif' },
+  { staff_id: 'STF-007', staff_name: 'Alya', first_name: 'Alya', last_name: '', role: 'kasir', status: 'Resign' },
+  { staff_id: 'STF-008', staff_name: 'Firda', first_name: 'Firda', last_name: '', role: 'kasir', status: 'Resign' },
+  { staff_id: 'STF-009', staff_name: 'Cece', first_name: 'Cece', last_name: '', role: 'kasir', status: 'Aktif' },
 ];
 
 export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
@@ -56,11 +84,9 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
   const [loading, setLoading] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // State Pengurutan
   const [sortBy, setSortBy] = useState<SortField>('staff_id');
   const [sortOrder, setSortOrder] = useState<SortOrder>('asc');
 
-  // State Modal Tambah Karyawan Baru
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newFirstName, setNewFirstName] = useState('');
   const [newLastName, setNewLastName] = useState('');
@@ -69,12 +95,11 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
   const [newEmail, setNewEmail] = useState('');
   const [newTelegramId, setNewTelegramId] = useState('');
   const [newAvatarUrl, setNewAvatarUrl] = useState('');
-  const [newStaffRole, setNewStaffRole] = useState<'bar' | 'dapur' | 'kasir' | 'management' | 'owner'>('bar');
+  const [newStaffRole, setNewStaffRole] = useState<string>('bar');
   const [newStaffPin, setNewStaffPin] = useState('');
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  // State Modal Edit Detail Karyawan
   const [editingStaff, setEditingStaff] = useState<StaffItem | null>(null);
 
   const rawRole = (currentUser?.role || '').toLowerCase();
@@ -91,10 +116,7 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
 
   const fetchStaff = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('staff')
-      .select('*');
-
+    const { data, error } = await supabase.from('staff').select('*');
     setLoading(false);
 
     if (!error && data && data.length > 0) {
@@ -106,18 +128,17 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     }
   };
 
-  // Auto Generate ID Staf Berikutnya
   const generateNextStaffId = (role: string) => {
     let prefix = 'STF-';
-    if (role === 'management') prefix = 'MNG-';
-    if (role === 'owner') prefix = 'OWN-';
+    const r = role.toLowerCase();
+    if (r.includes('management') || r.includes('hrd') || r.includes('finance') || r.includes('general_manager')) prefix = 'MNG-';
+    if (r.includes('owner')) prefix = 'OWN-';
 
     const samePrefixStaff = staffList.filter(s => (s.staff_id || '').startsWith(prefix));
     const nextNum = samePrefixStaff.length + 1;
     return `${prefix}${String(nextNum).padStart(3, '0')}`;
   };
 
-  // Tambah Karyawan Baru ke Supabase (FIX: Tanpa kolom 'name')
   const handleAddStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newFirstName.trim() || !newStaffPin.trim()) {
@@ -148,7 +169,7 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
         avatar_url: newAvatarUrl.trim(),
         role: newStaffRole,
         status: 'Aktif',
-        pin_code: newStaffPin.trim(),
+        pin: newStaffPin.trim(),
       },
     ]);
 
@@ -162,7 +183,6 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     setSaving(false);
   };
 
-  // Update Detail Karyawan (FIX: Tanpa kolom 'name')
   const handleUpdateStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingStaff) return;
@@ -205,14 +225,13 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     setNewStaffRole('bar');
   };
 
-  // Ubah Status Karyawan (Auto PIN xxxx jika Resign, 0000 jika Aktif)
   const handleStatusChange = async (staff_id: string, newStatus: StaffItem['status']) => {
-    let updatedFields: { status: string; pin_code?: string } = { status: newStatus };
+    let updatedFields: { status: string; pin?: string } = { status: newStatus };
 
     if (newStatus === 'Resign') {
-      updatedFields.pin_code = 'xxxx';
+      updatedFields.pin = 'xxxx';
     } else if (newStatus === 'Aktif') {
-      updatedFields.pin_code = '0000';
+      updatedFields.pin = '0000';
     }
 
     setStaffList(prev =>
@@ -221,7 +240,7 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
           ? {
               ...item,
               status: newStatus,
-              ...(updatedFields.pin_code && { pin_code: updatedFields.pin_code }),
+              ...(updatedFields.pin && { pin: updatedFields.pin }),
             }
           : item
       )
@@ -244,7 +263,6 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     }
   };
 
-  // Reset PIN Manual oleh Management
   const handleResetPin = async (staff_id: string, staff_name: string) => {
     const newPin = prompt(`Masukkan PIN baru untuk ${staff_name}:`);
     if (!newPin || newPin.trim().length < 4) {
@@ -254,7 +272,7 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
 
     const { error } = await supabase
       .from('staff')
-      .update({ pin_code: newPin.trim() })
+      .update({ pin: newPin.trim() })
       .eq('staff_id', staff_id);
 
     if (error) {
@@ -265,7 +283,6 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     }
   };
 
-  // Toggle pengurutan
   const handleSort = (field: SortField) => {
     if (sortBy === field) {
       setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
@@ -275,7 +292,6 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     }
   };
 
-  // Filter Data
   const filteredStaffList = staffList.filter(s => 
     (s.staff_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (s.first_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -285,7 +301,6 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     (s.role || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  // Sorting Data
   const sortedStaffList = [...filteredStaffList].sort((a, b) => {
     if (sortBy === 'staff_id') {
       const priorityA = getSortPriority(a.staff_id);
@@ -367,7 +382,6 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
               </button>
             </div>
 
-            {/* Tombol Tambah Karyawan Baru */}
             {isManagementOrOwner && (
               <button
                 onClick={() => setIsAddModalOpen(true)}
@@ -399,29 +413,17 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
             <table className="w-full text-left text-xs">
               <thead>
                 <tr className="bg-[#111111] text-white rounded-xl">
-                  <th
-                    onClick={() => handleSort('staff_id')}
-                    className="p-3.5 rounded-l-xl cursor-pointer hover:bg-neutral-800 transition select-none"
-                  >
+                  <th onClick={() => handleSort('staff_id')} className="p-3.5 rounded-l-xl cursor-pointer hover:bg-neutral-800 transition select-none">
                     ID Staf {sortBy === 'staff_id' && (sortOrder === 'asc' ? '▲' : '▼')}
                   </th>
-                  <th
-                    onClick={() => handleSort('staff_name')}
-                    className="p-3.5 cursor-pointer hover:bg-neutral-800 transition select-none"
-                  >
+                  <th onClick={() => handleSort('staff_name')} className="p-3.5 cursor-pointer hover:bg-neutral-800 transition select-none">
                     Nama Lengkap {sortBy === 'staff_name' && (sortOrder === 'asc' ? '▲' : '▼')}
                   </th>
                   <th className="p-3.5">Kontak & Telegram</th>
-                  <th
-                    onClick={() => handleSort('role')}
-                    className="p-3.5 cursor-pointer hover:bg-neutral-800 transition select-none"
-                  >
+                  <th onClick={() => handleSort('role')} className="p-3.5 cursor-pointer hover:bg-neutral-800 transition select-none">
                     Divisi {sortBy === 'role' && (sortOrder === 'asc' ? '▲' : '▼')}
                   </th>
-                  <th
-                    onClick={() => handleSort('status')}
-                    className="p-3.5 cursor-pointer hover:bg-neutral-800 transition select-none"
-                  >
+                  <th onClick={() => handleSort('status')} className="p-3.5 cursor-pointer hover:bg-neutral-800 transition select-none">
                     Status {sortBy === 'status' && (sortOrder === 'asc' ? '▲' : '▼')}
                   </th>
                   <th className="p-3.5 rounded-r-xl">Aksi</th>
@@ -476,7 +478,7 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
                           )}
                         </div>
                       </td>
-                      <td className="p-3.5 text-neutral-500 capitalize">{staff.role}</td>
+                      <td className="p-3.5 text-neutral-500 font-semibold capitalize">{staff.role.replace('_', ' ')}</td>
                       <td className="p-3.5">
                         <span
                           className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
@@ -541,10 +543,7 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-neutral-200 space-y-4 text-left my-8">
             <div className="flex justify-between items-center pb-3 border-b border-neutral-100">
               <h3 className="font-black text-base text-[#111111]">➕ Tambah Karyawan Baru</h3>
-              <button
-                onClick={() => setIsAddModalOpen(false)}
-                className="text-neutral-400 hover:text-black font-bold text-sm cursor-pointer"
-              >
+              <button onClick={() => setIsAddModalOpen(false)} className="text-neutral-400 hover:text-black font-bold text-sm cursor-pointer">
                 ✕
               </button>
             </div>
@@ -627,17 +626,19 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-neutral-600 mb-1">Divisi / Role</label>
+                  <label className="block text-xs font-bold text-neutral-600 mb-1">Divisi / Role *</label>
                   <select
                     value={newStaffRole}
-                    onChange={e => setNewStaffRole(e.target.value as any)}
-                    className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-bold focus:outline-none cursor-pointer"
+                    onChange={e => setNewStaffRole(e.target.value)}
+                    className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-bold focus:outline-none cursor-pointer focus:border-[#d22027]"
                   >
-                    <option value="bar">Bar & Server</option>
-                    <option value="dapur">Dapur</option>
-                    <option value="kasir">Kasir</option>
-                    <option value="management">Management</option>
-                    <option value="owner">Owner</option>
+                    {ROLE_OPTIONS.map(group => (
+                      <optgroup key={group.group} label={group.group}>
+                        {group.options.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </optgroup>
+                    ))}
                   </select>
                   <p className="text-[10px] text-neutral-400 mt-0.5">
                     ID: <strong className="text-black font-mono">{generateNextStaffId(newStaffRole)}</strong>
@@ -685,10 +686,7 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-neutral-200 space-y-4 text-left my-8">
             <div className="flex justify-between items-center pb-3 border-b border-neutral-100">
               <h3 className="font-black text-base text-[#111111]">✏️ Edit Data Staf ({editingStaff.staff_id})</h3>
-              <button
-                onClick={() => setEditingStaff(null)}
-                className="text-neutral-400 hover:text-black font-bold text-sm cursor-pointer"
-              >
+              <button onClick={() => setEditingStaff(null)} className="text-neutral-400 hover:text-black font-bold text-sm cursor-pointer">
                 ✕
               </button>
             </div>
@@ -757,13 +755,20 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-neutral-600 mb-1">Divisi / Role</label>
-                <input
-                  type="text"
-                  value={editingStaff.role || ''}
+                <label className="block text-xs font-bold text-neutral-600 mb-1">Divisi / Role *</label>
+                <select
+                  value={(editingStaff.role || '').toLowerCase()}
                   onChange={e => setEditingStaff({ ...editingStaff, role: e.target.value })}
-                  className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-bold focus:outline-none focus:border-[#d22027]"
-                />
+                  className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-2xl text-xs font-bold focus:outline-none cursor-pointer focus:border-[#d22027]"
+                >
+                  {ROLE_OPTIONS.map(group => (
+                    <optgroup key={group.group} label={group.group}>
+                      {group.options.map(opt => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </optgroup>
+                  ))}
+                </select>
               </div>
 
               <div className="pt-3 flex gap-3">

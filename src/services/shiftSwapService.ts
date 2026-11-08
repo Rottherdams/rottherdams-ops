@@ -27,18 +27,31 @@ export const getActiveStaffOptions = async (currentStaffId: string) => {
   const { data, error } = await supabase
     .from('staff')
     .select('staff_id, staff_name, first_name, last_name, avatar_url, role')
-    .neq('status', 'Resign')
-    .not('role', 'ilike', 'owner')
-    .not('role', 'ilike', 'management');
+    .neq('status', 'Resign');
 
   if (error) {
     throw new Error(`Gagal mengambil data staf: ${error.message}`);
   }
 
-  const formatted = data.map(s => ({
-    ...s,
-    staff_name: s.staff_name || (s.first_name ? `${s.first_name} ${s.last_name || ''}`.trim() : s.staff_id)
-  }));
+  const formatted = data
+    .filter(s => {
+      const r = (s.role || '').toLowerCase();
+      const idUpper = (s.staff_id || '').toUpperCase();
+      return (
+        !r.includes('owner') &&
+        !r.includes('management') &&
+        !r.includes('general_manager') &&
+        !r.includes('spv') &&
+        !r.includes('hrd') &&
+        !r.includes('finance') &&
+        !idUpper.startsWith('OWN-') &&
+        !idUpper.startsWith('MNG-')
+      );
+    })
+    .map(s => ({
+      ...s,
+      staff_name: s.staff_name || (s.first_name ? `${s.first_name} ${s.last_name || ''}`.trim() : s.staff_id)
+    }));
 
   // Filter agar staf tidak memilih dirinya sendiri
   return formatted.filter(s => String(s.staff_id) !== String(currentStaffId));
