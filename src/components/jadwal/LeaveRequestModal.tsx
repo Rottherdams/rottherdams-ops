@@ -183,7 +183,7 @@ export default function LeaveRequestModal({
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 ${
+      className={`fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 sm:p-4 overflow-y-auto ${
         isClosing ? 'animate-backdrop-out' : 'animate-backdrop-in'
       }`}
     >
@@ -205,28 +205,28 @@ export default function LeaveRequestModal({
       `}</style>
 
       <div
-        className={`bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl border border-neutral-100 text-left my-auto ${
+        className={`bg-white rounded-3xl p-4 sm:p-6 w-full max-w-md shadow-2xl border border-neutral-100 text-left my-auto max-h-[92vh] overflow-y-auto no-scrollbar ${
           isClosing ? 'animate-modal-out' : 'animate-modal-in'
         }`}
       >
-        <div className="flex justify-between items-center mb-4 pb-3 border-b border-neutral-100">
+        <div className="flex justify-between items-center mb-3 pb-2.5 border-b border-neutral-100">
           <div>
-            <span className="text-[10px] uppercase font-extrabold text-[#d22027] tracking-wider">
+            <span className="text-[9px] sm:text-[10px] uppercase font-extrabold text-[#d22027] tracking-wider">
               Form Pengajuan Resmi
             </span>
-            <h3 className="text-lg font-black text-[#111111]">Pengajuan Cuti / Izin / Sakit</h3>
+            <h3 className="text-base sm:text-lg font-black text-[#111111] leading-tight">Pengajuan Cuti / Izin / Sakit</h3>
           </div>
           <button
             onClick={handleAnimatedClose}
-            className="w-8 h-8 rounded-full bg-neutral-100 text-neutral-400 font-bold hover:bg-neutral-200 transition cursor-pointer flex items-center justify-center text-xs active:scale-90"
+            className="w-7 h-7 rounded-full bg-neutral-100 text-neutral-400 font-bold hover:bg-neutral-200 transition cursor-pointer flex items-center justify-center text-xs shrink-0 active:scale-90"
           >
             ✕
           </button>
         </div>
 
-        <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-2xl flex justify-between items-center">
+        <div className="mb-3.5 p-3 bg-purple-50 border border-purple-200 rounded-2xl flex justify-between items-center">
           <div>
-            <p className="text-[10px] uppercase font-bold text-purple-600">Sisa Kuota Cuti Tahunan</p>
+            <p className="text-[9px] uppercase font-bold text-purple-600">Sisa Kuota Cuti Tahunan</p>
             <p className="text-xs font-black text-purple-900">{currentUser?.name}</p>
             {currentUser?.role && (
               <p className="text-[9px] font-bold text-purple-700 capitalize">
@@ -234,24 +234,24 @@ export default function LeaveRequestModal({
               </p>
             )}
           </div>
-          <span className="text-sm font-black text-purple-700 bg-purple-100 px-3 py-1 rounded-xl">
+          <span className="text-xs sm:text-sm font-black text-purple-700 bg-purple-100 px-2.5 py-1 rounded-xl shrink-0">
             {leaveQuota} Hari
           </span>
         </div>
 
         {errorMessage && (
-          <div className="mb-3 rounded-2xl bg-red-50 p-3 text-xs text-red-600 font-bold border border-red-200">
+          <div className="mb-3 rounded-2xl bg-red-50 p-2.5 text-xs text-red-600 font-bold border border-red-200">
             ⚠️ {errorMessage}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4 text-xs">
+        <form onSubmit={handleSubmit} className="space-y-3 text-xs">
           <div>
             <label className="block font-bold text-neutral-700 mb-1">Jenis Pengajuan:</label>
             <select
               value={leaveType}
               onChange={(e) => setLeaveType(e.target.value as any)}
-              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2.5 font-bold text-neutral-800 focus:outline-none focus:border-[#d22027]"
+              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 font-bold text-neutral-800 focus:outline-none focus:border-[#d22027]"
               required
             >
               <option value="Cuti">🟣 Cuti Resmi Tahunan (Memotong Kuota)</option>
@@ -260,7 +260,7 @@ export default function LeaveRequestModal({
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
             <div>
               <label className="block font-bold text-neutral-700 mb-1">Tanggal Mulai</label>
               <input
@@ -286,11 +286,11 @@ export default function LeaveRequestModal({
           <div>
             <label className="block font-bold text-neutral-700 mb-1">Alasan / Keterangan</label>
             <textarea
-              rows={3}
+              rows={2}
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               placeholder="Berikan alasan singkat..."
-              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2 font-medium text-neutral-800 focus:outline-none focus:border-[#d22027]"
+              className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 font-medium text-neutral-800 focus:outline-none focus:border-[#d22027]"
               required
             />
           </div>
@@ -300,24 +300,24 @@ export default function LeaveRequestModal({
               <label className="block font-bold text-neutral-700">
                 Lampiran (Surat Dokter / Bukti)
               </label>
-              <span className="text-[10px] font-bold text-neutral-400">Max 5MB</span>
+              <span className="text-[9px] font-bold text-neutral-400">Max 5MB</span>
             </div>
             <input
               type="file"
               accept=".jpg,.jpeg,.png,.webp,.pdf"
               onChange={handleFileChange}
-              className="w-full text-xs text-neutral-500 file:mr-3 file:rounded-xl file:border-0 file:bg-neutral-100 file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-neutral-700 hover:file:bg-neutral-200 cursor-pointer"
+              className="w-full text-xs text-neutral-500 file:mr-2.5 file:rounded-xl file:border-0 file:bg-neutral-100 file:px-2.5 file:py-1 file:text-[11px] file:font-bold file:text-neutral-700 hover:file:bg-neutral-200 cursor-pointer"
             />
             {previewImageUrl && (
               <button
                 type="button"
                 onClick={() => setIsPreviewOpen(true)}
-                className="mt-2 text-[11px] font-bold text-[#d22027] hover:underline flex items-center gap-1 cursor-pointer"
+                className="mt-1.5 text-[10px] font-bold text-[#d22027] hover:underline flex items-center gap-1 cursor-pointer"
               >
                 🔍 Lihat Pratinjau Lampiran
               </button>
             )}
-            <p className="mt-1 text-[10px] text-neutral-400">
+            <p className="mt-1 text-[9px] text-neutral-400">
               Format yang didukung: JPG, PNG, WEBP, PDF
             </p>
           </div>
@@ -326,14 +326,14 @@ export default function LeaveRequestModal({
             <button
               type="button"
               onClick={handleAnimatedClose}
-              className="flex-1 py-3 bg-neutral-100 text-neutral-600 font-bold rounded-xl hover:bg-neutral-200 transition cursor-pointer text-xs active:scale-95"
+              className="flex-1 py-2.5 bg-neutral-100 text-neutral-600 font-bold rounded-xl hover:bg-neutral-200 transition cursor-pointer text-xs active:scale-95"
               disabled={loading}
             >
               Batal
             </button>
             <button
               type="submit"
-              className="flex-1 py-3 bg-[#d22027] text-white font-bold rounded-xl hover:bg-[#b81b21] transition cursor-pointer shadow-md disabled:opacity-50 text-xs active:scale-95"
+              className="flex-1 py-2.5 bg-[#d22027] text-white font-bold rounded-xl hover:bg-[#b81b21] transition cursor-pointer shadow-md disabled:opacity-50 text-xs active:scale-95"
               disabled={loading}
             >
               {loading ? 'Mengirim...' : 'Kirim Pengajuan'}

@@ -4,7 +4,6 @@ import StaffSummaryCards from './staff/StaffSummaryCards';
 import StaffFormModal from './staff/StaffFormModal';
 import type { StaffItem } from './staff/StaffFormModal';
 
-// 🌟 IMPORT UTILS STAF MODULAR
 import { getSortPriority, generateNextStaffId, checkIsManagement } from '../utils/staffHelpers';
 
 interface CurrentUser {
@@ -20,23 +19,8 @@ interface DaftarKaryawanProps {
 type SortField = 'staff_id' | 'staff_name' | 'role' | 'status';
 type SortOrder = 'asc' | 'desc';
 
-const INITIAL_STAFF: StaffItem[] = [
-  { staff_id: 'OWN-001', staff_name: 'Iqbal', first_name: 'Iqbal', last_name: '', role: 'owner', status: 'Aktif' },
-  { staff_id: 'OWN-002', staff_name: 'Gilang', first_name: 'Gilang', last_name: '', role: 'owner', status: 'Aktif' },
-  { staff_id: 'MNG-001', staff_name: 'Renal', first_name: 'Renal', last_name: '', role: 'management', status: 'Aktif' },
-  { staff_id: 'STF-001', staff_name: 'Yusuf', first_name: 'Yusuf', last_name: '', role: 'dapur', status: 'Aktif' },
-  { staff_id: 'STF-002', staff_name: 'Indah', first_name: 'Indah', last_name: '', role: 'dapur', status: 'Aktif' },
-  { staff_id: 'STF-003', staff_name: 'Tika', first_name: 'Tika', last_name: '', role: 'dapur', status: 'Aktif' },
-  { staff_id: 'STF-004', staff_name: 'Rico', first_name: 'Rico', last_name: '', role: 'bar', status: 'Aktif' },
-  { staff_id: 'STF-005', staff_name: 'Jamil', first_name: 'Jamil', last_name: '', role: 'bar', status: 'Aktif' },
-  { staff_id: 'STF-006', staff_name: 'Opang', first_name: 'Opang', last_name: '', role: 'bar', status: 'Aktif' },
-  { staff_id: 'STF-007', staff_name: 'Alya', first_name: 'Alya', last_name: '', role: 'kasir', status: 'Resign' },
-  { staff_id: 'STF-008', staff_name: 'Firda', first_name: 'Firda', last_name: '', role: 'kasir', status: 'Resign' },
-  { staff_id: 'STF-009', staff_name: 'Cece', first_name: 'Cece', last_name: '', role: 'kasir', status: 'Aktif' },
-];
-
 export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
-  const [staffList, setStaffList] = useState<StaffItem[]>(INITIAL_STAFF);
+  const [staffList, setStaffList] = useState<StaffItem[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -58,12 +42,10 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
 
   const [editingStaff, setEditingStaff] = useState<StaffItem | null>(null);
 
-  // State Nilai Animasi Counter
   const [animatedTotal, setAnimatedTotal] = useState(0);
   const [animatedActive, setAnimatedActive] = useState(0);
   const [animatedResign, setAnimatedResign] = useState(0);
 
-  // State Kontrol Kemunculan Card 2 & 3
   const [showCard2, setShowCard2] = useState(false);
   const [showCard3, setShowCard3] = useState(false);
 
@@ -77,7 +59,6 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
   const activeTarget = staffList.filter(s => s.status === 'Aktif').length;
   const resignTarget = staffList.filter(s => s.status === 'Resign').length;
 
-  // Animasi Counter Sequential
   useEffect(() => {
     if (loading || totalTarget === 0) return;
 
@@ -88,7 +69,7 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     setShowCard3(false);
 
     let start1: number | null = null;
-    const duration1 = 500;
+    const duration1 = 400;
 
     const animateTotal = (ts: number) => {
       if (!start1) start1 = ts;
@@ -100,42 +81,9 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
       } else {
         setAnimatedTotal(totalTarget);
         setShowCard2(true);
-        setTimeout(() => {
-          let start2: number | null = null;
-          const duration2 = 500;
-
-          const animateActive = (ts2: number) => {
-            if (!start2) start2 = ts2;
-            const p2 = Math.min((ts2 - start2) / duration2, 1);
-            const currentVal = Math.round(totalTarget - p2 * (totalTarget - activeTarget));
-            setAnimatedActive(currentVal);
-
-            if (p2 < 1) {
-              requestAnimationFrame(animateActive);
-            } else {
-              setAnimatedActive(activeTarget);
-              setShowCard3(true);
-              setTimeout(() => {
-                let start3: number | null = null;
-                const duration3 = 400;
-
-                const animateResign = (ts3: number) => {
-                  if (!start3) start3 = ts3;
-                  const p3 = Math.min((ts3 - start3) / duration3, 1);
-                  setAnimatedResign(Math.floor(p3 * resignTarget));
-
-                  if (p3 < 1) {
-                    requestAnimationFrame(animateResign);
-                  } else {
-                    setAnimatedResign(resignTarget);
-                  }
-                };
-                requestAnimationFrame(animateResign);
-              }, 50);
-            }
-          };
-          requestAnimationFrame(animateActive);
-        }, 50);
+        setAnimatedActive(activeTarget);
+        setShowCard3(true);
+        setAnimatedResign(resignTarget);
       }
     };
 
@@ -178,11 +126,6 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     e.preventDefault();
     if (!newFirstName.trim() || !newStaffPin.trim()) {
       setErrorMsg('Nama Depan dan PIN wajib diisi!');
-      return;
-    }
-
-    if (newStaffPin.length < 4) {
-      setErrorMsg('PIN minimal 4 digit angka!');
       return;
     }
 
@@ -276,50 +219,28 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     if (error) {
       alert('Gagal mengedit status karyawan: ' + error.message);
       fetchStaff();
-    } else {
-      if (newStatus === 'Resign') {
-        alert(`🔒 Status diubah ke Resign. PIN staf diubah otomatis menjadi "xxxx".`);
-      } else if (newStatus === 'Aktif') {
-        alert(`🟢 Staf kembali Aktif. PIN diset ke default "0000".`);
-      }
     }
   };
 
   const handleResetPin = async (staff_id: string, staff_name: string) => {
     const newPin = prompt(`Masukkan PIN baru untuk ${staff_name}:`);
-    if (!newPin || newPin.trim().length < 4) {
-      alert('Reset PIN dibatalkan atau kurang dari 4 digit.');
-      return;
-    }
+    if (!newPin || newPin.trim().length < 4) return;
 
     const { error } = await supabase
       .from('staff')
       .update({ pin: newPin.trim() })
       .eq('staff_id', staff_id);
 
-    if (error) {
-      alert(`Gagal mereset PIN: ${error.message}`);
-    } else {
-      alert(`✅ PIN ${staff_name} berhasil diperbarui menjadi ${newPin.trim()}!`);
+    if (!error) {
+      alert(`✅ PIN ${staff_name} diperbarui!`);
       fetchStaff();
-    }
-  };
-
-  const handleSort = (field: SortField) => {
-    if (sortBy === field) {
-      setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortBy(field);
-      setSortOrder('asc');
     }
   };
 
   const filteredStaffList = staffList.filter(s => 
     (s.staff_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (s.first_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (s.last_name || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (s.staff_id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (s.phone_number || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
     (s.role || '').toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -345,21 +266,7 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
   });
 
   return (
-    <div className="space-y-6 text-left">
-      <style>{`
-        @keyframes cardPopIn {
-          0% { opacity: 0; transform: scale(0.88) translateY(12px); }
-          100% { opacity: 1; transform: scale(1) translateY(0); }
-        }
-        @keyframes tableRowSlideIn {
-          0% { opacity: 0; transform: translateY(14px); }
-          100% { opacity: 1; transform: translateY(0); }
-        }
-        .animate-card-pop { animation: cardPopIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
-        .animate-table-box { animation: cardPopIn 0.45s cubic-bezier(0.16, 1, 0.3, 1) 1.4s forwards; opacity: 0; }
-      `}</style>
-
-      {/* 🌟 SUB-KOMPONEN 1: KARTU RINGKASAN STAF */}
+    <div className="space-y-4 sm:space-y-6 text-left">
       <StaffSummaryCards
         animatedTotal={animatedTotal}
         animatedActive={animatedActive}
@@ -368,34 +275,32 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
         showCard3={showCard3}
       />
 
-      {/* TABEL DATA KARYAWAN */}
-      <div className="bg-white rounded-3xl p-6 md:p-8 shadow-sm border border-neutral-100 animate-table-box">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-6 pb-4 border-b border-neutral-100">
+      <div className="bg-white rounded-3xl p-4 sm:p-6 md:p-8 shadow-sm border border-neutral-100">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-3 mb-5 pb-4 border-b border-neutral-100">
           <div>
-            <h2 className="text-xl font-black text-[#111111]">Daftar & Data Karyawan Rottherdams</h2>
+            <h2 className="text-lg sm:text-xl font-black text-[#111111]">Daftar Karyawan Rottherdams</h2>
             <p className="text-xs text-neutral-400 mt-0.5">
-              Kelola data diri, kontak WA, integrasi Telegram Bot, PIN, dan status staf.
+              Kelola data diri, kontak WA, PIN, dan status staf.
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto">
-            <div className="flex items-center gap-2 bg-neutral-50 p-1.5 rounded-2xl border border-neutral-200">
-              <span className="text-[11px] font-bold text-neutral-500 pl-2">Urutkan:</span>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 w-full md:w-auto">
+            <div className="flex items-center gap-1.5 bg-neutral-50 p-1.5 rounded-2xl border border-neutral-200 justify-between sm:justify-start">
+              <span className="text-[10px] font-bold text-neutral-500 pl-1">Urutan:</span>
               <select
                 value={sortBy}
                 onChange={e => setSortBy(e.target.value as SortField)}
-                className="bg-white px-3 py-1.5 rounded-xl border border-neutral-200 text-xs font-bold text-[#111111] focus:outline-none cursor-pointer"
+                className="bg-white px-2.5 py-1 rounded-xl border border-neutral-200 text-xs font-bold text-[#111111] focus:outline-none cursor-pointer"
               >
-                <option value="staff_id">ID Staf (Default)</option>
-                <option value="staff_name">Nama Staf</option>
-                <option value="role">Divisi / Role</option>
-                <option value="status">Status Pegawai</option>
+                <option value="staff_id">ID Staf</option>
+                <option value="staff_name">Nama</option>
+                <option value="role">Divisi</option>
+                <option value="status">Status</option>
               </select>
 
               <button
                 onClick={() => setSortOrder(prev => (prev === 'asc' ? 'desc' : 'asc'))}
-                className="px-2.5 py-1.5 bg-white rounded-xl border border-neutral-200 text-xs font-bold hover:bg-neutral-100 transition cursor-pointer"
-                title="Ubah Arah Urutan"
+                className="px-2 py-1 bg-white rounded-xl border border-neutral-200 text-xs font-bold cursor-pointer"
               >
                 {sortOrder === 'asc' ? '⬆️ Asc' : '⬇️ Desc'}
               </button>
@@ -404,7 +309,7 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
             {isManagementOrOwner && (
               <button
                 onClick={() => setIsAddModalOpen(true)}
-                className="px-4 py-2.5 bg-[#d22027] hover:bg-red-700 text-white rounded-2xl text-xs font-black transition cursor-pointer shadow-sm active:scale-95 flex items-center justify-center gap-1.5 whitespace-nowrap"
+                className="px-4 py-2 bg-[#d22027] hover:bg-red-700 text-white rounded-2xl text-xs font-black transition cursor-pointer shadow-sm flex items-center justify-center gap-1.5"
               >
                 <span>➕</span> Tambah Staf Baru
               </button>
@@ -418,153 +323,183 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
             placeholder="Cari Nama / HP / ID / Divisi Staf..."
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
-            className="w-full sm:w-80 px-4 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-[#d22027]"
+            className="w-full sm:w-80 px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-[#d22027]"
           />
         </div>
 
         {loading ? (
-          <p className="text-xs text-neutral-400 font-bold py-8 text-center animate-pulse">
+          <p className="text-xs text-neutral-400 font-bold py-6 text-center animate-pulse">
             Memuat data karyawan...
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead>
-                <tr className="bg-[#111111] text-white rounded-xl">
-                  <th onClick={() => handleSort('staff_id')} className="p-3.5 rounded-l-xl cursor-pointer hover:bg-neutral-800 transition select-none">
-                    ID Staf {sortBy === 'staff_id' && (sortOrder === 'asc' ? '▲' : '▼')}
-                  </th>
-                  <th onClick={() => handleSort('staff_name')} className="p-3.5 cursor-pointer hover:bg-neutral-800 transition select-none">
-                    Nama Lengkap {sortBy === 'staff_name' && (sortOrder === 'asc' ? '▲' : '▼')}
-                  </th>
-                  <th className="p-3.5">Kontak & Telegram</th>
-                  <th onClick={() => handleSort('role')} className="p-3.5 cursor-pointer hover:bg-neutral-800 transition select-none">
-                    Divisi {sortBy === 'role' && (sortOrder === 'asc' ? '▲' : '▼')}
-                  </th>
-                  <th onClick={() => handleSort('status')} className="p-3.5 cursor-pointer hover:bg-neutral-800 transition select-none">
-                    Status {sortBy === 'status' && (sortOrder === 'asc' ? '▲' : '▼')}
-                  </th>
-                  <th className="p-3.5 rounded-r-xl">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-neutral-100">
-                {sortedStaffList.map((staff, index) => {
-                  const fullName = staff.first_name 
-                    ? `${staff.first_name} ${staff.last_name || ''}`.trim()
-                    : staff.staff_name;
+          <div>
+            {/* 🌟 1. MOBIL CARD STACK VIEW (TAMPIL DI HP KECIL) */}
+            <div className="block md:hidden space-y-3">
+              {sortedStaffList.map(staff => {
+                const fullName = staff.first_name 
+                  ? `${staff.first_name} ${staff.last_name || ''}`.trim()
+                  : staff.staff_name;
 
-                  const delay = 1500 + index * 60;
+                return (
+                  <div key={staff.staff_id} className="p-3.5 bg-neutral-50/70 rounded-2xl border border-neutral-200 space-y-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex items-center gap-2.5">
+                        {staff.avatar_url ? (
+                          <img src={staff.avatar_url} alt={fullName} className="w-8 h-8 rounded-full object-cover shrink-0" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-bold text-xs shrink-0">
+                            {staff.first_name?.[0] || staff.staff_name[0]}
+                          </div>
+                        )}
+                        <div>
+                          <p className="font-extrabold text-xs text-[#111111]">{fullName}</p>
+                          <p className="text-[10px] text-neutral-400 font-mono">{staff.staff_id} • {staff.role?.replace('_', ' ')}</p>
+                        </div>
+                      </div>
 
-                  return (
-                    <tr
-                      key={staff.staff_id}
-                      className="hover:bg-neutral-50 transition"
-                      style={{
-                        animation: `tableRowSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) ${delay}ms forwards`,
-                        opacity: 0,
-                      }}
-                    >
-                      <td className="p-3.5 font-mono text-neutral-400 font-bold">{staff.staff_id}</td>
-                      <td className="p-3.5">
-                        <div className="flex items-center gap-2.5">
-                          {staff.avatar_url ? (
-                            <img
-                              src={staff.avatar_url}
-                              alt={fullName}
-                              className="w-7 h-7 rounded-full object-cover border border-neutral-200"
-                            />
-                          ) : (
-                            <div className="w-7 h-7 rounded-full bg-neutral-200 text-neutral-600 flex items-center justify-center font-bold text-[10px]">
-                              {staff.first_name?.[0] || staff.staff_name[0]}
-                            </div>
-                          )}
-                          <div>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[9px] font-black border ${
+                          staff.status === 'Aktif'
+                            ? 'bg-emerald-50 text-emerald-600 border-emerald-200'
+                            : staff.status === 'Resign'
+                            ? 'bg-red-50 text-red-600 border-red-200'
+                            : 'bg-amber-50 text-amber-600 border-amber-200'
+                        }`}
+                      >
+                        {staff.status}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-center pt-2 border-t border-neutral-200/60 text-xs">
+                      <div className="text-[10px] text-neutral-500">
+                        {staff.phone_number ? `📱 ${staff.phone_number}` : 'Belum ada No HP'}
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <select
+                          value={staff.status}
+                          onChange={e => handleStatusChange(staff.staff_id, e.target.value as StaffItem['status'])}
+                          className="bg-white border border-neutral-200 rounded-lg px-2 py-1 text-[10px] font-bold text-neutral-700"
+                        >
+                          <option value="Aktif">🟢 Aktif</option>
+                          <option value="Cuti">🟡 Cuti</option>
+                          <option value="Izin">🔵 Izin</option>
+                          <option value="Resign">🔴 Resign</option>
+                        </select>
+
+                        {isManagementOrOwner && (
+                          <>
+                            <button
+                              onClick={() => setEditingStaff(staff)}
+                              className="px-2 py-1 bg-white border border-neutral-200 rounded-lg text-[10px] font-bold"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={() => handleResetPin(staff.staff_id, staff.staff_name)}
+                              className="px-2 py-1 bg-white border border-neutral-200 rounded-lg text-[10px] font-bold"
+                            >
+                              🔑
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 🌟 2. TABLE DESKTOP / TABLET VIEW */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-[#111111] text-white rounded-xl">
+                    <th className="p-3.5 rounded-l-xl">ID Staf</th>
+                    <th className="p-3.5">Nama Lengkap</th>
+                    <th className="p-3.5">Kontak</th>
+                    <th className="p-3.5">Divisi</th>
+                    <th className="p-3.5">Status</th>
+                    <th className="p-3.5 rounded-r-xl">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-neutral-100">
+                  {sortedStaffList.map((staff) => {
+                    const fullName = staff.first_name 
+                      ? `${staff.first_name} ${staff.last_name || ''}`.trim()
+                      : staff.staff_name;
+
+                    return (
+                      <tr key={staff.staff_id} className="hover:bg-neutral-50 transition">
+                        <td className="p-3.5 font-mono text-neutral-400 font-bold">{staff.staff_id}</td>
+                        <td className="p-3.5">
+                          <div className="flex items-center gap-2.5">
+                            {staff.avatar_url ? (
+                              <img src={staff.avatar_url} alt={fullName} className="w-7 h-7 rounded-full object-cover" />
+                            ) : (
+                              <div className="w-7 h-7 rounded-full bg-neutral-200 text-neutral-600 flex items-center justify-center font-bold text-[10px]">
+                                {staff.first_name?.[0] || staff.staff_name[0]}
+                              </div>
+                            )}
                             <p className="font-bold text-[#111111]">{fullName}</p>
-                            {staff.first_name && (
-                              <p className="text-[10px] text-neutral-400">Roster: {staff.staff_name}</p>
+                          </div>
+                        </td>
+                        <td className="p-3.5 font-mono text-neutral-600">{staff.phone_number || '-'}</td>
+                        <td className="p-3.5 font-semibold capitalize">{staff.role.replace('_', ' ')}</td>
+                        <td className="p-3.5">
+                          <span
+                            className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
+                              staff.status === 'Aktif'
+                                ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
+                                : staff.status === 'Resign'
+                                ? 'bg-red-50 text-red-600 border border-red-200'
+                                : 'bg-amber-50 text-amber-600 border border-amber-200'
+                            }`}
+                          >
+                            {staff.status}
+                          </span>
+                        </td>
+                        <td className="p-3.5">
+                          <div className="flex items-center gap-1.5">
+                            <select
+                              value={staff.status}
+                              onChange={e => handleStatusChange(staff.staff_id, e.target.value as StaffItem['status'])}
+                              className="bg-neutral-50 border border-neutral-200 rounded-xl px-2 py-1 text-xs font-bold text-neutral-700"
+                            >
+                              <option value="Aktif">🟢 Aktif</option>
+                              <option value="Cuti">🟡 Cuti</option>
+                              <option value="Izin">🔵 Izin</option>
+                              <option value="Resign">🔴 Resign</option>
+                            </select>
+
+                            {isManagementOrOwner && (
+                              <>
+                                <button
+                                  onClick={() => setEditingStaff(staff)}
+                                  className="px-2 py-1 bg-neutral-100 hover:bg-neutral-200 rounded-xl text-xs font-bold"
+                                >
+                                  ✏️
+                                </button>
+                                <button
+                                  onClick={() => handleResetPin(staff.staff_id, staff.staff_name)}
+                                  className="px-2 py-1 bg-neutral-100 hover:bg-neutral-200 rounded-xl text-xs font-bold"
+                                >
+                                  🔑
+                                </button>
+                              </>
                             )}
                           </div>
-                        </div>
-                      </td>
-                      <td className="p-3.5">
-                        <div className="space-y-0.5">
-                          {staff.phone_number ? (
-                            <p className="text-neutral-700 font-mono text-[11px]">📱 {staff.phone_number}</p>
-                          ) : (
-                            <p className="text-neutral-300 text-[10px]">Belum ada No HP</p>
-                          )}
-
-                          {staff.telegram_chat_id ? (
-                            <span className="inline-flex items-center gap-1 text-[9px] font-bold text-sky-600 bg-sky-50 px-1.5 py-0.2 rounded border border-sky-100">
-                              🤖 Telegram Ready
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[9px] text-neutral-400">
-                              ⚪ Telegram Disconnected
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="p-3.5 text-neutral-500 font-semibold capitalize">{staff.role.replace('_', ' ')}</td>
-                      <td className="p-3.5">
-                        <span
-                          className={`px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
-                            staff.status === 'Aktif'
-                              ? 'bg-emerald-50 text-emerald-600 border border-emerald-200'
-                              : staff.status === 'Resign'
-                              ? 'bg-red-50 text-red-600 border border-red-200'
-                              : 'bg-amber-50 text-amber-600 border border-amber-200'
-                          }`}
-                        >
-                          {staff.status}
-                        </span>
-                      </td>
-                      <td className="p-3.5">
-                        <div className="flex items-center gap-1.5">
-                          <select
-                            value={staff.status}
-                            onChange={e =>
-                              handleStatusChange(staff.staff_id, e.target.value as StaffItem['status'])
-                            }
-                            className="bg-neutral-50 border border-neutral-200 rounded-xl px-2 py-1 text-xs font-bold text-neutral-700 focus:outline-none focus:border-[#d22027] cursor-pointer"
-                          >
-                            <option value="Aktif">🟢 Aktif</option>
-                            <option value="Cuti">🟡 Cuti</option>
-                            <option value="Izin">🔵 Izin</option>
-                            <option value="Resign">🔴 Resign</option>
-                          </select>
-
-                          {isManagementOrOwner && (
-                            <>
-                              <button
-                                onClick={() => setEditingStaff(staff)}
-                                title="Edit Detail Data Staf"
-                                className="px-2 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl text-xs font-bold transition cursor-pointer"
-                              >
-                                ✏️
-                              </button>
-
-                              <button
-                                onClick={() => handleResetPin(staff.staff_id, staff.staff_name)}
-                                title="Reset PIN Staf"
-                                className="px-2 py-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 rounded-xl text-xs font-bold transition cursor-pointer"
-                              >
-                                🔑
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
       </div>
 
-      {/* 🌟 SUB-KOMPONEN 2: MODAL FORM TAMBAH & EDIT KARYAWAN */}
       <StaffFormModal
         isAddModalOpen={isAddModalOpen}
         onCloseAddModal={handleCloseAddModal}

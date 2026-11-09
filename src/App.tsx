@@ -68,6 +68,8 @@ export default function App() {
   const [isClosingAvatarPreview, setIsClosingAvatarPreview] = useState<boolean>(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isClosingUserMenu, setIsClosingUserMenu] = useState(false);
+  
+  // 🌟 State Drawer "Lainnya" Mobile
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false); 
   const [isClosingMoreMenu, setIsClosingMoreMenu] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState<boolean>(false);
@@ -220,12 +222,13 @@ export default function App() {
     }
   };
 
+  // 🌟 PENUTUPAN MEMBAL PENUH PRESISI (250ms)
   const handleCloseMoreMenu = () => {
     setIsClosingMoreMenu(true);
     setTimeout(() => {
       setIsMoreMenuOpen(false);
       setIsClosingMoreMenu(false);
-    }, 300);
+    }, 250);
   };
 
   const handleNavChange = (newNav: typeof activeNav) => {
@@ -352,15 +355,40 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#ffffff] text-[#111111] font-sans antialiased flex flex-col justify-between pb-20 md:pb-0 selection:bg-[#d22027] selection:text-white">
+      {/* 🌟 STYLES ANIMASI IN & OUT SEIMBANG UNTUK MENU LAINNYA */}
       <style>{`
         @keyframes menuDropdownIn { 0% { opacity: 0; transform: scale(0.95) translateY(-8px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
         @keyframes menuDropdownOut { 0% { opacity: 1; transform: scale(1) translateY(0); } 100% { opacity: 0; transform: scale(0.95) translateY(-8px); } }
         @keyframes avatarModalIn { 0% { opacity: 0; transform: scale(0.85); } 100% { opacity: 1; transform: scale(1); } }
         @keyframes avatarModalOut { 0% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(0.85); } }
+        
+        /* 🚀 KEYFRAMES ANIMASI MEMBAL BOTTOM SHEET "LAINNYA" */
+        @keyframes sheetSlideIn {
+          0% { transform: translateY(100%); opacity: 0; }
+          100% { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes sheetSlideOut {
+          0% { transform: translateY(0); opacity: 1; }
+          100% { transform: translateY(100%); opacity: 0; }
+        }
+        @keyframes backdropFadeIn {
+          0% { opacity: 0; backdrop-filter: blur(0px); }
+          100% { opacity: 1; backdrop-filter: blur(4px); }
+        }
+        @keyframes backdropFadeOut {
+          0% { opacity: 1; backdrop-filter: blur(4px); }
+          100% { opacity: 0; backdrop-filter: blur(0px); }
+        }
+
         .user-dropdown-in { animation: menuDropdownIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .user-dropdown-out { animation: menuDropdownOut 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .avatar-modal-in { animation: avatarModalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .avatar-modal-out { animation: avatarModalOut 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+
+        .sheet-in { animation: sheetSlideIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .sheet-out { animation: sheetSlideOut 0.25s cubic-bezier(0.7, 0, 0.84, 0) forwards; }
+        .backdrop-in { animation: backdropFadeIn 0.3s ease-out forwards; }
+        .backdrop-out { animation: backdropFadeOut 0.25s ease-in forwards; }
       `}</style>
 
       <div>
@@ -401,7 +429,6 @@ export default function App() {
           onOpenAvatarPreview={() => setIsAvatarPreviewOpen(true)}
         />
 
-        {/* 🌟 SPACING DISESUAIKAN UNTUK HP (px-3.5 sm:px-5) AGAR LAYAR HP SEMPIT TIDAK KETAT */}
         <main className="max-w-md md:max-w-4xl mx-auto px-3.5 sm:px-5 py-4 sm:py-6 md:py-10">
           <section className="mb-5 md:mb-8 border-b border-neutral-100 pb-4 md:pb-6 text-left">
             <p className="text-[10px] sm:text-[11px] md:text-xs font-bold uppercase tracking-widest text-[#d22027] mb-1">System Management</p>
@@ -519,7 +546,6 @@ export default function App() {
 
                 {currentUser && <div className="mb-6 sm:mb-8"><AnnouncementBanner currentUser={currentUser as any} /></div>}
 
-                {/* 🌟 PENATAAN KARTU TIM ON-DUTY TERLINDUNGI OVERFLOW */}
                 {onDutyList.length > 0 && (
                   <div className="bg-neutral-50 rounded-3xl p-4 sm:p-5 border border-neutral-200 mb-6 sm:mb-8 text-left">
                     <div className="flex items-center justify-between mb-3">
@@ -550,7 +576,6 @@ export default function App() {
 
                 {currentUser && <SopChecklist activeShift={activeTab} currentUser={currentUser as any} />}
 
-                {/* 🌟 KARTU QUICK NAVIGASI RESPONSIF HP & DESKTOP */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 md:gap-5 mt-6 sm:mt-8 text-left">
                   {currentUser && (
                     <>
@@ -617,25 +642,31 @@ export default function App() {
               </button>
             </>
           )}
-          <button onClick={() => setIsMoreMenuOpen(true)} className={`flex flex-col items-center gap-0.5 cursor-pointer transition ${['jadwal', 'dashboard', 'karyawan', 'handover'].includes(activeNav) ? 'text-[#d22027]' : 'text-neutral-400 hover:text-neutral-700'}`}>
+          <button 
+            onClick={() => {
+              setIsClosingMoreMenu(false);
+              setIsMoreMenuOpen(true);
+            }} 
+            className={`flex flex-col items-center gap-0.5 cursor-pointer transition ${['jadwal', 'dashboard', 'karyawan', 'handover'].includes(activeNav) ? 'text-[#d22027]' : 'text-neutral-400 hover:text-neutral-700'}`}
+          >
             <span className="text-lg leading-none">⚡</span>
             <span className="text-[10px] font-bold">Lainnya</span>
           </button>
         </div>
       </nav>
 
-      {/* Drawer Menu "Lainnya" Transisi Membal Smooth */}
-      {isMoreMenuOpen && (
+      {/* 🌟 DRAWER MENU "LAINNYA" MOBILE DENGAN ANIMASI FADE-IN BACKDROP & SPRING SLIDE-IN SHEET */}
+      {isMoreMenuOpen && createPortal(
         <div 
           onClick={handleCloseMoreMenu}
-          className={`md:hidden fixed inset-0 z-[999] bg-black/60 backdrop-blur-xs flex items-end transition-opacity duration-300 ease-out ${
-            isClosingMoreMenu ? 'opacity-0' : 'opacity-100'
+          className={`md:hidden fixed inset-0 z-[9999] bg-black/60 flex items-end justify-center ${
+            isClosingMoreMenu ? 'backdrop-out' : 'backdrop-in'
           }`}
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className={`w-full bg-white rounded-t-3xl p-6 space-y-4 border-t border-neutral-100 shadow-2xl transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
-              isClosingMoreMenu ? 'translate-y-full' : 'translate-y-0'
+            className={`w-full max-w-md bg-white rounded-t-3xl p-6 space-y-4 border-t border-neutral-100 shadow-2xl ${
+              isClosingMoreMenu ? 'sheet-out' : 'sheet-in'
             }`}
           >
             <div className="flex justify-between items-center pb-2 border-b border-neutral-100">
@@ -651,7 +682,7 @@ export default function App() {
             <div className="grid grid-cols-3 gap-3 pt-2 text-left">
               <button 
                 onClick={() => { handleNavChange('jadwal'); handleCloseMoreMenu(); }} 
-                className="p-3 bg-neutral-50 hover:bg-neutral-100 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
+                className="p-3.5 bg-neutral-50 hover:bg-neutral-100 active:bg-neutral-200 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
               >
                 <span className="text-2xl">📅</span>
                 <span className="text-[11px] font-bold text-neutral-800">Jadwal Staf</span>
@@ -660,7 +691,7 @@ export default function App() {
               {currentUser && (
                 <button 
                   onClick={() => { handleNavChange('handover'); handleCloseMoreMenu(); }} 
-                  className="p-3 bg-neutral-50 hover:bg-neutral-100 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
+                  className="p-3.5 bg-neutral-50 hover:bg-neutral-100 active:bg-neutral-200 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
                 >
                   <span className="text-2xl">📝</span>
                   <span className="text-[11px] font-bold text-neutral-800">Handover Log</span>
@@ -671,14 +702,14 @@ export default function App() {
                 <>
                   <button 
                     onClick={() => { handleNavChange('dashboard'); handleCloseMoreMenu(); }} 
-                    className="p-3 bg-neutral-50 hover:bg-neutral-100 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
+                    className="p-3.5 bg-neutral-50 hover:bg-neutral-100 active:bg-neutral-200 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
                   >
                     <span className="text-2xl">📊</span>
                     <span className="text-[11px] font-bold text-neutral-800">Analytics</span>
                   </button>
                   <button 
                     onClick={() => { handleNavChange('karyawan'); handleCloseMoreMenu(); }} 
-                    className="p-3 bg-neutral-50 hover:bg-neutral-100 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
+                    className="p-3.5 bg-neutral-50 hover:bg-neutral-100 active:bg-neutral-200 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
                   >
                     <span className="text-2xl">👥</span>
                     <span className="text-[11px] font-bold text-neutral-800">Daftar Staf</span>
@@ -687,7 +718,8 @@ export default function App() {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Pop-up Preview Foto Profil */}

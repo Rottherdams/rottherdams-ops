@@ -19,15 +19,37 @@
   --font-sans: 'PlusJakartaSans', sans-serif;
 }
 
-body {
-  font-family: var(--font-sans);
+/* 2. Lock Overscroll & Pull-to-Refresh untuk Mobile Webkit */
+html, body {
   margin: 0;
   padding: 0;
+  width: 100%;
+  min-height: 100%;
+  overscroll-behavior-y: none; /* Mencegah rubber-band bouncing saat di-drag di HP */
+  overscroll-behavior-x: none;
+  -webkit-overflow-scrolling: touch;
   background-color: #ffffff;
   color: #111111;
+  font-family: var(--font-sans);
+  touch-action: manipulation;
 }
 
-/* 2. Keyframes Animasi Mobile & Desktop */
+#root {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 3. Custom Utility Scrollbar Sembunyi & Halus */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* 4. Keyframes Animasi Mobile & Desktop */
 
 /* Mobile: Slide Up dari Bawah ke Atas Perlahan */
 @keyframes slideUpDrawer {
@@ -63,7 +85,7 @@ body {
   }
 }
 
-/* 3. Aturan Animasi Standar CSS (Bebas Warning di VS Code) */
+/* 5. Aturan Animasi Standar CSS */
 .animate-slide-up {
   animation: slideUpDrawer 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
   will-change: transform, opacity;

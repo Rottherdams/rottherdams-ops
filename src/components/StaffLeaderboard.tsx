@@ -146,38 +146,38 @@ export default function StaffLeaderboard() {
     .sort((a, b) => b.stats.finalPoints - a.stats.finalPoints);
 
   return (
-    <div className="bg-white rounded-3xl p-5 md:p-6 border border-neutral-200 shadow-sm text-left space-y-5">
-      <div className="flex justify-between items-center pb-3.5 border-b border-neutral-100">
+    <div className="bg-white rounded-3xl p-4 sm:p-6 border border-neutral-200 shadow-sm text-left space-y-4">
+      <div className="flex justify-between items-center pb-3 border-b border-neutral-100">
         <div>
-          <h2 className="text-base md:text-lg font-black text-[#111111] flex items-center gap-2">
-            🏆 Leaderboard & Gamification Staf
+          <h2 className="text-sm sm:text-base md:text-lg font-black text-[#111111] flex items-center gap-1.5">
+            🏆 Leaderboard Staf
           </h2>
-          <p className="text-[11px] md:text-xs text-neutral-400 mt-0.5">
-            Peringkat kedisiplinan dan kontribusi tim lapangan Rottherdams bulan ini.
+          <p className="text-[10px] sm:text-xs text-neutral-400 mt-0.5">
+            Peringkat kedisiplinan dan poin kontribusi tim.
           </p>
         </div>
-        <span className="text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1 rounded-full font-bold">
+        <span className="text-[9px] sm:text-[10px] bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-0.5 rounded-full font-bold">
           Roster Season
         </span>
       </div>
 
       {loading ? (
         <div
-          className={`py-10 flex flex-col items-center justify-center gap-3 transition-all duration-300 ease-in-out transform ${
+          className={`py-8 flex flex-col items-center justify-center gap-2 transition-all duration-300 ease-in-out transform ${
             isLoaderFadingOut ? 'opacity-0 scale-95 -translate-y-2' : 'opacity-100 scale-100 translate-y-0'
           }`}
         >
-          <div className="w-6 h-6 border-3 border-amber-500 border-t-transparent rounded-full animate-spin" />
-          <p className="text-xs font-bold text-neutral-500 animate-pulse">
-            Menghitung perolehan poin tim...
+          <div className="w-5 h-5 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-[11px] font-bold text-neutral-500 animate-pulse">
+            Menghitung poin tim...
           </p>
         </div>
       ) : rankedStaff.length === 0 ? (
-        <div className="py-8 text-center text-xs text-neutral-400">
-          Belum ada data aktivitas staf lapangan bulan ini.
+        <div className="py-6 text-center text-xs text-neutral-400">
+          Belum ada data aktivitas staf bulan ini.
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {rankedStaff.slice(0, visibleCount).map((staf, rankIdx) => {
             const rank = rankIdx + 1;
             const isTop1 = rank === 1;
@@ -187,9 +187,9 @@ export default function StaffLeaderboard() {
             return (
               <div
                 key={staf.staff_id}
-                className={`p-3.5 md:p-4 rounded-2xl border transition-all duration-500 ease-out flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 transform animate-in fade-in slide-in-from-bottom-4 ${
+                className={`p-3 sm:p-4 rounded-2xl border transition-all duration-300 flex items-center justify-between gap-2.5 ${
                   isTop1
-                    ? 'bg-amber-50/70 border-amber-300 shadow-xs'
+                    ? 'bg-amber-50/80 border-amber-300 shadow-2xs'
                     : isTop2
                     ? 'bg-slate-50 border-slate-300'
                     : isTop3
@@ -197,11 +197,12 @@ export default function StaffLeaderboard() {
                     : 'bg-white border-neutral-200'
                 }`}
               >
-                <div className="flex items-center gap-3 w-full sm:w-auto">
+                {/* 🌟 KIRI: RANK BADGE + AVATAR + DETAIL */}
+                <div className="flex items-center gap-2.5 min-w-0 flex-1">
                   <div
-                    className={`w-9 h-9 md:w-10 md:h-10 rounded-2xl flex items-center justify-center font-black text-xs md:text-sm shrink-0 ${
+                    className={`w-7 h-7 sm:w-9 sm:h-9 rounded-xl flex items-center justify-center font-black text-xs shrink-0 ${
                       isTop1
-                        ? 'bg-amber-400 text-white shadow-md'
+                        ? 'bg-amber-400 text-white shadow-xs'
                         : isTop2
                         ? 'bg-slate-300 text-slate-800'
                         : isTop3
@@ -212,54 +213,56 @@ export default function StaffLeaderboard() {
                     {isTop1 ? '🥇' : isTop2 ? '🥈' : isTop3 ? '🥉' : `#${rank}`}
                   </div>
 
-                  {staf.avatar_url ? (
-                    <img
-                      src={staf.avatar_url}
-                      alt={staf.stats.displayName}
-                      className="w-9 h-9 md:w-10 md:h-10 rounded-full object-cover border-2 border-white shadow-xs shrink-0"
-                    />
-                  ) : (
-                    <div className="w-9 h-9 md:w-10 md:h-10 rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-bold text-xs shrink-0">
-                      {staf.first_name?.[0] || staf.stats.displayName[0]}
-                    </div>
-                  )}
+                  <div className="relative shrink-0">
+                    {staf.avatar_url ? (
+                      <img
+                        src={staf.avatar_url}
+                        alt={staf.stats.displayName}
+                        className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover border border-neutral-200 shadow-2xs"
+                      />
+                    ) : (
+                      <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-bold text-xs">
+                        {staf.first_name?.[0] || staf.stats.displayName[0]}
+                      </div>
+                    )}
+                  </div>
 
-                  <div className="flex-1 min-w-0">
+                  <div className="min-w-0 flex-1 text-left">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      <h4 className="font-extrabold text-xs md:text-sm text-[#111111] truncate">
+                      <h4 className="font-black text-xs sm:text-sm text-[#111111] truncate max-w-[110px] sm:max-w-none">
                         {staf.stats.displayName}
                       </h4>
                       
-                      <span className="text-[8px] md:text-[9px] px-1.5 py-0.5 bg-neutral-100 text-neutral-600 rounded-md uppercase font-mono border border-neutral-200 capitalize shrink-0">
+                      <span className="text-[8px] sm:text-[9px] px-1.5 py-0.2 bg-neutral-100 text-neutral-600 rounded-md uppercase font-mono border border-neutral-200 truncate">
                         {staf.role?.replace(/_/g, ' ')}
                       </span>
+                    </div>
 
+                    <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
                       {isTop1 && (
-                        <span className="text-[8px] md:text-[9px] bg-amber-500 text-white font-black px-1.5 py-0.5 rounded-full shrink-0">
+                        <span className="text-[8px] bg-amber-500 text-white font-black px-1.5 py-0.2 rounded-full">
                           🏆 SOP Master
                         </span>
                       )}
                       {staf.stats.totalAlpha === 0 && (
-                        <span className="text-[8px] md:text-[9px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                        <span className="text-[8px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded-full border border-emerald-200">
                           🛡️ Perfect Attendance
                         </span>
                       )}
                     </div>
 
-                    <div className="flex gap-2.5 text-[9px] md:text-[10px] text-neutral-500 mt-0.5 font-mono">
-                      <span>🟢 Hadir: <strong>{staf.stats.totalHadir}d</strong></span>
-                      <span>📋 SOP Done: <strong>{staf.stats.totalSopDone}x</strong></span>
-                      {staf.stats.totalAlpha > 0 && (
-                        <span className="text-red-500">🔴 Alpha: <strong>{staf.stats.totalAlpha}d</strong></span>
-                      )}
+                    <div className="flex gap-2 text-[9px] text-neutral-400 font-mono mt-0.5">
+                      <span>Hadir: <strong className="text-neutral-700">{staf.stats.totalHadir}d</strong></span>
+                      <span>SOP: <strong className="text-neutral-700">{staf.stats.totalSopDone}x</strong></span>
                     </div>
                   </div>
                 </div>
 
-                <div className="text-right self-end sm:self-center shrink-0">
-                  <span className="text-[10px] text-neutral-400 font-bold block">Total Performa</span>
-                  <span className="text-base md:text-lg font-black text-[#d22027] font-mono">
-                    {staf.stats.finalPoints} <span className="text-xs text-neutral-500">Pts</span>
+                {/* 🌟 KANAN: PERFORMA POIN */}
+                <div className="text-right shrink-0">
+                  <span className="text-[9px] text-neutral-400 font-bold block">Performa</span>
+                  <span className="text-sm sm:text-base font-black text-[#d22027] font-mono leading-none">
+                    {staf.stats.finalPoints} <span className="text-[10px] text-neutral-400 font-normal">Pts</span>
                   </span>
                 </div>
               </div>

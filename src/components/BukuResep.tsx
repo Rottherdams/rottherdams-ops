@@ -271,10 +271,10 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
 
   if (isResign || (isKasir && !isManagementOrOwner && !isBar && !isDapur)) {
     return (
-      <div className="bg-white rounded-3xl p-8 border border-neutral-200 shadow-sm text-center">
-        <div className="text-4xl mb-3">🔒</div>
-        <h2 className="text-base font-extrabold text-[#111111] mb-1">Akses Buku Resep Dibatasi</h2>
-        <p className="text-xs text-neutral-500 max-w-md mx-auto">
+      <div className="bg-white rounded-3xl p-6 sm:p-8 border border-neutral-200 shadow-sm text-center">
+        <div className="text-3xl sm:text-4xl mb-2">🔒</div>
+        <h2 className="text-sm sm:text-base font-extrabold text-[#111111] mb-1">Akses Buku Resep Dibatasi</h2>
+        <p className="text-xs text-neutral-500 max-w-md mx-auto leading-relaxed">
           {isResign
             ? 'Akun Anda berstatus Resign. Akses ke dokumen dan rahasia resep perusahaan telah dinonaktifkan.'
             : 'Divisi Kasir / Support tidak diizinkan mengakses buku resep dan standar gramasi. Resep hanya dapat diakses oleh tim Barista, Kitchen, dan Management.'}
@@ -285,7 +285,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
 
   return (
     <div 
-      className="bg-white rounded-3xl p-6 border border-neutral-200 shadow-sm text-left space-y-6 relative select-none"
+      className="bg-white rounded-3xl p-4 sm:p-6 border border-neutral-200 shadow-sm text-left space-y-4 sm:space-y-6 relative select-none"
       onCopy={(e) => e.preventDefault()}
       onContextMenu={(e) => e.preventDefault()}
     >
@@ -302,7 +302,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
 
       {/* Watermark Melayang */}
       {currentUser && (
-        <div className="pointer-events-none fixed inset-0 z-30 flex flex-col justify-between p-6 opacity-[0.06] rotate-[-15deg] overflow-hidden">
+        <div className="pointer-events-none fixed inset-0 z-30 flex flex-col justify-between p-6 opacity-[0.05] rotate-[-15deg] overflow-hidden">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="flex justify-around text-xs md:text-sm font-black tracking-widest text-black whitespace-nowrap">
               <span>{currentUser.name} ({currentUser.staff_id})</span>
@@ -315,13 +315,13 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
 
       {/* Indikator Screenshot */}
       {screenshotWarning && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white px-6 py-3 rounded-2xl shadow-2xl font-bold text-xs flex items-center gap-2 animate-bounce">
-          <span>⚠️ TERDETEKSI INDIKASI SCREENSHOT!</span>
-          <span className="text-[10px] opacity-80">Aktivitas ini telah dicatat ke log audit keamanan.</span>
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white px-4 py-2.5 rounded-2xl shadow-2xl font-bold text-xs flex items-center gap-2 animate-bounce max-w-[90vw]">
+          <span>⚠️ TERDETEKSI SCREENSHOT!</span>
+          <span className="text-[10px] opacity-80 hidden sm:inline">Aktivitas dicatat di log audit.</span>
         </div>
       )}
       
-      {/* 🌟 POP-UP MODAL PERINGATAN KERAHASIAAN DOKUMEN (COMPACT UNTUK HP) */}
+      {/* POP-UP MODAL PERINGATAN KERAHASIAAN DOKUMEN */}
       {showWarningModal && createPortal(
         <div className={`fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 ${
           isClosingModal ? 'animate-backdrop-out' : 'animate-backdrop-in'
@@ -329,19 +329,19 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
           <div className={`bg-[#0f0f0f] border-2 border-red-600 rounded-3xl p-4 sm:p-6 max-w-lg w-full text-white shadow-2xl relative text-left my-auto max-h-[90vh] overflow-y-auto no-scrollbar ${
             isClosingModal ? 'animate-modal-out' : 'animate-modal-in'
           }`}>
-            <div className="flex items-center gap-1.5 mb-2.5 bg-red-600 text-white font-black text-[10px] sm:text-xs px-2.5 py-1 rounded-lg w-fit uppercase tracking-wider">
+            <div className="flex items-center gap-1.5 mb-2 bg-red-600 text-white font-black text-[10px] sm:text-xs px-2.5 py-0.5 rounded-lg w-fit uppercase tracking-wider">
               <span>⚠️</span> PERINGATAN KERAHASIAAN <span>⚠️</span>
             </div>
 
-            <h3 className="text-xs sm:text-sm font-black text-red-400 mb-1.5 leading-tight">
+            <h3 className="text-xs sm:text-sm font-black text-red-400 mb-1 leading-tight">
               DILARANG MENGAMBIL FOTO, MENYEBARKAN, ATAU MEMBAGIKAN ISI BUKU RESEP INI KEPADA PIHAK LUAR!
             </h3>
 
-            <p className="text-[10px] sm:text-xs font-bold text-neutral-200 mb-3 uppercase tracking-wide leading-snug">
+            <p className="text-[10px] sm:text-xs font-bold text-neutral-200 mb-2.5 uppercase tracking-wide leading-snug">
               SELURUH DATA GRAMASI DAN STANDAR RESEP ADALAH ASET RAHASIA DAGANG ROTTHERDAMS.
             </p>
 
-            <div className="bg-neutral-900/90 rounded-2xl p-3 border border-neutral-800 space-y-1.5 text-[10px] sm:text-xs text-neutral-300 mb-3.5">
+            <div className="bg-neutral-900/90 rounded-2xl p-3 border border-neutral-800 space-y-1 text-[10px] sm:text-xs text-neutral-300 mb-3">
               <p className="font-bold text-red-400 uppercase text-[10px]">SANKSI PIDANA & HUKUMAN:</p>
 
               <ul className="list-disc list-inside space-y-1 leading-snug text-[10px] sm:text-[11px]">
@@ -357,13 +357,13 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
               </ul>
             </div>
 
-            <p className="text-[9px] italic text-neutral-400 mb-4">
+            <p className="text-[9px] italic text-neutral-400 mb-3">
               * Aktivitas dan jejak akses akun Anda di dalam sistem ini dipantau oleh manajemen.
             </p>
 
             <button
               onClick={handleCloseWarningModal}
-              className="w-full py-3 bg-[#d22027] hover:bg-[#bb2026] active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer text-center"
+              className="w-full py-2.5 sm:py-3 bg-[#d22027] hover:bg-[#bb2026] active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer text-center"
             >
               Saya Mengerti & Setuju
             </button>
@@ -372,46 +372,24 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
         document.body
       )}
 
-      {/* Banner Kerahasiaan Header */}
-      <div className="bg-[#0f0f0f] border-2 border-red-600/80 rounded-2xl p-4 sm:p-5 text-white shadow-md">
-        <div className="flex items-center gap-2 mb-2 bg-red-600 text-white font-black text-xs sm:text-sm px-3 py-1 rounded-lg w-fit uppercase tracking-wider">
-          <span>⚠️</span> PERINGATAN KERAHASIAAN DOKUMEN <span>⚠️</span>
+      {/* Banner Ringkas Kerahasiaan Header */}
+      <div className="bg-[#0f0f0f] border border-red-600/80 rounded-2xl p-3.5 sm:p-4 text-white shadow-sm space-y-1.5">
+        <div className="flex items-center gap-1.5 bg-red-600 text-white font-black text-[9px] sm:text-[10px] px-2 py-0.5 rounded-md w-fit uppercase">
+          <span>⚠️</span> RAHASIA DAGANG ROTTHERDAMS <span>⚠️</span>
         </div>
-
-        <p className="text-xs sm:text-sm font-extrabold text-red-400 mb-2 leading-snug">
-          DILARANG MENGAMBIL FOTO, MENYEBARKAN, ATAU MEMBAGIKAN ISI BUKU RESEP INI KEPADA PIHAK LUAR!
+        <p className="text-[11px] sm:text-xs font-bold text-red-400 leading-tight">
+          Dilarang memfoto, menyebarkan, atau membagikan isi buku resep ini!
         </p>
-
-        <p className="text-[11px] sm:text-xs font-bold text-neutral-200 mb-3 uppercase tracking-wide">
-          SELURUH DATA GRAMASI DAN STANDAR RESEP DI APLIKASI INI ADALAH ASET RAHASIA DAGANG ROTTHERDAMS.
-        </p>
-
-        <div className="bg-neutral-900/90 rounded-xl p-3 border border-neutral-800 space-y-2 text-[10px] sm:text-[11px] text-neutral-300">
-          <p className="font-bold text-red-400 uppercase">SANKSI PIDANA & HUKUMAN:</p>
-
-          <ul className="list-disc list-inside space-y-1.5 leading-relaxed">
-            <li>
-              <strong className="text-white">UU No. 30 Tahun 2000 (Rahasia Dagang) Pasal 13 & 17:</strong> Membocorkan resep/rahasia bisnis diancam pidana penjara paling lama <strong className="text-red-400">2 TAHUN</strong> dan/atau denda hingga <strong className="text-red-400">Rp300.000.000,-</strong>.
-            </li>
-            <li>
-              <strong className="text-white">UU No. 1 Tahun 2024 (ITE) Pasal 32 & 48:</strong> Menyebarkan, memfoto, atau mendistribusikan data digital perusahaan tanpa hak diancam pidana penjara paling lama <strong className="text-red-400">8 TAHUN</strong> dan/atau denda hingga <strong className="text-red-400">Rp2.000.000.000,- (2 Miliar Rupiah)</strong>.
-            </li>
-            <li>
-              <strong className="text-white">Sanksi Perusahaan:</strong> Pemutusan Hubungan Kerja (PHK) seketika tanpa pesangon serta tuntutan ganti rugi perdata atas kerugian bisnis.
-            </li>
-          </ul>
-        </div>
-
-        <p className="text-[10px] italic text-neutral-400 mt-2.5">
-          * Aktivitas dan jejak akses akun Anda di dalam sistem ini dipantau oleh manajemen.
+        <p className="text-[10px] text-neutral-300 leading-snug">
+          Seluruh aktivitas pembukaan data gramasi dipantau & dicatat oleh sistem audit log internal.
         </p>
       </div>
 
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-4 border-b border-neutral-100">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pb-3 border-b border-neutral-100">
         <div>
-          <h2 className="text-lg font-black text-[#111111]">📖 Buku Resep & Standar Gramasi</h2>
-          <p className="text-xs text-neutral-400 mt-0.5">
+          <h2 className="text-base sm:text-lg font-black text-[#111111]">📖 Buku Resep & Standar Gramasi</h2>
+          <p className="text-[11px] text-neutral-400 mt-0.5">
             {isBar && !isManagementOrOwner && 'Daftar resep standar khusus divisi Bar (Beverage).'}
             {isDapur && !isManagementOrOwner && 'Daftar resep standar khusus divisi Kitchen (Food & Pastry).'}
             {isManagementOrOwner && 'Panduan porsi bahan dan standar penyajian Bar & Kitchen Rottherdams.'}
@@ -421,7 +399,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
         {isManagementOrOwner && (
           <button
             onClick={() => setIsAddModalOpen(true)}
-            className="px-3.5 py-1.5 bg-[#111111] hover:bg-neutral-800 text-white rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 active:scale-95 shadow-sm"
+            className="w-full sm:w-auto px-3.5 py-2 bg-[#111111] hover:bg-neutral-800 text-white rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 shadow-sm"
           >
             <span>➕</span> Tambah Resep
           </button>
@@ -429,7 +407,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
       </div>
 
       {/* Filter Kategori */}
-      <div className="flex gap-2 overflow-x-auto pb-1">
+      <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
         {((isBar && !isManagementOrOwner)
           ? (['Beverage'] as const)
           : (isDapur && !isManagementOrOwner)
@@ -439,13 +417,13 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
           <button
             key={cat}
             onClick={() => setSelectedCategory(cat)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap ${
               ((isBar && !isManagementOrOwner) || selectedCategory === cat)
-                ? 'bg-[#d22027] text-white shadow-sm'
+                ? 'bg-[#d22027] text-white shadow-xs'
                 : 'bg-neutral-100 text-neutral-500 hover:bg-neutral-200 hover:text-neutral-800'
             }`}
           >
-            {cat === 'All' ? '✨ Semua Resep' : cat === 'Beverage' ? '☕ Minuman (Beverage)' : cat === 'Food' ? '🍳 Makanan (Food)' : '🥐 Pastry & Snack'}
+            {cat === 'All' ? '✨ Semua' : cat === 'Beverage' ? '☕ Minuman' : cat === 'Food' ? '🍳 Makanan' : '🥐 Pastry'}
           </button>
         ))}
       </div>
@@ -460,7 +438,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
           Belum ada resep untuk kategori ini.
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {filteredRecipes.map(item => {
             const isUnlocked = unlockedRecipeId === item.id;
 
@@ -473,31 +451,31 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
                 onTouchStart={() => handlePressStart(item)}
                 onTouchEnd={handlePressEnd}
                 onTouchCancel={handlePressEnd}
-                className={`p-4 rounded-2xl bg-neutral-50 border relative transition duration-200 cursor-pointer overflow-hidden select-none touch-callout-none ${
+                className={`p-3.5 rounded-2xl bg-neutral-50 border relative transition duration-200 cursor-pointer overflow-hidden select-none touch-callout-none ${
                   isUnlocked 
-                    ? 'border-[#d22027] shadow-md ring-2 ring-red-500/10' 
+                    ? 'border-[#d22027] shadow-sm ring-1 ring-red-500/20' 
                     : 'border-neutral-200 hover:border-neutral-300'
                 }`}
               >
                 <div className="flex justify-between items-start mb-2">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-extrabold text-sm text-[#111111]">{item.name}</h3>
-                    <span className="text-[9px] font-bold px-2 py-0.5 bg-neutral-200 text-neutral-600 rounded-md uppercase">
+                  <div className="flex items-center gap-1.5 min-w-0 flex-1 pr-2">
+                    <h3 className="font-extrabold text-xs sm:text-sm text-[#111111] truncate">{item.name}</h3>
+                    <span className="text-[8px] sm:text-[9px] font-bold px-1.5 py-0.2 bg-neutral-200 text-neutral-600 rounded-md uppercase shrink-0">
                       {item.category || 'Beverage'}
                     </span>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md transition ${
+                  <div className="flex items-center gap-1 shrink-0">
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md transition ${
                       isUnlocked ? 'bg-red-100 text-[#d22027]' : 'bg-neutral-200 text-neutral-600'
                     }`}>
-                      {isUnlocked ? '🔓 Hold View' : '🔒 Tahan Layar'}
+                      {isUnlocked ? '🔓 Hold' : '🔒 Hold'}
                     </span>
 
                     {isManagementOrOwner && (
                       <button
                         onClick={(e) => handleDeleteRecipe(e, item.id, item.name)}
-                        className="text-neutral-400 hover:text-red-500 transition text-xs p-1 cursor-pointer z-10"
+                        className="text-neutral-400 hover:text-red-500 transition text-xs p-0.5 cursor-pointer z-10"
                         title="Hapus Resep"
                       >
                         🗑️
@@ -509,15 +487,15 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
                 <div className={`space-y-1 text-xs transition-all duration-300 relative ${
                   isUnlocked ? 'filter-none opacity-100' : 'blur-md opacity-30 select-none pointer-events-none'
                 }`}>
-                  <p><span className="font-semibold text-neutral-400">Gramasi / Komposisi:</span> <strong className="text-neutral-900">{item.grammage}</strong></p>
-                  <p><span className="font-semibold text-neutral-400">Suhu / Metode:</span> <strong className="text-neutral-900">{item.temperature}</strong></p>
-                  <p><span className="font-semibold text-neutral-400">Waktu / Ekstraksi:</span> <strong className="text-neutral-900">{item.extraction_time}</strong></p>
+                  <p><span className="font-semibold text-neutral-400">Gramasi:</span> <strong className="text-neutral-900">{item.grammage}</strong></p>
+                  <p><span className="font-semibold text-neutral-400">Suhu:</span> <strong className="text-neutral-900">{item.temperature}</strong></p>
+                  <p><span className="font-semibold text-neutral-400">Waktu:</span> <strong className="text-neutral-900">{item.extraction_time}</strong></p>
                 </div>
 
                 {!isUnlocked && (
                   <div className="absolute inset-0 flex items-center justify-center bg-white/20 backdrop-blur-[1px]">
-                    <span className="bg-[#111111] text-white text-[10px] font-extrabold px-3 py-1.5 rounded-full shadow-md animate-pulse">
-                      👇 Tekan & Tahan Layar Untuk Membuka
+                    <span className="bg-[#111111] text-white text-[9px] sm:text-[10px] font-extrabold px-2.5 py-1 rounded-full shadow-md animate-pulse">
+                      👇 Tekan & Tahan Layar
                     </span>
                   </div>
                 )}
@@ -529,12 +507,12 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
 
       {/* Modal Tambah Resep */}
       {isAddModalOpen && createPortal(
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 animate-backdrop-in">
-          <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-neutral-100 text-left animate-modal-in my-auto">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-3 sm:p-4 animate-backdrop-in">
+          <div className="bg-white w-full max-w-sm rounded-3xl p-5 sm:p-6 shadow-2xl border border-neutral-100 text-left animate-modal-in my-auto max-h-[90vh] overflow-y-auto no-scrollbar">
             <h3 className="text-base font-black text-[#111111] mb-1">Tambah Resep Baru</h3>
             <p className="text-xs text-neutral-400 mb-4">Masukkan resep baru untuk divisi Bar atau Kitchen.</p>
 
-            <form onSubmit={handleAddRecipe} className="space-y-3.5">
+            <form onSubmit={handleAddRecipe} className="space-y-3">
               <div className="grid grid-cols-3 gap-2">
                 <div className="col-span-2">
                   <label className="block text-[11px] font-bold text-neutral-600 mb-1">Nama Menu</label>
@@ -544,7 +522,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
                     placeholder="Misal: French Fries BBQ"
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-[#d22027]"
+                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-[#d22027]"
                   />
                 </div>
 
@@ -570,11 +548,11 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
                   placeholder={category === 'Food' ? "Misal: Kentang 150g + Saus BBQ 30g + Garam 2g" : "Misal: Espresso 18g + Milk 150ml"}
                   value={grammage}
                   onChange={e => setGrammage(e.target.value)}
-                  className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-[#d22027]"
+                  className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-[#d22027]"
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-2 gap-2.5">
                 <div>
                   <label className="block text-[11px] font-bold text-neutral-600 mb-1">Suhu / Metode</label>
                   <input
@@ -582,7 +560,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
                     placeholder={category === 'Food' ? "Misal: Goreng 180°C" : "Misal: 65°C / Cold"}
                     value={temperature}
                     onChange={e => setTemperature(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-[#d22027]"
+                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-[#d22027]"
                   />
                 </div>
 
@@ -593,12 +571,12 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
                     placeholder={category === 'Food' ? "Misal: 5–7 menit" : "Misal: 25-30s / Foam"}
                     value={extractionTime}
                     onChange={e => setExtractionTime(e.target.value)}
-                    className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-[#d22027]"
+                    className="w-full px-3 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs focus:outline-none focus:border-[#d22027]"
                   />
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-3">
+              <div className="flex gap-2 pt-2">
                 <button
                   type="button"
                   onClick={() => setIsAddModalOpen(false)}

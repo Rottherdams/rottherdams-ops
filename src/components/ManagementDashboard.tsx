@@ -286,7 +286,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
     : 'Management Control Panel';
 
   return (
-    <div className="space-y-6 text-left">
+    <div className="space-y-4 sm:space-y-6 text-left">
       <style>{`
         @keyframes fadeSlideUp { 0% { opacity: 0; transform: translateY(12px); } 100% { opacity: 1; transform: translateY(0); } }
         @keyframes slideInFromLeft { 0% { opacity: 0; transform: translateX(-16px); } 100% { opacity: 1; transform: translateX(0); } }
@@ -296,35 +296,37 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
         .animate-tab-right { animation: slideInFromRight 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
       `}</style>
 
-      {/* HEADER EXECUTIVE DASHBOARD */}
+      {/* HEADER EXECUTIVE DASHBOARD RESPONSIVE */}
       <div 
-        className="animate-section-fade bg-gradient-to-r from-[#111111] via-neutral-900 to-neutral-800 text-white p-6 md:p-8 rounded-3xl shadow-xl border border-neutral-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
+        className="animate-section-fade bg-gradient-to-r from-[#111111] via-neutral-900 to-neutral-800 text-white p-4 sm:p-6 md:p-8 rounded-3xl shadow-xl border border-neutral-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
         style={{ animationDelay: '0ms' }}
       >
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] bg-[#d22027] text-white px-3 py-1 rounded-full font-black uppercase tracking-wider">
+        <div className="space-y-2 w-full md:w-auto">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="text-[9px] sm:text-[10px] bg-[#d22027] text-white px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider">
               {roleBadgeLabel}
             </span>
-            <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2.5 py-0.5 rounded-full font-bold flex items-center gap-1">
+            <span className="text-[9px] sm:text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
               Live Realtime
             </span>
             {totalPendingApproval > 0 && (
-              <span className="text-[10px] bg-red-600 text-white font-black px-2.5 py-0.5 rounded-full animate-bounce">
+              <span className="text-[9px] sm:text-[10px] bg-red-600 text-white font-black px-2 py-0.5 rounded-full animate-bounce">
                 ⚠️ {totalPendingApproval} Butuh ACC
               </span>
             )}
           </div>
-          <h2 className="text-xl md:text-2xl font-black mt-2 tracking-tight">Executive Analytics Hub 📊</h2>
-          <p className="text-xs text-neutral-400 mt-1 max-w-xl">
-            Pusat persetujuan tukar shift/izin, pengawasan operasional, audit keamanan resep, dan kepatuhan SOP Rottherdams.
-          </p>
+          <div>
+            <h2 className="text-lg sm:text-2xl font-black tracking-tight text-white">Executive Analytics Hub 📊</h2>
+            <p className="text-xs text-neutral-400 mt-0.5 max-w-xl leading-relaxed">
+              Pusat persetujuan tukar shift/izin, pengawasan operasional, audit keamanan resep, dan kepatuhan SOP Rottherdams.
+            </p>
+          </div>
         </div>
 
         <button
           onClick={fetchAnalyticsData}
-          className="px-4 py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-xs font-bold transition cursor-pointer border border-white/10 active:scale-95 flex items-center gap-2"
+          className="w-full md:w-auto px-3.5 py-2 sm:py-2.5 bg-white/10 hover:bg-white/20 text-white rounded-2xl text-xs font-bold transition cursor-pointer border border-white/10 active:scale-95 flex items-center justify-center gap-1.5"
         >
           <span>🔄</span> Refresh Manual
         </button>
@@ -368,7 +370,7 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
           />
 
           <div 
-            className="animate-section-fade grid grid-cols-1 md:grid-cols-2 gap-6"
+            className="animate-section-fade grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6"
             style={{ animationDelay: '400ms' }}
           >
             <SecurityAuditWidget securityLogs={securityLogs} />
@@ -376,28 +378,28 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
           </div>
 
           <div 
-            className="animate-section-fade bg-white rounded-3xl p-6 border border-neutral-200 shadow-xs space-y-4"
+            className="animate-section-fade bg-white rounded-3xl p-4 sm:p-6 border border-neutral-200 shadow-xs space-y-4"
             style={{ animationDelay: '500ms' }}
           >
             <div className="flex justify-between items-center pb-3 border-b border-neutral-100">
-              <h3 className="font-black text-sm text-[#111111]">📝 Catatan Serah Terima Shift Terbaru (Handover Log)</h3>
-              <span className="text-xs text-neutral-400">5 Feed Terakhir</span>
+              <h3 className="font-black text-xs sm:text-sm text-[#111111]">📝 Catatan Serah Terima Shift Terbaru (Handover Log)</h3>
+              <span className="text-[10px] sm:text-xs text-neutral-400">5 Feed Terakhir</span>
             </div>
 
             {handoverLogs.length === 0 ? (
               <p className="text-xs text-neutral-400 italic py-4">Belum ada catatan handover shift dari tim operasional.</p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2.5">
                 {handoverLogs.map((log) => (
-                  <div key={log.id} className="p-3.5 bg-neutral-50 rounded-2xl border border-neutral-200 space-y-1">
+                  <div key={log.id} className="p-3 bg-neutral-50 rounded-2xl border border-neutral-200 space-y-1">
                     <div className="flex justify-between items-center text-xs">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5">
                         <span className="font-extrabold text-[#111111]">{log.staff_name}</span>
-                        <span className="text-[9px] bg-neutral-200 px-2 py-0.5 rounded-md font-bold uppercase">
+                        <span className="text-[8px] bg-neutral-200 px-1.5 py-0.2 rounded-md font-bold uppercase">
                           {log.shift} Shift
                         </span>
                       </div>
-                      <span className="text-[10px] font-mono text-neutral-400">
+                      <span className="text-[9px] font-mono text-neutral-400">
                         {new Date(log.created_at).toLocaleDateString('id-ID', { day: '2-digit', month: 'short' })}{' '}
                         • {new Date(log.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA
                       </span>
@@ -412,8 +414,8 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
       )}
 
       {selectedImage && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-          <div className="bg-white p-4 rounded-3xl max-w-lg w-full space-y-3 relative shadow-2xl border border-neutral-100">
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 z-50">
+          <div className="bg-white p-4 rounded-3xl max-w-lg w-full space-y-3 relative shadow-2xl border border-neutral-100 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-2 border-b">
               <h4 className="font-bold text-xs text-[#111111]">🖼️ Dokumen Bukti Izin / Surat Dokter</h4>
               <button
