@@ -69,7 +69,7 @@ export default function App() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isClosingUserMenu, setIsClosingUserMenu] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false); 
-  const [isClosingMoreMenu, setIsClosingMoreMenu] = useState(false); // 🌟 State Transisi Tutup Menu Mobile
+  const [isClosingMoreMenu, setIsClosingMoreMenu] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState<boolean>(false);
 
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
@@ -220,13 +220,13 @@ export default function App() {
     }
   };
 
-  // 🌟 Penutupan Menu Mobile "Lainnya" Dengan Animasi Out Smooth
+  // 🌟 Penutupan Menu Mobile "Lainnya" dengan Animasi Smooth (300ms)
   const handleCloseMoreMenu = () => {
     setIsClosingMoreMenu(true);
     setTimeout(() => {
       setIsMoreMenuOpen(false);
       setIsClosingMoreMenu(false);
-    }, 200);
+    }, 300);
   };
 
   const handleNavChange = (newNav: typeof activeNav) => {
@@ -622,17 +622,17 @@ export default function App() {
         </div>
       </nav>
 
-      {/* 🌟 Mobile Drawer Menu "Lainnya" Dengan Animasi In & Out & Tampilan Bersih */}
+      {/* 🌟 Mobile Drawer Menu "Lainnya" Transisi Membal Smooth (300ms) */}
       {isMoreMenuOpen && (
         <div 
           onClick={handleCloseMoreMenu}
-          className={`md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end transition-opacity duration-200 ${
+          className={`md:hidden fixed inset-0 z-[999] bg-black/60 backdrop-blur-xs flex items-end transition-opacity duration-300 ease-out ${
             isClosingMoreMenu ? 'opacity-0' : 'opacity-100'
           }`}
         >
           <div 
             onClick={(e) => e.stopPropagation()}
-            className={`w-full bg-white rounded-t-3xl p-6 space-y-4 border-t border-neutral-100 shadow-2xl transition-transform duration-200 ${
+            className={`w-full bg-white rounded-t-3xl p-6 space-y-4 border-t border-neutral-100 shadow-2xl transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] ${
               isClosingMoreMenu ? 'translate-y-full' : 'translate-y-0'
             }`}
           >

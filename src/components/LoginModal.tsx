@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { recordLoginLog } from '../lib/security';
 
@@ -34,7 +35,6 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Jika pengguna menekan tombol Enter pada keyboard PC
       if (e.key === 'Enter') {
         if (pin.length === 4 && username.trim()) {
           handleLogin();
@@ -42,7 +42,6 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
         return;
       }
 
-      // Jika fokus tidak sedang di input username, perbolehkan ngetik PIN langsung via keyboard PC
       const activeEl = document.activeElement;
       const isInputFocused = activeEl && activeEl.tagName === 'INPUT';
 
@@ -93,7 +92,6 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
     setIsLoading(true);
     setErrorMsg('');
 
-    // Query ke Supabase: Cek staff_name, first_name, last_name, atau staff_id
     const { data, error } = await supabase
       .from('staff')
       .select('staff_id, staff_name, first_name, last_name, avatar_url, role, pin, status')
@@ -127,7 +125,6 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
         avatar_url: data.avatar_url || undefined,
       };
 
-      // 🔐 REKAM LOG LOGIN KE SUPABASE
       try {
         await recordLoginLog(userSession);
       } catch (logErr) {
@@ -144,8 +141,8 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 overscroll-none touch-none">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md p-2 sm:p-4 overscroll-none">
       <style>{`
         .no-scrollbar::-webkit-scrollbar {
           display: none !important;
@@ -156,38 +153,37 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
         }
       `}</style>
 
-      <div className="bg-white rounded-3xl p-5 md:p-8 w-full max-w-md md:max-w-xl shadow-2xl border border-neutral-100 animate-in fade-in zoom-in-95 duration-200 relative max-h-[92vh] overflow-y-auto no-scrollbar my-auto">
+      <div className="bg-white rounded-t-3xl sm:rounded-3xl p-4 sm:p-7 w-full max-w-md md:max-w-xl shadow-2xl border border-neutral-100 animate-in fade-in slide-in-from-bottom-6 sm:zoom-in-95 duration-300 relative max-h-[88vh] overflow-y-auto no-scrollbar">
         <button
           onClick={onClose}
           type="button"
-          className="absolute right-4 top-4 w-8 h-8 rounded-full bg-neutral-100 text-neutral-400 font-bold hover:bg-neutral-200 transition cursor-pointer flex items-center justify-center text-xs z-10"
+          className="absolute right-3.5 top-3.5 w-8 h-8 rounded-full bg-neutral-100 text-neutral-400 font-bold hover:bg-neutral-200 active:scale-90 transition cursor-pointer flex items-center justify-center text-xs z-10"
         >
           ✕
         </button>
 
-        {/* Header Modal */}
-        <div className="flex items-center gap-3 mb-5 pb-3 border-b border-neutral-100 text-left">
-          <div className="w-10 h-10 md:w-12 md:h-12 bg-[#d22027]/10 text-[#d22027] rounded-2xl flex items-center justify-center font-bold text-lg md:text-xl shrink-0">
+        {/* Header Modal Ringkas */}
+        <div className="flex items-center gap-2.5 mb-3.5 pb-2.5 border-b border-neutral-100 text-left pr-8">
+          <div className="w-9 h-9 md:w-11 md:h-11 bg-[#d22027]/10 text-[#d22027] rounded-xl flex items-center justify-center font-bold text-base md:text-xl shrink-0">
             🔐
           </div>
           <div>
-            <h2 className="text-lg md:text-xl font-black text-[#111111]">Masuk Sistem Staf</h2>
-            <p className="text-[11px] md:text-xs text-neutral-400 mt-0.5">
-              Masukkan Username / ID Staf dan 4 Digit PIN Anda
+            <h2 className="text-base md:text-xl font-black text-[#111111] leading-tight">Masuk Sistem Staf</h2>
+            <p className="text-[10px] md:text-xs text-neutral-400 mt-0.5">
+              Masukkan Username / ID Staf & 4 Digit PIN
             </p>
           </div>
         </div>
 
-        {/* Container Utama: Grid 2 Kolom untuk Desktop */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-center">
+        {/* Grid Responsive */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 md:gap-5 items-center">
           
-          {/* Kolom Kiri: Input Username & Indikator PIN */}
-          <div className="space-y-4 text-left">
+          {/* Kolom Input & PIN */}
+          <div className="space-y-3 text-left">
             <div>
-              <label className="block text-xs font-bold text-neutral-700 mb-1.5">
+              <label className="block text-[11px] md:text-xs font-bold text-neutral-700 mb-1">
                 Username / ID Staf:
               </label>
-              {/* 🌟 Mencegah autoscroll & keyboard bawaan HP dengan inputMode & preventDefault on touch */}
               <input
                 type="text"
                 placeholder="Misal: Yusuf, Rico, STF-001"
@@ -196,20 +192,19 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
                   setUsername(e.target.value);
                   setErrorMsg('');
                 }}
-                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2.5 font-bold text-xs md:text-sm text-neutral-800 focus:outline-none focus:border-[#d22027] focus:bg-white transition"
+                className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3 py-2 font-bold text-xs md:text-sm text-neutral-800 focus:outline-none focus:border-[#d22027] focus:bg-white transition"
               />
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-neutral-700 mb-2">
+              <label className="block text-[11px] md:text-xs font-bold text-neutral-700 mb-1.5">
                 Digit PIN:
               </label>
-              {/* Indikator PIN */}
-              <div className="flex items-center justify-start gap-3 bg-neutral-50 p-3 rounded-2xl border border-neutral-200">
+              <div className="flex items-center justify-start gap-2.5 bg-neutral-50 p-2.5 rounded-xl border border-neutral-200">
                 {[0, 1, 2, 3].map(i => (
                   <div
                     key={i}
-                    className={`w-4 h-4 rounded-full border-2 transition-all duration-150 ${
+                    className={`w-3.5 h-3.5 rounded-full border-2 transition-all duration-150 ${
                       pin.length > i
                         ? 'bg-[#d22027] border-[#d22027] scale-110'
                         : 'bg-white border-neutral-300'
@@ -220,25 +215,25 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
             </div>
 
             {errorMsg && (
-              <p className="text-xs font-bold text-red-500 animate-bounce">
+              <p className="text-[11px] font-bold text-red-500 animate-bounce leading-tight">
                 {errorMsg}
               </p>
             )}
 
             <p className="hidden md:block text-[11px] text-neutral-400 italic">
-              💡 Buka di PC? Kamu bisa langsung mengetik angka & tekan <span className="font-bold text-neutral-700">Enter</span> di Keyboard!
+              💡 Buka di PC? Kamu bisa langsung mengetik angka & tekan <span className="font-bold text-neutral-700">Enter</span>.
             </p>
           </div>
 
-          {/* Kolom Kanan: Keypad Numpad Visual */}
-          <div className="bg-neutral-50 p-3.5 rounded-2xl border border-neutral-100">
-            <div className="grid grid-cols-3 gap-2">
+          {/* Keypad Numpad */}
+          <div className="bg-neutral-50 p-2.5 md:p-3.5 rounded-2xl border border-neutral-100">
+            <div className="grid grid-cols-3 gap-1.5 md:gap-2">
               {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(num => (
                 <button
                   key={num}
                   type="button"
                   onClick={() => handleKeyPress(num)}
-                  className="h-11 rounded-xl bg-white text-[#111111] border border-neutral-200 font-extrabold text-base hover:bg-neutral-100 active:scale-95 transition cursor-pointer shadow-2xs"
+                  className="h-10 md:h-11 rounded-xl bg-white text-[#111111] border border-neutral-200 font-extrabold text-sm md:text-base hover:bg-neutral-100 active:scale-95 transition cursor-pointer shadow-2xs"
                 >
                   {num}
                 </button>
@@ -246,14 +241,14 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
               <button
                 type="button"
                 onClick={handleDelete}
-                className="h-11 rounded-xl bg-red-50 text-red-600 font-bold text-xs border border-red-100 hover:bg-red-100 active:scale-95 transition cursor-pointer flex items-center justify-center shadow-2xs"
+                className="h-10 md:h-11 rounded-xl bg-red-50 text-red-600 font-bold text-xs border border-red-100 hover:bg-red-100 active:scale-95 transition cursor-pointer flex items-center justify-center shadow-2xs"
               >
                 ⌫
               </button>
               <button
                 type="button"
                 onClick={() => handleKeyPress('0')}
-                className="h-11 rounded-xl bg-white text-[#111111] border border-neutral-200 font-extrabold text-base hover:bg-neutral-100 active:scale-95 transition cursor-pointer shadow-2xs"
+                className="h-10 md:h-11 rounded-xl bg-white text-[#111111] border border-neutral-200 font-extrabold text-sm md:text-base hover:bg-neutral-100 active:scale-95 transition cursor-pointer shadow-2xs"
               >
                 0
               </button>
@@ -261,7 +256,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
                 type="button"
                 onClick={() => handleLogin()}
                 disabled={isLoading || pin.length !== 4 || !username.trim()}
-                className="h-11 rounded-xl bg-[#d22027] text-white font-bold text-xs hover:bg-[#b81b21] disabled:opacity-40 active:scale-95 transition cursor-pointer flex items-center justify-center shadow-md"
+                className="h-10 md:h-11 rounded-xl bg-[#d22027] text-white font-bold text-xs hover:bg-[#b81b21] disabled:opacity-40 active:scale-95 transition cursor-pointer flex items-center justify-center shadow-md"
               >
                 {isLoading ? '...' : 'OK'}
               </button>
@@ -270,6 +265,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
 
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
