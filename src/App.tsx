@@ -220,7 +220,6 @@ export default function App() {
     }
   };
 
-  // 🌟 Penutupan Menu Mobile "Lainnya" dengan Animasi Smooth (300ms)
   const handleCloseMoreMenu = () => {
     setIsClosingMoreMenu(true);
     setTimeout(() => {
@@ -402,11 +401,12 @@ export default function App() {
           onOpenAvatarPreview={() => setIsAvatarPreviewOpen(true)}
         />
 
-        <main className="max-w-md md:max-w-4xl mx-auto px-5 py-6 md:py-10">
-          <section className="mb-6 md:mb-8 border-b border-neutral-100 pb-5 md:pb-6 text-left">
-            <p className="text-[11px] md:text-xs font-bold uppercase tracking-widest text-[#d22027] mb-1">System Management</p>
-            <h1 className="text-2xl md:text-3xl font-black text-[#111111] tracking-tight leading-tight">Daily Operational Hub.</h1>
-            <p className="text-xs md:text-sm text-neutral-500 mt-1.5 leading-relaxed">Presensi, checklist SOP harian, dan serah terima shift dalam satu genggaman.</p>
+        {/* 🌟 SPACING DISESUAIKAN UNTUK HP (px-3.5 sm:px-5) AGAR LAYAR HP SEMPIT TIDAK KETAT */}
+        <main className="max-w-md md:max-w-4xl mx-auto px-3.5 sm:px-5 py-4 sm:py-6 md:py-10">
+          <section className="mb-5 md:mb-8 border-b border-neutral-100 pb-4 md:pb-6 text-left">
+            <p className="text-[10px] sm:text-[11px] md:text-xs font-bold uppercase tracking-widest text-[#d22027] mb-1">System Management</p>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-[#111111] tracking-tight leading-tight">Daily Operational Hub.</h1>
+            <p className="text-xs md:text-sm text-neutral-500 mt-1 leading-relaxed">Presensi, checklist SOP harian, dan serah terima shift dalam satu genggaman.</p>
           </section>
 
           <div className={`transition-all duration-300 ease-in-out transform ${isPageFading ? 'opacity-0 scale-[0.99] translate-y-1' : 'opacity-100 scale-100 translate-y-0'}`}>
@@ -427,18 +427,18 @@ export default function App() {
             ) : (
               <div>
                 {isManagementOrOwner && (
-                  <div className="relative bg-neutral-100 p-1.5 rounded-2xl border border-neutral-200 flex mb-6 shadow-inner max-w-md mx-auto md:mx-0 select-none">
+                  <div className="relative bg-neutral-100 p-1.5 rounded-2xl border border-neutral-200 flex mb-5 sm:mb-6 shadow-inner max-w-md mx-auto md:mx-0 select-none">
                     <div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-0.375rem)] bg-[#111111] rounded-xl shadow-md transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${activeTab === 'night' ? 'translate-x-[calc(100%+0.375rem)]' : 'translate-x-0'}`} />
-                    <button onClick={() => setActiveTab('morning')} className={`relative z-10 flex-1 py-2.5 text-xs font-extrabold rounded-xl transition-colors duration-300 cursor-pointer flex items-center justify-center gap-1.5 ${activeTab === 'morning' ? 'text-white' : 'text-neutral-500 hover:text-neutral-900'}`}>
+                    <button onClick={() => setActiveTab('morning')} className={`relative z-10 flex-1 py-2 text-xs font-extrabold rounded-xl transition-colors duration-300 cursor-pointer flex items-center justify-center gap-1.5 ${activeTab === 'morning' ? 'text-white' : 'text-neutral-500 hover:text-neutral-900'}`}>
                       <span>☀️</span> Morning Shift
                     </button>
-                    <button onClick={() => setActiveTab('night')} className={`relative z-10 flex-1 py-2.5 text-xs font-extrabold rounded-xl transition-colors duration-300 cursor-pointer flex items-center justify-center gap-1.5 ${activeTab === 'night' ? 'text-white' : 'text-neutral-500 hover:text-neutral-900'}`}>
+                    <button onClick={() => setActiveTab('night')} className={`relative z-10 flex-1 py-2 text-xs font-extrabold rounded-xl transition-colors duration-300 cursor-pointer flex items-center justify-center gap-1.5 ${activeTab === 'night' ? 'text-white' : 'text-neutral-500 hover:text-neutral-900'}`}>
                       <span>🌙</span> Night Shift
                     </button>
                   </div>
                 )}
 
-                <div className="mb-6 rounded-3xl text-left overflow-hidden border border-neutral-200/80 shadow-xl">
+                <div className="mb-5 sm:mb-6 rounded-3xl text-left overflow-hidden border border-neutral-200/80 shadow-xl">
                   <BackgroundRotator 
                     images={presenceBgList} 
                     intervalMs={7000}
@@ -446,11 +446,11 @@ export default function App() {
                     overlayOpacity={presenceBgOverlay}
                     isRandom={isPresenceRandom}
                   >
-                    <div className="relative p-6 md:p-8 min-h-[220px] flex flex-col justify-between">
+                    <div className="relative p-5 sm:p-6 md:p-8 min-h-[200px] sm:min-h-[220px] flex flex-col justify-between">
                       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent pointer-events-none" />
 
                       <div className="relative z-10 flex justify-between items-center mb-4 flex-wrap gap-2">
-                        <span className="text-[10px] md:text-xs font-black text-white bg-white/20 backdrop-blur-md px-3.5 py-1.5 rounded-full border border-white/30 shadow-xs flex items-center gap-2">
+                        <span className="text-[10px] md:text-xs font-black text-white bg-white/20 backdrop-blur-md px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-full border border-white/30 shadow-xs flex items-center gap-2">
                           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px_#34d399]"></span>
                           🕒 09.00 - 23.00 WITA
                         </span>
@@ -459,20 +459,20 @@ export default function App() {
                           {isManagementOrOwner && (
                             <button
                               onClick={() => setIsBgManagerOpen(true)}
-                              className="text-[10px] bg-black/40 hover:bg-black/60 text-white font-bold px-3 py-1.5 rounded-full border border-white/20 backdrop-blur-md transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                              className="text-[10px] bg-black/40 hover:bg-black/60 text-white font-bold px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full border border-white/20 backdrop-blur-md transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
                             >
-                              <span>🖼️</span> Kelola Rotator Background ({presenceBgList.length})
+                              <span>🖼️</span> Kelola Background ({presenceBgList.length})
                             </button>
                           )}
 
                           {currentUser && (
                             onDutyList.length > 0 ? (
-                              <span className="flex items-center gap-1.5 text-[10px] md:text-xs text-emerald-400 font-bold bg-black/40 px-3 py-1.5 rounded-full border border-emerald-500/30 backdrop-blur-md">
+                              <span className="flex items-center gap-1.5 text-[10px] md:text-xs text-emerald-400 font-bold bg-black/40 px-3 py-1 sm:py-1.5 rounded-full border border-emerald-500/30 backdrop-blur-md">
                                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
                                 Bar Active
                               </span>
                             ) : (
-                              <span className="flex items-center gap-1.5 text-[10px] md:text-xs text-neutral-300 font-medium bg-black/40 px-3 py-1.5 rounded-full border border-white/10 backdrop-blur-md">
+                              <span className="flex items-center gap-1.5 text-[10px] md:text-xs text-neutral-300 font-medium bg-black/40 px-3 py-1 sm:py-1.5 rounded-full border border-white/10 backdrop-blur-md">
                                 <span className="w-2 h-2 rounded-full bg-neutral-400"></span>
                                 Shift Closed
                               </span>
@@ -481,8 +481,8 @@ export default function App() {
                         </div>
                       </div>
 
-                      <div className="relative z-10 mb-6">
-                        <h2 className="text-xl md:text-2xl font-black mb-1 tracking-tight text-white drop-shadow-md">We're Open Everyday</h2>
+                      <div className="relative z-10 mb-5 sm:mb-6">
+                        <h2 className="text-lg sm:text-xl md:text-2xl font-black mb-1 tracking-tight text-white drop-shadow-md">We're Open Everyday</h2>
                         <p className="text-xs md:text-sm text-neutral-200 leading-relaxed drop-shadow-xs max-w-lg">Your daily dose of caffeine & good vibes at Rottherdams Coffee Social House.</p>
                       </div>
 
@@ -492,14 +492,14 @@ export default function App() {
                             <button 
                               onClick={() => setShowClockOutModal(true)} 
                               disabled={isClockingOut} 
-                              className="w-full md:w-auto md:px-8 py-3.5 bg-[#d22027]/75 hover:bg-[#d22027]/90 text-white font-extrabold text-xs md:text-sm rounded-2xl shadow-xl hover:shadow-red-500/30 backdrop-blur-md border border-white/25 transition duration-200 cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+                              className="w-full md:w-auto md:px-8 py-3 sm:py-3.5 bg-[#d22027]/85 hover:bg-[#d22027] text-white font-extrabold text-xs md:text-sm rounded-2xl shadow-xl hover:shadow-red-500/30 backdrop-blur-md border border-white/25 transition duration-200 cursor-pointer active:scale-95 flex items-center justify-center gap-2"
                             >
                               {isClockingOut ? 'Memproses...' : '🚪 Selesai Shift / Clock Out'}
                             </button>
                           ) : (
                             <button 
                               onClick={() => setIsClockInOpen(true)} 
-                              className="w-full md:w-auto md:px-8 py-3.5 bg-[#d22027]/75 hover:bg-[#d22027]/90 text-white font-bold text-xs md:text-sm rounded-2xl shadow-xl hover:shadow-red-500/30 backdrop-blur-md border border-white/25 transition duration-200 cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+                              className="w-full md:w-auto md:px-8 py-3 sm:py-3.5 bg-[#d22027]/85 hover:bg-[#d22027] text-white font-bold text-xs md:text-sm rounded-2xl shadow-xl hover:shadow-red-500/30 backdrop-blur-md border border-white/25 transition duration-200 cursor-pointer active:scale-95 flex items-center justify-center gap-2"
                             >
                               <span>✅</span> Clock In Presensi Now
                             </button>
@@ -507,7 +507,7 @@ export default function App() {
                         ) : (
                           <button 
                             onClick={() => setIsLoginOpen(true)} 
-                            className="w-full md:w-auto md:px-8 py-3.5 bg-[#d22027]/75 hover:bg-[#d22027]/90 text-white font-bold text-xs md:text-sm rounded-2xl shadow-xl hover:shadow-red-500/30 backdrop-blur-md border border-white/25 transition duration-200 cursor-pointer active:scale-95 flex items-center justify-center gap-2"
+                            className="w-full md:w-auto md:px-8 py-3 sm:py-3.5 bg-[#d22027]/85 hover:bg-[#d22027] text-white font-bold text-xs md:text-sm rounded-2xl shadow-xl hover:shadow-red-500/30 backdrop-blur-md border border-white/25 transition duration-200 cursor-pointer active:scale-95 flex items-center justify-center gap-2"
                           >
                             <span>🔑</span> Login Staf untuk Presensi
                           </button>
@@ -517,10 +517,11 @@ export default function App() {
                   </BackgroundRotator>
                 </div>
 
-                {currentUser && <div className="mb-8"><AnnouncementBanner currentUser={currentUser as any} /></div>}
+                {currentUser && <div className="mb-6 sm:mb-8"><AnnouncementBanner currentUser={currentUser as any} /></div>}
 
+                {/* 🌟 PENATAAN KARTU TIM ON-DUTY TERLINDUNGI OVERFLOW */}
                 {onDutyList.length > 0 && (
-                  <div className="bg-neutral-50 rounded-3xl p-5 border border-neutral-200 mb-8 text-left">
+                  <div className="bg-neutral-50 rounded-3xl p-4 sm:p-5 border border-neutral-200 mb-6 sm:mb-8 text-left">
                     <div className="flex items-center justify-between mb-3">
                       <h3 className="text-xs font-black text-[#111111] uppercase tracking-wider flex items-center gap-2">
                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
@@ -528,18 +529,18 @@ export default function App() {
                       </h3>
                       <button onClick={fetchOnDutyStaff} className="text-[10px] font-bold text-neutral-400 hover:text-neutral-700 transition cursor-pointer">🔄 Refresh</button>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2.5">
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-2.5">
                       {onDutyList.map(staf => (
-                        <div key={staf.id} className="bg-white p-3 rounded-2xl border border-neutral-200 shadow-2xs flex items-center gap-2.5">
+                        <div key={staf.id} className="bg-white p-2.5 sm:p-3 rounded-2xl border border-neutral-200 shadow-2xs flex items-center gap-2 min-w-0">
                           {staf.avatar_url ? (
                             <img src={staf.avatar_url} alt={staf.staff_name} className="w-7 h-7 rounded-full object-cover border border-neutral-200 shrink-0" />
                           ) : (
                             <div className="w-7 h-7 rounded-full bg-neutral-200 text-neutral-700 flex items-center justify-center font-bold text-[10px] shrink-0">{staf.staff_name[0]}</div>
                           )}
-                          <div>
-                            <p className="text-xs font-black text-[#111111] leading-tight">{staf.staff_name}</p>
-                            <p className="text-[10px] text-neutral-400 capitalize">{staf.role?.replace(/_/g, ' ')} • {staf.shift}</p>
-                            <p className="text-[9px] font-mono text-emerald-600 font-bold mt-0.5">In: {new Date(staf.clock_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA</p>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-xs font-black text-[#111111] leading-tight truncate">{staf.staff_name}</p>
+                            <p className="text-[10px] text-neutral-400 capitalize truncate">{staf.role?.replace(/_/g, ' ')} • {staf.shift}</p>
+                            <p className="text-[9px] font-mono text-emerald-600 font-bold mt-0.5 truncate">In: {new Date(staf.clock_in).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WITA</p>
                           </div>
                         </div>
                       ))}
@@ -549,37 +550,38 @@ export default function App() {
 
                 {currentUser && <SopChecklist activeShift={activeTab} currentUser={currentUser as any} />}
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 md:gap-5 mt-8 text-left">
+                {/* 🌟 KARTU QUICK NAVIGASI RESPONSIF HP & DESKTOP */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 md:gap-5 mt-6 sm:mt-8 text-left">
                   {currentUser && (
                     <>
-                      <div onClick={() => handleNavChange('presensi')} className="p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group">
-                        <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg mb-3 group-hover:bg-[#d22027] group-hover:text-white transition">📍</div>
+                      <div onClick={() => handleNavChange('presensi')} className="p-4 sm:p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-base sm:text-lg mb-2.5 group-hover:bg-[#d22027] group-hover:text-white transition">📍</div>
                         <h3 className="font-bold text-xs md:text-sm text-[#111111] mb-0.5">Riwayat Presensi</h3>
                         <p className="text-[10px] md:text-xs text-neutral-400">Jam masuk & keluar</p>
                       </div>
 
-                      <div onClick={() => handleNavChange('sop')} className="p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group">
-                        <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg mb-3 group-hover:bg-[#d22027] group-hover:text-white transition">📋</div>
+                      <div onClick={() => handleNavChange('sop')} className="p-4 sm:p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-base sm:text-lg mb-2.5 group-hover:bg-[#d22027] group-hover:text-white transition">📋</div>
                         <h3 className="font-bold text-xs md:text-sm text-[#111111] mb-0.5">SOP Checklist</h3>
                         <p className="text-[10px] md:text-xs text-neutral-400">Tugas harian shift</p>
                       </div>
 
-                      <div onClick={() => handleNavChange('resep')} className="p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group">
-                        <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg mb-3 group-hover:bg-[#d22027] group-hover:text-white transition">☕</div>
+                      <div onClick={() => handleNavChange('resep')} className="p-4 sm:p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-base sm:text-lg mb-2.5 group-hover:bg-[#d22027] group-hover:text-white transition">☕</div>
                         <h3 className="font-bold text-xs md:text-sm text-[#111111] mb-0.5">Buku Resep</h3>
                         <p className="text-[10px] md:text-xs text-neutral-400">Gramasi & resep kopi</p>
                       </div>
 
-                      <div onClick={() => handleNavChange('handover')} className="p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group">
-                        <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg mb-3 group-hover:bg-[#d22027] group-hover:text-white transition">📝</div>
+                      <div onClick={() => handleNavChange('handover')} className="p-4 sm:p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-base sm:text-lg mb-2.5 group-hover:bg-[#d22027] group-hover:text-white transition">📝</div>
                         <h3 className="font-bold text-xs md:text-sm text-[#111111] mb-0.5">Handover Log</h3>
                         <p className="text-[10px] md:text-xs text-neutral-400">Catatan antar shift</p>
                       </div>
                     </>
                   )}
 
-                  <div onClick={() => handleNavChange('jadwal')} className={`p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group ${!currentUser ? 'col-span-2 md:col-span-4' : ''}`}>
-                    <div className="w-10 h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-lg mb-3 group-hover:bg-[#d22027] group-hover:text-white transition">📅</div>
+                  <div onClick={() => handleNavChange('jadwal')} className={`p-4 sm:p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group ${!currentUser ? 'col-span-2 md:col-span-4' : ''}`}>
+                    <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-base sm:text-lg mb-2.5 group-hover:bg-[#d22027] group-hover:text-white transition">📅</div>
                     <h3 className="font-bold text-xs md:text-sm text-[#111111] mb-0.5">Jadwal Staf</h3>
                     <p className="text-[10px] md:text-xs text-neutral-400">Roster 2 shift</p>
                   </div>
@@ -622,7 +624,7 @@ export default function App() {
         </div>
       </nav>
 
-      {/* 🌟 Mobile Drawer Menu "Lainnya" Transisi Membal Smooth (300ms) */}
+      {/* Drawer Menu "Lainnya" Transisi Membal Smooth */}
       {isMoreMenuOpen && (
         <div 
           onClick={handleCloseMoreMenu}
