@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { useStaffDetails } from '../lib/hooks/useStaffDetails';
 import AvatarCropModal from './profile/AvatarCropModal';
@@ -15,7 +16,7 @@ interface EditProfileModalProps {
   onClose: () => void;
   currentUser: CurrentUser;
   onUpdateSuccess: (updatedUser: CurrentUser) => void;
-  onOpenAvatarPreview?: () => void; // 🌟 Prop untuk trigger modal preview foto
+  onOpenAvatarPreview?: () => void;
 }
 
 export default function EditProfileModal({
@@ -25,7 +26,6 @@ export default function EditProfileModal({
   onUpdateSuccess,
   onOpenAvatarPreview,
 }: EditProfileModalProps) {
-  // Custom Hook
   const {
     firstName, setFirstName,
     lastName, setLastName,
@@ -42,7 +42,6 @@ export default function EditProfileModal({
   const [uploadingImage, setUploadingImage] = useState(false);
   const [isClosingModal, setIsClosingModal] = useState(false);
 
-  // State Modal Crop
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -203,16 +202,17 @@ export default function EditProfileModal({
     }
   };
 
-  return (
+  return createPortal(
     <div
       onClick={handleCloseModal}
-      className={`fixed inset-0 bg-black/60 backdrop-blur-xs z-50 flex items-center justify-center p-4 overflow-y-auto ${
+      className={`fixed inset-0 bg-black/70 backdrop-blur-xs z-[9999] flex items-start sm:items-center justify-center p-3 sm:p-4 overflow-y-auto ${
         isClosingModal ? 'modal-backdrop-out' : 'modal-backdrop-in'
       }`}
     >
+      {/* 🌟 PADDING TOP DIGUNAKAN AGAR TIDAK KETINDIH HEADER NAVBAR PADA SCROLL AWAL */}
       <div
         onClick={(e) => e.stopPropagation()}
-        className={`bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl border border-neutral-100 text-left my-8 space-y-4 ${
+        className={`bg-white w-full max-w-md rounded-3xl p-5 sm:p-7 shadow-2xl border border-neutral-100 text-left my-16 sm:my-8 space-y-4 max-h-[85vh] overflow-y-auto ${
           isClosingModal ? 'modal-box-out' : 'modal-box-in'
         }`}
       >
@@ -229,9 +229,7 @@ export default function EditProfileModal({
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* UPLOAD & PREVIEW FOTO PROFIL */}
           <div className="flex items-center gap-4 p-3.5 bg-neutral-50 rounded-2xl border border-neutral-100">
-            {/* 🌟 Dapat diklik meskipun belum upload foto (menggunakan avatarUrl maupun initial) */}
             <div 
               className="relative group cursor-pointer" 
               onClick={() => onOpenAvatarPreview?.()}
@@ -263,13 +261,11 @@ export default function EditProfileModal({
                   <input type="file" accept="image/png, image/jpeg, image/jpg" onChange={handleFileSelect} disabled={uploadingImage} className="hidden" />
                 </label>
                 
-                {/* Tombol Preview Pratinjau */}
                 {onOpenAvatarPreview && (
                   <button
                     type="button"
                     onClick={onOpenAvatarPreview}
                     className="px-2.5 py-1.5 bg-neutral-200 hover:bg-neutral-300 text-neutral-700 rounded-xl text-xs font-bold transition cursor-pointer"
-                    title="Lihat Pratinjau Foto"
                   >
                     👁️ Pratinjau
                   </button>
@@ -279,7 +275,6 @@ export default function EditProfileModal({
             </div>
           </div>
 
-          {/* INPUT NAMA DEPAN & BELAKANG */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-bold text-neutral-600 mb-1">Nama Depan *</label>
@@ -291,13 +286,11 @@ export default function EditProfileModal({
             </div>
           </div>
 
-          {/* NAMA PANGGULAN ROSTER */}
           <div>
             <label className="block text-[11px] font-bold text-neutral-600 mb-1">Nama Panggilan (Tampilan Roster)</label>
             <input type="text" value={staffName} onChange={(e) => setStaffName(e.target.value)} placeholder="Contoh: Yusuf" className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#d22027]" />
           </div>
 
-          {/* KONTAK & TELEGRAM */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-[11px] font-bold text-neutral-600 mb-1">No. WhatsApp / HP</label>
@@ -311,7 +304,6 @@ export default function EditProfileModal({
             </div>
           </div>
 
-          {/* BANNER CONNECT TELEGRAM BOT */}
           <div className="p-3 bg-neutral-100 border border-neutral-200 rounded-2xl flex items-center justify-between gap-2 opacity-75">
             <div>
               <p className="text-xs font-bold text-neutral-500">🤖 Telegram Notification</p>
@@ -322,13 +314,11 @@ export default function EditProfileModal({
             </button>
           </div>
 
-          {/* EMAIL */}
           <div>
             <label className="block text-[11px] font-bold text-neutral-600 mb-1">Email</label>
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@domain.com" className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#d22027]" />
           </div>
 
-          {/* UBAH PIN */}
           <div className="pt-2 border-t border-neutral-100 space-y-3">
             <div>
               <label className="block text-[11px] font-bold text-neutral-600 mb-1">PIN Baru (Opsional)</label>
@@ -354,7 +344,6 @@ export default function EditProfileModal({
         </form>
       </div>
 
-      {/* Sub-modal Crop */}
       <AvatarCropModal
         cropImageSrc={cropImageSrc}
         onClose={() => setCropImageSrc(null)}
@@ -370,6 +359,7 @@ export default function EditProfileModal({
         dragStart={dragStart}
         setDragStart={setDragStart}
       />
-    </div>
+    </div>,
+    document.body
   );
 }
