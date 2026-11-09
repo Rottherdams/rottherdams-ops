@@ -29,22 +29,32 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
     }
   }, [isOpen]);
 
-  // Listener untuk mengetik PIN langsung lewat Keyboard PC / Laptop
+  // Listener untuk mengetik PIN lewat Keyboard PC / Laptop
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
-        if (pin.length < 4) {
-          setPin(prev => prev + e.key);
-          setErrorMsg('');
-        }
-      } else if (e.key === 'Backspace') {
-        setPin(prev => prev.slice(0, -1));
-        setErrorMsg('');
-      } else if (e.key === 'Enter') {
+      // Jika pengguna menekan tombol Enter pada keyboard PC
+      if (e.key === 'Enter') {
         if (pin.length === 4 && username.trim()) {
           handleLogin();
+        }
+        return;
+      }
+
+      // Jika fokus tidak sedang di input username, perbolehkan ngetik PIN langsung via keyboard PC
+      const activeEl = document.activeElement;
+      const isInputFocused = activeEl && activeEl.tagName === 'INPUT';
+
+      if (!isInputFocused) {
+        if (['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'].includes(e.key)) {
+          if (pin.length < 4) {
+            setPin(prev => prev + e.key);
+            setErrorMsg('');
+          }
+        } else if (e.key === 'Backspace') {
+          setPin(prev => prev.slice(0, -1));
+          setErrorMsg('');
         }
       }
     };
@@ -117,7 +127,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
         avatar_url: data.avatar_url || undefined,
       };
 
-      // 🔐 REKAM LOG LOGIN KE SUPABASE (IP, GPS, DEVICE INFO)
+      // 🔐 REKAM LOG LOGIN KE SUPABASE
       try {
         await recordLoginLog(userSession);
       } catch (logErr) {
@@ -135,8 +145,18 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
-      <div className="bg-white rounded-3xl p-6 md:p-8 w-full max-w-md md:max-w-xl shadow-2xl border border-neutral-100 animate-in fade-in zoom-in-95 duration-200 relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-3 sm:p-4 overscroll-none touch-none">
+      <style>{`
+        .no-scrollbar::-webkit-scrollbar {
+          display: none !important;
+        }
+        .no-scrollbar {
+          -ms-overflow-style: none !important;
+          scrollbar-width: none !important;
+        }
+      `}</style>
+
+      <div className="bg-white rounded-3xl p-5 md:p-8 w-full max-w-md md:max-w-xl shadow-2xl border border-neutral-100 animate-in fade-in zoom-in-95 duration-200 relative max-h-[92vh] overflow-y-auto no-scrollbar my-auto">
         <button
           onClick={onClose}
           type="button"
@@ -146,20 +166,20 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
         </button>
 
         {/* Header Modal */}
-        <div className="flex items-center gap-3 mb-6 pb-4 border-b border-neutral-100 text-left">
-          <div className="w-12 h-12 bg-[#d22027]/10 text-[#d22027] rounded-2xl flex items-center justify-center font-bold text-xl shrink-0">
+        <div className="flex items-center gap-3 mb-5 pb-3 border-b border-neutral-100 text-left">
+          <div className="w-10 h-10 md:w-12 md:h-12 bg-[#d22027]/10 text-[#d22027] rounded-2xl flex items-center justify-center font-bold text-lg md:text-xl shrink-0">
             🔐
           </div>
           <div>
-            <h2 className="text-xl font-black text-[#111111]">Masuk Sistem Staf</h2>
-            <p className="text-xs text-neutral-400 mt-0.5">
+            <h2 className="text-lg md:text-xl font-black text-[#111111]">Masuk Sistem Staf</h2>
+            <p className="text-[11px] md:text-xs text-neutral-400 mt-0.5">
               Masukkan Username / ID Staf dan 4 Digit PIN Anda
             </p>
           </div>
         </div>
 
         {/* Container Utama: Grid 2 Kolom untuk Desktop */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-center">
           
           {/* Kolom Kiri: Input Username & Indikator PIN */}
           <div className="space-y-4 text-left">
@@ -167,6 +187,7 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
               <label className="block text-xs font-bold text-neutral-700 mb-1.5">
                 Username / ID Staf:
               </label>
+              {/* 🌟 Mencegah autoscroll & keyboard bawaan HP dengan inputMode & preventDefault on touch */}
               <input
                 type="text"
                 placeholder="Misal: Yusuf, Rico, STF-001"
@@ -176,7 +197,6 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
                   setErrorMsg('');
                 }}
                 className="w-full bg-neutral-50 border border-neutral-200 rounded-xl px-3.5 py-2.5 font-bold text-xs md:text-sm text-neutral-800 focus:outline-none focus:border-[#d22027] focus:bg-white transition"
-                autoFocus
               />
             </div>
 
@@ -210,8 +230,8 @@ export default function LoginModal({ isOpen, onClose, onLoginSuccess }: LoginMod
             </p>
           </div>
 
-          {/* Kolom Kanan: Keypad Numpad */}
-          <div className="bg-neutral-50 p-4 rounded-2xl border border-neutral-100">
+          {/* Kolom Kanan: Keypad Numpad Visual */}
+          <div className="bg-neutral-50 p-3.5 rounded-2xl border border-neutral-100">
             <div className="grid grid-cols-3 gap-2">
               {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(num => (
                 <button
