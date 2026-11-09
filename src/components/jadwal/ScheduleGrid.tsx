@@ -49,11 +49,8 @@ export default function ScheduleGrid({
   onDayChange,
   isSameDate,
 }: ScheduleGridProps) {
-  const selectedDayIndex = days.indexOf(selectedDay);
-
   return (
     <div className="text-left relative">
-      {/* 🌟 CSS GLOBAL MENYEMBUNYIKAN SCROLLBAR HORIZONTAL & VERTIKAL */}
       <style>{`
         .no-scrollbar::-webkit-scrollbar,
         .scrollbar-none::-webkit-scrollbar {
@@ -68,45 +65,45 @@ export default function ScheduleGrid({
         }
       `}</style>
 
-      {/* Sliding Tab Hari Mobile (Disembunyikan Scrollbar-nya) */}
-      <div className="md:hidden relative flex gap-1 overflow-x-auto pb-3 no-scrollbar scrollbar-none mb-3 border-b border-neutral-100">
-        <div
-          className="absolute top-0 h-[32px] bg-[#111111] rounded-xl transition-all duration-300 ease-out"
-          style={{
-            width: '90px',
-            transform: `translateX(${selectedDayIndex * 94}px)`,
-          }}
-        />
-
+      {/* 🌟 Tab Hari Mobile Bersusun Rapat (Stacked View) */}
+      <div className="md:hidden flex gap-1.5 overflow-x-auto pb-2.5 no-scrollbar scrollbar-none mb-3 border-b border-neutral-100">
         {days.map((day, idx) => {
           const isToday = isSameDate(currentSelectedWeekDates[idx]);
           const isActive = selectedDay === day;
+          const dateStr = dateLabels[day] || '';
 
           return (
             <button
               key={day}
               onClick={() => onDayChange(day)}
-              className={`relative z-10 min-w-[90px] py-1.5 rounded-xl text-xs font-bold transition-colors duration-200 cursor-pointer whitespace-nowrap text-center ${
+              className={`shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-200 cursor-pointer whitespace-nowrap text-center flex flex-col items-center justify-center min-w-[76px] ${
                 isActive
-                  ? 'text-white'
-                  : 'text-neutral-500 hover:text-black'
+                  ? 'bg-[#111111] text-white shadow-sm'
+                  : 'bg-neutral-100 text-neutral-600 hover:text-black'
               }`}
             >
-              {day} {dateLabels[day] && `(${dateLabels[day]})`}
-              {isToday && (
-                <span
-                  className={`ml-1 inline-block w-1.5 h-1.5 rounded-full ${
-                    isActive ? 'bg-amber-300 animate-pulse' : 'bg-[#d22027]'
-                  }`}
-                  title="Hari Ini"
-                ></span>
+              <div className="flex items-center gap-1 leading-none">
+                <span>{day}</span>
+                {isToday && (
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      isActive ? 'bg-amber-300 animate-pulse' : 'bg-[#d22027]'
+                    }`}
+                    title="Hari Ini"
+                  />
+                )}
+              </div>
+              {dateStr && (
+                <span className={`text-[9px] font-mono mt-0.5 leading-none ${isActive ? 'text-neutral-300' : 'text-neutral-400'}`}>
+                  {dateStr}
+                </span>
               )}
             </button>
           );
         })}
       </div>
 
-      {/* Tabel Desktop (Disembunyikan Scrollbar Horizontal & Vertikal) */}
+      {/* Tabel Desktop */}
       <div key={`anim-${animKey}`} className="hidden md:block overflow-auto no-scrollbar scrollbar-none rounded-2xl max-h-[70vh]">
         <table className="w-full text-left text-xs border-collapse min-w-[700px]">
           <thead>

@@ -76,7 +76,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
     rawRole.includes('kitchen_helper') || 
     rawRole.includes('dishwasher');
 
-  // Kasir & Support (Dibatasi secara default jika tidak punya akses bar/dapur/manajemen)
+  // Kasir & Support
   const isKasir = rawRole.includes('kasir') || rawRole.includes('cashier');
 
   const formattedDate = new Date().toLocaleString('id-ID', {
@@ -91,7 +91,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
     fetchRecipes();
   }, []);
 
-  // 🛡️ 1. DETEKSI SCREENSHOT & VISIBILITY / BLUR CHANGE (LOG SECURITY)
+  // 🛡️ DETEKSI SCREENSHOT & VISIBILITY LOG SECURITY
   useEffect(() => {
     if (!currentUser) return;
 
@@ -164,17 +164,14 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
     setLoading(false);
   };
 
-  // 📖 2. MEKANISME PRESS & HOLD (TEKAN & TAHAN UNTUK BUKU RESEP)
   const handlePressStart = async (item: RecipeItem) => {
     setUnlockedRecipeId(item.id);
 
-    // Set auto-blur 15 detik jika ditahan terlalu lama
     if (autoBlurTimerRef.current) clearTimeout(autoBlurTimerRef.current);
     autoBlurTimerRef.current = setTimeout(() => {
       setUnlockedRecipeId(null);
     }, 15000);
 
-    // Rekam Log Audit Pembacaan Resep
     if (currentUser) {
       try {
         await supabase.from('security_audit_logs').insert([
@@ -195,16 +192,15 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
 
   const handlePressEnd = () => {
     if (autoBlurTimerRef.current) clearTimeout(autoBlurTimerRef.current);
-    setUnlockedRecipeId(null); // Langsung Blur seketika saat jari terlepas dari layar HP
+    setUnlockedRecipeId(null);
   };
 
-  // 🚪 FUNGSI DENGAN ANIMASI CLOSE MODAL PERINGATAN KERAHASIAAN
   const handleCloseWarningModal = () => {
     setIsClosingModal(true);
     setTimeout(() => {
       setShowWarningModal(false);
       setIsClosingModal(false);
-    }, 300); // Tunda 300ms agar animasi exit selesaikan tugasnya
+    }, 300);
   };
 
   const handleAddRecipe = async (e: React.FormEvent) => {
@@ -252,7 +248,6 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
     }
   };
 
-  // FILTER STRICT PER DIVISI BASED ON NEW ROLE SYSTEM
   const getAllowedRecipes = () => {
     if (isBar && !isManagementOrOwner) {
       return recipes.filter(r => (r.category || '').toLowerCase() === 'beverage');
@@ -274,7 +269,6 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
         ? roleAllowedRecipes
         : roleAllowedRecipes.filter(r => (r.category || 'Beverage').toLowerCase() === selectedCategory.toLowerCase()));
 
-  // AKSES DIBLOKIR UNTUK STAF RESIGN ATAU DIVISI KASIR
   if (isResign || (isKasir && !isManagementOrOwner && !isBar && !isDapur)) {
     return (
       <div className="bg-white rounded-3xl p-8 border border-neutral-200 shadow-sm text-center">
@@ -295,51 +289,18 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
       onCopy={(e) => e.preventDefault()}
       onContextMenu={(e) => e.preventDefault()}
     >
-      {/* 🌟 CSS Keyframes Animasi Modal Entry & Exit */}
       <style>{`
-        @keyframes backdropFadeIn {
-          0% { opacity: 0; }
-          100% { opacity: 1; }
-        }
-        @keyframes backdropFadeOut {
-          0% { opacity: 1; }
-          100% { opacity: 0; }
-        }
-        @keyframes modalSmoothIn {
-          0% {
-            opacity: 0;
-            transform: scale(0.92) translateY(16px);
-          }
-          100% {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-        }
-        @keyframes modalSmoothOut {
-          0% {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-          }
-          100% {
-            opacity: 0;
-            transform: scale(0.95) translateY(10px);
-          }
-        }
-        .animate-backdrop-in {
-          animation: backdropFadeIn 0.35s ease-out forwards;
-        }
-        .animate-backdrop-out {
-          animation: backdropFadeOut 0.3s ease-in forwards;
-        }
-        .animate-modal-in {
-          animation: modalSmoothIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
-        }
-        .animate-modal-out {
-          animation: modalSmoothOut 0.3s ease-in forwards;
-        }
+        @keyframes backdropFadeIn { 0% { opacity: 0; } 100% { opacity: 1; } }
+        @keyframes backdropFadeOut { 0% { opacity: 1; } 100% { opacity: 0; } }
+        @keyframes modalSmoothIn { 0% { opacity: 0; transform: scale(0.92) translateY(16px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+        @keyframes modalSmoothOut { 0% { opacity: 1; transform: scale(1) translateY(0); } 100% { opacity: 0; transform: scale(0.95) translateY(10px); } }
+        .animate-backdrop-in { animation: backdropFadeIn 0.35s ease-out forwards; }
+        .animate-backdrop-out { animation: backdropFadeOut 0.3s ease-in forwards; }
+        .animate-modal-in { animation: modalSmoothIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+        .animate-modal-out { animation: modalSmoothOut 0.3s ease-in forwards; }
       `}</style>
 
-      {/* 🌊 DYNAMIC WATERMARK MELAYANG DI LAYAR */}
+      {/* Watermark Melayang */}
       {currentUser && (
         <div className="pointer-events-none fixed inset-0 z-30 flex flex-col justify-between p-6 opacity-[0.06] rotate-[-15deg] overflow-hidden">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -352,7 +313,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
         </div>
       )}
 
-      {/* ⚠️ NOTIFIKASI DETEKSI SCREENSHOT */}
+      {/* Indikator Screenshot */}
       {screenshotWarning && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-red-600 text-white px-6 py-3 rounded-2xl shadow-2xl font-bold text-xs flex items-center gap-2 animate-bounce">
           <span>⚠️ TERDETEKSI INDIKASI SCREENSHOT!</span>
@@ -360,49 +321,49 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
         </div>
       )}
       
-      {/* POP-UP MODAL PERINGATAN KERAHASIAAN DOKUMEN DENGAN ANIMASI HALUS IN & OUT */}
+      {/* 🌟 POP-UP MODAL PERINGATAN KERAHASIAAN DOKUMEN (COMPACT UNTUK HP) */}
       {showWarningModal && createPortal(
-        <div className={`fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-4 ${
+        <div className={`fixed inset-0 bg-black/80 backdrop-blur-md z-[9999] flex items-center justify-center p-3 sm:p-4 ${
           isClosingModal ? 'animate-backdrop-out' : 'animate-backdrop-in'
         }`}>
-          <div className={`bg-[#0f0f0f] border-2 border-red-600 rounded-3xl p-6 max-w-lg w-full text-white shadow-2xl relative text-left my-auto ${
+          <div className={`bg-[#0f0f0f] border-2 border-red-600 rounded-3xl p-4 sm:p-6 max-w-lg w-full text-white shadow-2xl relative text-left my-auto max-h-[90vh] overflow-y-auto no-scrollbar ${
             isClosingModal ? 'animate-modal-out' : 'animate-modal-in'
           }`}>
-            <div className="flex items-center gap-2 mb-3 bg-red-600 text-white font-black text-xs sm:text-sm px-3.5 py-1.5 rounded-xl w-fit uppercase tracking-wider">
-              <span>⚠️</span> PERINGATAN KERAHASIAAN DOKUMEN <span>⚠️</span>
+            <div className="flex items-center gap-1.5 mb-2.5 bg-red-600 text-white font-black text-[10px] sm:text-xs px-2.5 py-1 rounded-lg w-fit uppercase tracking-wider">
+              <span>⚠️</span> PERINGATAN KERAHASIAAN <span>⚠️</span>
             </div>
 
-            <h3 className="text-sm sm:text-base font-black text-red-400 mb-2 leading-snug">
+            <h3 className="text-xs sm:text-sm font-black text-red-400 mb-1.5 leading-tight">
               DILARANG MENGAMBIL FOTO, MENYEBARKAN, ATAU MEMBAGIKAN ISI BUKU RESEP INI KEPADA PIHAK LUAR!
             </h3>
 
-            <p className="text-xs font-bold text-neutral-200 mb-4 uppercase tracking-wide">
-              SELURUH DATA GRAMASI DAN STANDAR RESEP DI APLIKASI INI ADALAH ASET RAHASIA DAGANG ROTTHERDAMS.
+            <p className="text-[10px] sm:text-xs font-bold text-neutral-200 mb-3 uppercase tracking-wide leading-snug">
+              SELURUH DATA GRAMASI DAN STANDAR RESEP ADALAH ASET RAHASIA DAGANG ROTTHERDAMS.
             </p>
 
-            <div className="bg-neutral-900/90 rounded-2xl p-4 border border-neutral-800 space-y-2 text-xs text-neutral-300 mb-5">
-              <p className="font-bold text-red-400 uppercase text-[11px]">SANKSI PIDANA & HUKUMAN:</p>
+            <div className="bg-neutral-900/90 rounded-2xl p-3 border border-neutral-800 space-y-1.5 text-[10px] sm:text-xs text-neutral-300 mb-3.5">
+              <p className="font-bold text-red-400 uppercase text-[10px]">SANKSI PIDANA & HUKUMAN:</p>
 
-              <ul className="list-disc list-inside space-y-2 leading-relaxed text-[11px]">
+              <ul className="list-disc list-inside space-y-1 leading-snug text-[10px] sm:text-[11px]">
                 <li>
-                  <strong className="text-white">UU No. 30 Tahun 2000 (Rahasia Dagang) Pasal 13 & 17:</strong> Membocorkan resep/rahasia bisnis diancam pidana penjara paling lama <strong className="text-red-400">2 TAHUN</strong> dan/atau denda hingga <strong className="text-red-400">Rp300.000.000,-</strong>.
+                  <strong className="text-white">UU No. 30 Thn 2000 (Rahasia Dagang):</strong> Penjara max <strong className="text-red-400">2 TAHUN</strong> / denda <strong className="text-red-400">Rp300 Juta</strong>.
                 </li>
                 <li>
-                  <strong className="text-white">UU No. 1 Tahun 2024 (ITE) Pasal 32 & 48:</strong> Menyebarkan, memfoto, atau mendistribusikan data digital perusahaan tanpa hak diancam pidana penjara paling lama <strong className="text-red-400">8 TAHUN</strong> dan/atau denda hingga <strong className="text-red-400">Rp2.000.000.000,- (2 Miliar Rupiah)</strong>.
+                  <strong className="text-white">UU No. 1 Thn 2024 (ITE):</strong> Penjara max <strong className="text-red-400">8 TAHUN</strong> / denda <strong className="text-red-400">Rp2 Miliar</strong>.
                 </li>
                 <li>
-                  <strong className="text-white">Sanksi Perusahaan:</strong> Pemutusan Hubungan Kerja (PHK) seketika tanpa pesangon serta tuntutan ganti rugi perdata atas kerugian bisnis.
+                  <strong className="text-white">Sanksi Perusahaan:</strong> PHK seketika tanpa pesangon & ganti rugi perdata.
                 </li>
               </ul>
             </div>
 
-            <p className="text-[10px] italic text-neutral-400 mb-5">
+            <p className="text-[9px] italic text-neutral-400 mb-4">
               * Aktivitas dan jejak akses akun Anda di dalam sistem ini dipantau oleh manajemen.
             </p>
 
             <button
               onClick={handleCloseWarningModal}
-              className="w-full py-3.5 bg-[#d22027] hover:bg-[#bb2026] active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-2xl shadow-lg transition cursor-pointer text-center"
+              className="w-full py-3 bg-[#d22027] hover:bg-[#bb2026] active:scale-95 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition cursor-pointer text-center"
             >
               Saya Mengerti & Setuju
             </button>
@@ -411,7 +372,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
         document.body
       )}
 
-      {/* BANNER PERINGATAN KERAHASIAAN DOKUMEN HEADER */}
+      {/* Banner Kerahasiaan Header */}
       <div className="bg-[#0f0f0f] border-2 border-red-600/80 rounded-2xl p-4 sm:p-5 text-white shadow-md">
         <div className="flex items-center gap-2 mb-2 bg-red-600 text-white font-black text-xs sm:text-sm px-3 py-1 rounded-lg w-fit uppercase tracking-wider">
           <span>⚠️</span> PERINGATAN KERAHASIAAN DOKUMEN <span>⚠️</span>
@@ -467,7 +428,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
         )}
       </div>
 
-      {/* Filter Kategori Button */}
+      {/* Filter Kategori */}
       <div className="flex gap-2 overflow-x-auto pb-1">
         {((isBar && !isManagementOrOwner)
           ? (['Beverage'] as const)
@@ -489,7 +450,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
         ))}
       </div>
 
-      {/* List Card Resep dengan Fitur Press & Hold */}
+      {/* List Resep */}
       {loading ? (
         <div className="py-8 text-center text-xs text-neutral-400 animate-pulse">
           Memuat resep dari database...
@@ -545,7 +506,6 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
                   </div>
                 </div>
 
-                {/* RINCIAN GRAMASI (EFEK BLUR PRESS-TO-REVEAL) */}
                 <div className={`space-y-1 text-xs transition-all duration-300 relative ${
                   isUnlocked ? 'filter-none opacity-100' : 'blur-md opacity-30 select-none pointer-events-none'
                 }`}>
@@ -554,7 +514,6 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
                   <p><span className="font-semibold text-neutral-400">Waktu / Ekstraksi:</span> <strong className="text-neutral-900">{item.extraction_time}</strong></p>
                 </div>
 
-                {/* PETUNJUK OVERLAY PRESS & HOLD */}
                 {!isUnlocked && (
                   <div className="absolute inset-0 flex items-center justify-center bg-white/20 backdrop-blur-[1px]">
                     <span className="bg-[#111111] text-white text-[10px] font-extrabold px-3 py-1.5 rounded-full shadow-md animate-pulse">
@@ -568,7 +527,7 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
         </div>
       )}
 
-      {/* Modal Pop-Up Tambah Resep */}
+      {/* Modal Tambah Resep */}
       {isAddModalOpen && createPortal(
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xs z-[9999] flex items-center justify-center p-4 animate-backdrop-in">
           <div className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-neutral-100 text-left animate-modal-in my-auto">

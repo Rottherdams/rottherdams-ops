@@ -52,7 +52,7 @@ export default function App() {
   const [activeNav, setActiveNav] = useState<'home' | 'sop' | 'resep' | 'jadwal' | 'karyawan' | 'handover' | 'dashboard' | 'presensi'>('home');
   const [isPageFading, setIsPageFading] = useState<boolean>(false);
 
-  // State background presensi & nilai slider visual dari database
+  // State background presensi
   const [presenceBgList, setPresenceBgList] = useState<string[]>([]);
   const [presenceBgBlur, setPresenceBgBlur] = useState<number>(4);
   const [presenceBgOverlay, setPresenceBgOverlay] = useState<number>(80);
@@ -69,6 +69,7 @@ export default function App() {
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isClosingUserMenu, setIsClosingUserMenu] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false); 
+  const [isClosingMoreMenu, setIsClosingMoreMenu] = useState(false); // 🌟 State Transisi Tutup Menu Mobile
   const [isEditProfileOpen, setIsEditProfileOpen] = useState<boolean>(false);
 
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
@@ -90,7 +91,7 @@ export default function App() {
     };
   }, []);
 
-  // Monitoring Database Online (Health Check Presisi)
+  // Monitoring Database Online
   useEffect(() => {
     const checkDbHealth = async () => {
       try {
@@ -102,7 +103,6 @@ export default function App() {
         if (!error) {
           setIsDbOnline(true);
         } else {
-          // Jika koneksi internet aktif tetapi error RLS, tetap nyatakan DB online
           setIsDbOnline(navigator.onLine);
         }
       } catch {
@@ -115,7 +115,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Sync Data System Settings untuk Background Presensi & Slider secara Realtime
+  // Sync System Settings
   useEffect(() => {
     fetchPresenceBg();
     fetchPresenceSettings();
@@ -220,6 +220,15 @@ export default function App() {
     }
   };
 
+  // 🌟 Penutupan Menu Mobile "Lainnya" Dengan Animasi Out Smooth
+  const handleCloseMoreMenu = () => {
+    setIsClosingMoreMenu(true);
+    setTimeout(() => {
+      setIsMoreMenuOpen(false);
+      setIsClosingMoreMenu(false);
+    }, 200);
+  };
+
   const handleNavChange = (newNav: typeof activeNav) => {
     if (newNav === activeNav) return;
     setIsPageFading(true);
@@ -308,7 +317,7 @@ export default function App() {
     setCurrentUser(null);
     handleNavChange('home');
     handleCloseUserMenu();
-    setIsMoreMenuOpen(false);
+    handleCloseMoreMenu();
   };
 
   const rawRole = (currentUser?.role || '').toLowerCase();
@@ -345,22 +354,10 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#ffffff] text-[#111111] font-sans antialiased flex flex-col justify-between pb-20 md:pb-0 selection:bg-[#d22027] selection:text-white">
       <style>{`
-        @keyframes menuDropdownIn {
-          0% { opacity: 0; transform: scale(0.95) translateY(-8px); }
-          100% { opacity: 1; transform: scale(1) translateY(0); }
-        }
-        @keyframes menuDropdownOut {
-          0% { opacity: 1; transform: scale(1) translateY(0); }
-          100% { opacity: 0; transform: scale(0.95) translateY(-8px); }
-        }
-        @keyframes avatarModalIn {
-          0% { opacity: 0; transform: scale(0.85); }
-          100% { opacity: 1; transform: scale(1); }
-        }
-        @keyframes avatarModalOut {
-          0% { opacity: 1; transform: scale(1); }
-          100% { opacity: 0; transform: scale(0.85); }
-        }
+        @keyframes menuDropdownIn { 0% { opacity: 0; transform: scale(0.95) translateY(-8px); } 100% { opacity: 1; transform: scale(1) translateY(0); } }
+        @keyframes menuDropdownOut { 0% { opacity: 1; transform: scale(1) translateY(0); } 100% { opacity: 0; transform: scale(0.95) translateY(-8px); } }
+        @keyframes avatarModalIn { 0% { opacity: 0; transform: scale(0.85); } 100% { opacity: 1; transform: scale(1); } }
+        @keyframes avatarModalOut { 0% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(0.85); } }
         .user-dropdown-in { animation: menuDropdownIn 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .user-dropdown-out { animation: menuDropdownOut 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
         .avatar-modal-in { animation: avatarModalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
@@ -385,14 +382,12 @@ export default function App() {
           />
         )}
 
-        {/* Modal Kelola Rotator Background */}
         <BackgroundManager
           isOpen={isBgManagerOpen}
           onClose={() => setIsBgManagerOpen(false)}
           onUpdateSuccess={(urls) => setPresenceBgList(urls)}
         />
 
-        {/* HEADER NAVBAR COMPONENT */}
         <HeaderNavbar
           currentUser={currentUser}
           activeNav={activeNav}
@@ -443,7 +438,6 @@ export default function App() {
                   </div>
                 )}
 
-                {/* Banner Header Presensi dengan Background Rotator Mulus & Clean Glassmorphism */}
                 <div className="mb-6 rounded-3xl text-left overflow-hidden border border-neutral-200/80 shadow-xl">
                   <BackgroundRotator 
                     images={presenceBgList} 
@@ -453,7 +447,6 @@ export default function App() {
                     isRandom={isPresenceRandom}
                   >
                     <div className="relative p-6 md:p-8 min-h-[220px] flex flex-col justify-between">
-                      {/* Soft Bottom Gradient Overlay untuk menghilangkan garis border hitam melingkar */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent pointer-events-none" />
 
                       <div className="relative z-10 flex justify-between items-center mb-4 flex-wrap gap-2">
@@ -493,11 +486,9 @@ export default function App() {
                         <p className="text-xs md:text-sm text-neutral-200 leading-relaxed drop-shadow-xs max-w-lg">Your daily dose of caffeine & good vibes at Rottherdams Coffee Social House.</p>
                       </div>
 
-                      {/* Tombol Aksi Utama - WAKTU & MERAH PEKAT GLASSMORPHISM BLUR */}
                       <div className="relative z-10">
                         {currentUser ? (
                           activeUserAttendance ? (
-                            /* 1. Kondisi Sudah Clock In (Tombol Clock Out) */
                             <button 
                               onClick={() => setShowClockOutModal(true)} 
                               disabled={isClockingOut} 
@@ -506,7 +497,6 @@ export default function App() {
                               {isClockingOut ? 'Memproses...' : '🚪 Selesai Shift / Clock Out'}
                             </button>
                           ) : (
-                            /* 2. Kondisi Sudah Login & Belum Clock In (Tombol Clock In) */
                             <button 
                               onClick={() => setIsClockInOpen(true)} 
                               className="w-full md:w-auto md:px-8 py-3.5 bg-[#d22027]/75 hover:bg-[#d22027]/90 text-white font-bold text-xs md:text-sm rounded-2xl shadow-xl hover:shadow-red-500/30 backdrop-blur-md border border-white/25 transition duration-200 cursor-pointer active:scale-95 flex items-center justify-center gap-2"
@@ -515,7 +505,6 @@ export default function App() {
                             </button>
                           )
                         ) : (
-                          /* 3. Kondisi Belum Login (Tombol Login Staf) */
                           <button 
                             onClick={() => setIsLoginOpen(true)} 
                             className="w-full md:w-auto md:px-8 py-3.5 bg-[#d22027]/75 hover:bg-[#d22027]/90 text-white font-bold text-xs md:text-sm rounded-2xl shadow-xl hover:shadow-red-500/30 backdrop-blur-md border border-white/25 transition duration-200 cursor-pointer active:scale-95 flex items-center justify-center gap-2"
@@ -560,7 +549,6 @@ export default function App() {
 
                 {currentUser && <SopChecklist activeShift={activeTab} currentUser={currentUser as any} />}
 
-                {/* Grid Pintasan Quick Menu */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5 md:gap-5 mt-8 text-left">
                   {currentUser && (
                     <>
@@ -604,7 +592,7 @@ export default function App() {
 
       <FooterMinimalist isHostOnline={isHostOnline} isDbOnline={isDbOnline} />
 
-      {/* Mobile Bottom Bar Navigation */}
+      {/* Mobile Bottom Bar Nav */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-neutral-200 px-4 py-2 z-40 shadow-2xl">
         <div className="max-w-md mx-auto flex justify-around items-center">
           <button onClick={() => handleNavChange('home')} className={`flex flex-col items-center gap-0.5 cursor-pointer transition ${activeNav === 'home' ? 'text-[#d22027]' : 'text-neutral-400 hover:text-neutral-700'}`}>
@@ -634,32 +622,62 @@ export default function App() {
         </div>
       </nav>
 
-      {/* Mobile Drawer Menu "Lainnya" */}
+      {/* 🌟 Mobile Drawer Menu "Lainnya" Dengan Animasi In & Out & Tampilan Bersih */}
       {isMoreMenuOpen && (
-        <div className="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end animate-fade-in">
-          <div className="w-full bg-white rounded-t-3xl p-6 space-y-4 animate-slide-up border-t border-neutral-100 shadow-2xl">
+        <div 
+          onClick={handleCloseMoreMenu}
+          className={`md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end transition-opacity duration-200 ${
+            isClosingMoreMenu ? 'opacity-0' : 'opacity-100'
+          }`}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            className={`w-full bg-white rounded-t-3xl p-6 space-y-4 border-t border-neutral-100 shadow-2xl transition-transform duration-200 ${
+              isClosingMoreMenu ? 'translate-y-full' : 'translate-y-0'
+            }`}
+          >
             <div className="flex justify-between items-center pb-2 border-b border-neutral-100">
               <h3 className="font-extrabold text-sm text-[#111111]">Menu & Fitur Lainnya</h3>
-              <button onClick={() => setIsMoreMenuOpen(false)} className="w-7 h-7 bg-neutral-100 text-neutral-500 rounded-full font-bold flex items-center justify-center text-xs cursor-pointer active:scale-90 transition-transform">✕</button>
+              <button 
+                onClick={handleCloseMoreMenu} 
+                className="w-7 h-7 bg-neutral-100 text-neutral-500 rounded-full font-bold flex items-center justify-center text-xs cursor-pointer active:scale-90 transition-transform"
+              >
+                ✕
+              </button>
             </div>
+
             <div className="grid grid-cols-3 gap-3 pt-2 text-left">
-              <button onClick={() => { handleNavChange('jadwal'); setIsMoreMenuOpen(false); }} className="p-3 bg-neutral-50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:bg-red-50 active:scale-95 transition-all border border-neutral-100 cursor-pointer">
+              <button 
+                onClick={() => { handleNavChange('jadwal'); handleCloseMoreMenu(); }} 
+                className="p-3 bg-neutral-50 hover:bg-neutral-100 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
+              >
                 <span className="text-2xl">📅</span>
                 <span className="text-[11px] font-bold text-neutral-800">Jadwal Staf</span>
               </button>
+
               {currentUser && (
-                <button onClick={() => { handleNavChange('handover'); setIsMoreMenuOpen(false); }} className="p-3 bg-neutral-50 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 hover:bg-red-50 active:scale-95 transition-all border border-neutral-100 cursor-pointer">
+                <button 
+                  onClick={() => { handleNavChange('handover'); handleCloseMoreMenu(); }} 
+                  className="p-3 bg-neutral-50 hover:bg-neutral-100 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
+                >
                   <span className="text-2xl">📝</span>
                   <span className="text-[11px] font-bold text-neutral-800">Handover Log</span>
                 </button>
               )}
+
               {isManagementOrOwner && (
                 <>
-                  <button onClick={() => { handleNavChange('dashboard'); setIsMoreMenuOpen(false); }} className="p-3 bg-[#d22027]/10 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 active:scale-95 transition-all border border-neutral-100 cursor-pointer">
+                  <button 
+                    onClick={() => { handleNavChange('dashboard'); handleCloseMoreMenu(); }} 
+                    className="p-3 bg-neutral-50 hover:bg-neutral-100 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
+                  >
                     <span className="text-2xl">📊</span>
                     <span className="text-[11px] font-bold text-neutral-800">Analytics</span>
                   </button>
-                  <button onClick={() => { handleNavChange('karyawan'); setIsMoreMenuOpen(false); }} className="p-3 bg-[#d22027]/10 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 active:scale-95 transition-all border border-neutral-100 cursor-pointer">
+                  <button 
+                    onClick={() => { handleNavChange('karyawan'); handleCloseMoreMenu(); }} 
+                    className="p-3 bg-neutral-50 hover:bg-neutral-100 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
+                  >
                     <span className="text-2xl">👥</span>
                     <span className="text-[11px] font-bold text-neutral-800">Daftar Staf</span>
                   </button>
@@ -670,7 +688,7 @@ export default function App() {
         </div>
       )}
 
-      {/* Pop-up Preview Foto Profil HQ */}
+      {/* Pop-up Preview Foto Profil */}
       {isAvatarPreviewOpen && currentUser && createPortal(
         <div onClick={handleCloseAvatarPreview} className={`fixed inset-0 z-[9999] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 transition-opacity duration-200 cursor-pointer ${isClosingAvatarPreview ? 'opacity-0' : 'opacity-100'}`}>
           <div onClick={e => e.stopPropagation()} className={`bg-white rounded-3xl p-6 w-full max-w-xs text-center shadow-2xl border border-neutral-100 relative space-y-4 ${isClosingAvatarPreview ? 'avatar-modal-out' : 'avatar-modal-in'}`}>

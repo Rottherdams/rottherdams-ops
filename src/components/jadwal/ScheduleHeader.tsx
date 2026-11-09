@@ -32,8 +32,6 @@ export default function ScheduleHeader({
   onOpenSwapModal,
   onOpenEditModal,
 }: ScheduleHeaderProps) {
-  const selectedWeekIndex = weeks.indexOf(selectedWeek);
-
   return (
     <div className="flex flex-col md:flex-row justify-between md:items-center gap-4 mb-6 pb-4 border-b border-neutral-100 text-left">
       <div>
@@ -67,7 +65,7 @@ export default function ScheduleHeader({
               onClick={onOpenLeaveModal}
               className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 shadow-xs"
             >
-              <span>📩</span> Ajukan Izin / Cuti
+              <span>📄</span> Ajukan Izin / Cuti
             </button>
 
             <button
@@ -88,18 +86,11 @@ export default function ScheduleHeader({
           </button>
         )}
 
-        <div className="flex items-center gap-2 bg-neutral-100 p-1 rounded-2xl border border-neutral-200">
+        {/* 🌟 Pemilih Minggu Tanpa Glitch Visual */}
+        <div className="flex items-center gap-1.5 bg-neutral-100 p-1 rounded-2xl border border-neutral-200">
           <span className="text-[10px] font-bold text-neutral-400 pl-2 hidden sm:inline">Minggu:</span>
           
-          <div className="relative flex items-center gap-1">
-            <div
-              className="absolute top-0 bottom-0 bg-[#d22027] rounded-xl transition-all duration-300 ease-out shadow-xs"
-              style={{
-                width: '36px',
-                transform: `translateX(${selectedWeekIndex * 40}px)`,
-              }}
-            />
-
+          <div className="flex items-center gap-1">
             {weeks.map(w => {
               const isCurrent = currentWeekNow === w;
               const isActive = selectedWeek === w;
@@ -107,20 +98,20 @@ export default function ScheduleHeader({
                 <button
                   key={w}
                   onClick={() => onWeekChange(w)}
-                  className={`relative z-10 w-[36px] py-1.5 rounded-xl text-xs font-extrabold transition-colors duration-200 cursor-pointer text-center ${
+                  className={`relative w-[34px] py-1.5 rounded-xl text-xs font-extrabold transition-all duration-200 cursor-pointer text-center ${
                     isActive
-                      ? 'text-white'
-                      : 'text-neutral-600 hover:text-[#111111]'
+                      ? 'bg-[#d22027] text-white shadow-xs'
+                      : 'bg-white text-neutral-600 hover:text-[#111111] border border-neutral-200/60'
                   }`}
                 >
                   M{w}
                   {isCurrent && (
                     <span
-                      className={`absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border-2 border-white ${
+                      className={`absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full ${
                         isActive ? 'bg-amber-300 animate-pulse' : 'bg-[#d22027]'
                       }`}
                       title="Minggu Saat Ini"
-                    ></span>
+                    />
                   )}
                 </button>
               );
