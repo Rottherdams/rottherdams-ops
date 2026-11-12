@@ -1,0 +1,56 @@
+name: Supabase Keep-Alive Ping
+
+on:
+  schedule:
+    # Berjalan otomatis setiap 5 hari sekali pada pukul 08:00 UTC (16:00 WITA)
+    - cron: '0 8 */5 * *'
+  # Bisa dijalankan manual kapan saja lewat tab Actions di GitHub
+  workflow_dispatch:
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping & Query Supabase Database
+        env:
+          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          echo "Memulai ping ke Supabase REST API..."
+          
+          # 1. Melakukan READ (SELECT 1 baris dari tabel staff)
+          READ_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X GET "${SUPABASE_URL}/rest/v1/staff?select=staff_id&limit=1" \
+            -H "apikey: ${SUPABASE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_KEY}")
+          
+          echo "HTTP Status READ (staff): $READ_STATUS"
+          
+          if [ "$READ_STATUS" -ne 200 ]; then
+            echo "❌ Gagal melakukan query READ ke Supabase!"
+            exit 1
+          fi
+
+          # 2. Melakukan WRITE ringan (INSERT log ping ke security_audit_logs)
+          WRITE_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${SUPABASE_URL}/rest/v1/security_audit_logs" \
+            -H "apikey: ${SUPABASE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=minimal" \
+            -d '{
+              "staff_id": "SYSTEM-CRON",
+              "staff_name": "GitHub Keep-Alive",
+              "role": "system",
+              "action_type": "DB_KEEP_ALIVE_PING",
+              "target_recipe": "Auto Ping 5-Day Interval",
+              "device_info": "GitHub Actions Ubuntu Runner"
+            }')
+            
+          echo "HTTP Status WRITE (audit_log): $WRITE_STATUS"
+          
+          if [ "$WRITE_STATUS" -ne 201 ] && [ "$WRITE_STATUS" -ne 200 ]; then
+            echo "⚠️ Read sukses, tapi write log gagal (cek RLS policy tabel security_audit_logs)."
+          else
+            echo "✅ Database Supabase berhasil di-refresh (Read & Write sukses)!"
+          fi
