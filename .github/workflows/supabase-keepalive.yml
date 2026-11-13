@@ -13,8 +13,8 @@ jobs:
     steps:
       - name: Ping & Query Supabase Database
         env:
-          SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          SUPABASE_URL: https://tvwhpfyqrxioomxgivyl.supabase.co
+          SUPABASE_KEY: sb_publishable_447TeKXKSB_hCN_bJulUvg_boO7hp1L
         run: |
           echo "Memulai ping ke Supabase REST API..."
           
