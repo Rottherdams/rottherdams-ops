@@ -100,7 +100,7 @@ export async function getTelegramBotUsername(): Promise<string | null> {
   }
 }
 
-// 🔍 Deteksi otomatis Chat ID user berdasarkan perintah /start <staff_id>
+// 🔍 Deteksi otomatis Chat ID user berdasarkan perintah /start <staff_id> atau /start terbaru
 export async function detectStaffTelegramChatId(
   staffId: string
 ): Promise<{ ok: boolean; chatId?: string; telegramName?: string; error?: string }> {
@@ -110,6 +110,11 @@ export async function detectStaffTelegramChatId(
   }
 
   try {
+    // 0. Nonaktifkan webhook lama (jika ada) agar getUpdates tidak bentrok
+    await fetch(`https://api.telegram.org/bot${botToken}/deleteWebhook`, {
+      method: 'POST',
+    });
+
     const res = await fetch(`https://api.telegram.org/bot${botToken}/getUpdates?limit=50`);
     const data = await res.json();
 
@@ -123,7 +128,8 @@ export async function detectStaffTelegramChatId(
     const updates: any[] = data.result || [];
     const targetCode = staffId.trim().toLowerCase();
 
-    // Cari dari pesan terbaru ke terlama yang berisi "/start <staff_id>"
+    // Prioritas 1: Cari dari pesan terbaru ke terlama yang berisi "/start <staff_id>"
+    let matchedChat: any = null;
     for (let i = updates.length - 1; i >= 0; i--) {
       const msg = updates[i]?.message;
       const text = (msg?.text || '').trim().toLowerCase();
@@ -133,18 +139,53 @@ export async function detectStaffTelegramChatId(
         chat?.type === 'private' &&
         (text === `/start ${targetCode}` || text.includes(targetCode))
       ) {
-        const fullName = [chat.first_name, chat.last_name].filter(Boolean).join(' ');
-        return {
-          ok: true,
-          chatId: String(chat.id),
-          telegramName: fullName || chat.username || 'Akun Telegram',
-        };
+        matchedChat = chat;
+        break;
       }
+    }
+
+    // Prioritas 2: Fallback ke pesan "/start" pribadi terbaru jika user mengetik /start manual
+    if (!matchedChat) {
+      for (let i = updates.length - 1; i >= 0; i--) {
+        const msg = updates[i]?.message;
+        const text = (msg?.text || '').trim().toLowerCase();
+        const chat = msg?.chat;
+
+        if (chat?.type === 'private' && text.startsWith('/start')) {
+          matchedChat = chat;
+          break;
+        }
+      }
+    }
+
+    if (matchedChat) {
+      const chatId = String(matchedChat.id);
+      const fullName =
+        [matchedChat.first_name, matchedChat.last_name].filter(Boolean).join(' ') ||
+        matchedChat.username ||
+        'Akun Telegram';
+
+      // Langsung kirim balasan ke Telegram user sebagai konfirmasi
+      await sendTelegramAlert({
+        title: '🤖 AKUN TELEGRAM TERHUBUNG',
+        actor: `${fullName} (${staffId})`,
+        details: {
+          'Telegram Chat ID': chatId,
+          'Status': 'Siap menerima notifikasi Rottherdams Ops',
+        },
+        targetChatId: chatId,
+      });
+
+      return {
+        ok: true,
+        chatId,
+        telegramName: fullName,
+      };
     }
 
     return {
       ok: false,
-      error: `Belum ditemukan pesan "/start ${staffId}". Klik "1. Buka Bot & Klik Start" terlebih dahulu, lalu tekan "START" di Telegram.`,
+      error: `Webhook lama sudah dibersihkan. Silakan klik "1. Buka Bot & Klik Start" lalu kirim /start sekali lagi di Telegram, kemudian klik "2. Ambil ID Otomatis".`,
     };
   } catch (err: any) {
     return { ok: false, error: err?.message || 'Gagal terhubung ke server Telegram.' };
