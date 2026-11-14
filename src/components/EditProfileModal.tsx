@@ -389,49 +389,93 @@ export default function EditProfileModal({
               <div>
                 <p className="text-xs font-bold text-[#111111] flex items-center gap-1.5">
                   <span>🤖 Telegram Notification</span>
-                  {isTelegramConnected && (
+                  {isTelegramConnected ? (
                     <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-extrabold">
                       Terhubung
                     </span>
+                  ) : (
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-extrabold">
+                      Belum Terhubung
+                    </span>
                   )}
                 </p>
-                <p className="text-[10px] text-neutral-500 mt-0.5 leading-snug">
-                  Klik <strong>Buka Bot</strong> lalu tekan <strong>START</strong> di Telegram, kemudian klik <strong>Ambil ID Otomatis</strong>.
-                </p>
+                {isTelegramConnected && (
+                  <p className="text-[10px] text-neutral-500 mt-0.5">
+                    Notifikasi jadwal, tukar shift & izin aktif dikirim ke akun Telegram Anda.
+                  </p>
+                )}
               </div>
-            </div>
-
-            <div className="flex flex-wrap gap-1.5">
-              <button
-                type="button"
-                onClick={handleOpenTelegramBot}
-                disabled={openingBot}
-                className="flex-1 py-1.5 px-2.5 bg-[#111111] hover:bg-black text-white rounded-xl text-[11px] font-bold transition cursor-pointer whitespace-nowrap active:scale-95"
-              >
-                {openingBot ? 'Membuka...' : '1. Buka Bot & Klik Start'}
-              </button>
-
-              <button
-                type="button"
-                onClick={handleAutoDetectTelegramId}
-                disabled={detectingTelegram}
-                className="flex-1 py-1.5 px-2.5 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-xl text-[11px] font-bold transition cursor-pointer whitespace-nowrap active:scale-95"
-              >
-                {detectingTelegram ? 'Mencari ID...' : '2. Ambil ID Otomatis'}
-              </button>
 
               {isTelegramConnected && (
-                <button
-                  type="button"
-                  onClick={handleTestTelegram}
-                  disabled={testingTelegram}
-                  className="py-1.5 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-bold transition cursor-pointer whitespace-nowrap active:scale-95"
-                  title="Kirim pesan tes ke Telegram Anda"
-                >
-                  {testingTelegram ? '...' : '📲 Tes'}
-                </button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleAutoDetectTelegramId}
+                    disabled={detectingTelegram}
+                    className="py-1.5 px-2.5 bg-white hover:bg-neutral-100 text-neutral-700 border border-neutral-200 rounded-xl text-[10px] font-bold transition cursor-pointer whitespace-nowrap active:scale-95"
+                    title="Deteksi ulang jika ganti akun Telegram"
+                  >
+                    {detectingTelegram ? '...' : '🔄 Ganti ID'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleTestTelegram}
+                    disabled={testingTelegram}
+                    className="py-1.5 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-bold transition cursor-pointer whitespace-nowrap active:scale-95"
+                    title="Kirim pesan tes ke Telegram Anda"
+                  >
+                    {testingTelegram ? '...' : '📲 Tes'}
+                  </button>
+                </div>
               )}
             </div>
+
+            {/* PANDUAN STEP-BY-STEP (HANYA TAMPIL JIKA BELUM TERHUBUNG) */}
+            {!isTelegramConnected && (
+              <>
+                <div className="bg-white p-2.5 rounded-xl border border-neutral-200/80 space-y-1 text-[10px] text-neutral-600 leading-relaxed">
+                  <p className="font-extrabold text-[#111111] mb-0.5">
+                    Cara menghubungkan akun Telegram:
+                  </p>
+                  <p>
+                    <span className="font-bold text-[#111111]">1.</span> Klik tombol{' '}
+                    <span className="font-bold text-[#111111]">Buka Bot</span> di bawah untuk membuka chat bot Telegram.
+                  </p>
+                  <p>
+                    <span className="font-bold text-[#111111]">2.</span> Di aplikasi Telegram, tekan tombol{' '}
+                    <span className="font-bold text-[#0088cc]">START</span> (atau kirim pesan <code className="bg-neutral-100 px-1 rounded font-mono">/start</code>).
+                  </p>
+                  <p>
+                    <span className="font-bold text-[#111111]">3.</span> Kembali ke halaman ini, lalu klik{' '}
+                    <span className="font-bold text-[#0088cc]">Ambil ID Otomatis</span> agar Chat ID terisi otomatis.
+                  </p>
+                  <p>
+                    <span className="font-bold text-[#111111]">4.</span> Terakhir, klik{' '}
+                    <span className="font-bold text-[#d22027]">Simpan Profil</span> di bagian bawah.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={handleOpenTelegramBot}
+                    disabled={openingBot}
+                    className="flex-1 py-2 px-2.5 bg-[#111111] hover:bg-black text-white rounded-xl text-[11px] font-bold transition cursor-pointer whitespace-nowrap active:scale-95"
+                  >
+                    {openingBot ? 'Membuka...' : '1. Buka Bot & Klik Start'}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleAutoDetectTelegramId}
+                    disabled={detectingTelegram}
+                    className="flex-1 py-2 px-2.5 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-xl text-[11px] font-bold transition cursor-pointer whitespace-nowrap active:scale-95"
+                  >
+                    {detectingTelegram ? 'Mencari ID...' : '2. Ambil ID Otomatis'}
+                  </button>
+                </div>
+              </>
+            )}
           </div>
 
           <div>
