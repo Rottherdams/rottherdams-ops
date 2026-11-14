@@ -6,7 +6,6 @@ import { execSync } from 'child_process';
 
 function getDeployCount(): string {
   try {
-    // Tarik seluruh riwayat commit jika Cloudflare Pages melakukan shallow clone
     try {
       execSync('git fetch --unshallow', { stdio: 'ignore' });
     } catch {
@@ -19,21 +18,17 @@ function getDeployCount(): string {
     );
 
     if (!isNaN(gitCommits) && gitCommits > 1) {
-      // Kalibrasi agar sinkron dengan total 64 deploy di Cloudflare Pages
-      // Jika gitCommits saat ini misalnya 58, offset +6 membuatnya menjadi 64 (v0.6)
-      const BASELINE_GIT_COMMITS = 58;
-      const BASELINE_CF_DEPLOYS = 64;
-      const calibratedCount =
-        gitCommits >= BASELINE_GIT_COMMITS
-          ? BASELINE_CF_DEPLOYS + (gitCommits - BASELINE_GIT_COMMITS)
-          : gitCommits;
+      // Kalibrasi akurat berdasarkan posisi commit 159a049 (71 git commits = 67 Cloudflare deploys)
+      const BASELINE_GIT_COMMITS = 71;
+      const BASELINE_CF_DEPLOYS = 67;
+      const calibratedCount = BASELINE_CF_DEPLOYS + (gitCommits - BASELINE_GIT_COMMITS);
 
-      return String(calibratedCount);
+      return String(Math.max(1, calibratedCount));
     }
   } catch {
     // Fallback jika git tidak tersedia
   }
-  return process.env.CF_PAGES_COMMIT_COUNT || '64';
+  return process.env.CF_PAGES_COMMIT_COUNT || '68';
 }
 
 function getGitCommitSha(): string {
