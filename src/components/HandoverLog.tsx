@@ -21,7 +21,6 @@ interface HandoverLogProps {
   onRequireLogin: () => void;
 }
 
-// 📋 MASTER DATA STOK SESUAI FORMAT LAPORAN WHATSAPP
 const STOCK_CATEGORIES = [
   {
     category: 'BEANS',
@@ -63,11 +62,16 @@ const QUICK_EMPTY_ITEMS = [
   'Plastik Takeaway',
 ];
 
+// Helper aman agar karakter <, >, & tidak merusak format HTML Telegram
+const escapeHtml = (str: string) =>
+  str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLogProps) {
   const [logs, setLogs] = useState<LogItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [filterCategory, setFilterCategory] = useState<string>('All');
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState<boolean>(false);
 
   // Form State + Animasi In/Out Modal
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
@@ -85,10 +89,28 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
 
   useEffect(() => {
     fetchLogs();
+
+    // 🔴 SUPABASE REALTIME SUBSCRIPTION
+    const channel = supabase
+      .channel('handover-logs-realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'handover_logs' },
+        () => {
+          fetchLogs(true);
+        }
+      )
+      .subscribe((status) => {
+        setIsRealtimeConnected(status === 'SUBSCRIBED');
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
-  const fetchLogs = async () => {
-    setIsLoading(true);
+  const fetchLogs = async (silent = false) => {
+    if (!silent) setIsLoading(true);
 
     const { data: logData, error } = await supabase
       .from('handover_logs')
@@ -97,7 +119,7 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
 
     if (error) {
       console.error('Error fetching handover logs:', error.message);
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
       return;
     }
 
@@ -132,7 +154,53 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
       setLogs([]);
     }
 
-    setIsLoading(false);
+    if (!silent) setIsLoading(false);
+  };
+
+  // 📲 KIRIM NOTIFIKASI OTOMATIS KE TELEGRAM (Format HTML Aman)
+  const sendTelegramNotification = async (payload: {
+    category: string;
+    title: string;
+    description: string;
+    shift: string;
+    created_by: string;
+  }) => {
+    const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
+    const chatId = import.meta.env.VITE_TELEGRAM_CHAT_ID;
+
+    if (!botToken || !chatId) return;
+
+    const message = [
+      `🔔 <b>HANDOVER BARU - ROTTHERDAMS OPS</b>`,
+      `━━━━━━━━━━━━━━━━━━`,
+      `👤 <b>Oleh:</b> ${escapeHtml(payload.created_by)}`,
+      `🕒 <b>Shift:</b> ${escapeHtml(payload.shift)}`,
+      `📂 <b>Kategori:</b> ${escapeHtml(payload.category)}`,
+      `📌 <b>Judul:</b> ${escapeHtml(payload.title)}`,
+      payload.description
+        ? `\n📋 <b>Detail Laporan:</b>\n<pre>${escapeHtml(payload.description)}</pre>`
+        : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: message,
+          parse_mode: 'HTML',
+        }),
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        console.warn('Telegram API Warning:', errData);
+      }
+    } catch (err) {
+      console.error('Gagal mengirim notifikasi Telegram:', err);
+    }
   };
 
   const handleOpenModal = () => {
@@ -157,7 +225,6 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
     }, 200);
   };
 
-  // Fungsi ubah angka (+ / -)
   const handleUpdateCount = (item: string, delta: number) => {
     setStockCounts((prev) => {
       const current = prev[item];
@@ -174,7 +241,6 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
     });
   };
 
-  // Toggle cepat set angka 0 (Habis)
   const handleSetZero = (item: string) => {
     setStockCounts((prev) => {
       if (prev[item] === 0) {
@@ -186,14 +252,12 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
     });
   };
 
-  // Toggle item habis (Pembersih kaca, dll)
   const toggleEmptyItem = (item: string) => {
     setEmptyItems((prev) =>
       prev.includes(item) ? prev.filter((i) => i !== item) : [...prev, item]
     );
   };
 
-  // 🔄 Susun teks laporan otomatis persis seperti format WA
   const buildFormattedReport = () => {
     const lines: string[] = [];
 
@@ -250,12 +314,13 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
 
     setIsSubmitting(true);
 
+    const creatorName = currentUser?.name || 'Staff On-Duty';
     const primaryPayload = {
       category,
       title: finalTitle,
       description: finalDescription,
       shift,
-      created_by: currentUser?.name || 'Staff On-Duty',
+      created_by: creatorName,
       staff_id: currentUser?.staff_id || null,
       status: 'Pending',
     };
@@ -268,7 +333,7 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
         title: finalTitle,
         description: finalDescription,
         shift,
-        created_by: currentUser?.name || 'Staff On-Duty',
+        created_by: creatorName,
         status: 'Pending',
       };
       const fallbackRes = await supabase.from('handover_logs').insert([fallbackPayload]);
@@ -278,8 +343,19 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
     setIsSubmitting(false);
 
     if (!error) {
+      sendTelegramNotification({
+        category,
+        title: finalTitle,
+        description: finalDescription,
+        shift,
+        created_by: creatorName,
+      });
+
       handleCloseModal();
-      fetchLogs();
+      // Jika realtime belum tersambung, tetap refresh manual
+      if (!isRealtimeConnected) {
+        fetchLogs(true);
+      }
     } else {
       alert('Gagal menyimpan catatan handover: ' + error.message);
     }
@@ -304,6 +380,13 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
     navigator.clipboard.writeText(textToCopy);
     setCopiedId(item.id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleShareWhatsApp = (item: LogItem) => {
+    const text = `*HANDOVER - ${item.shift.toUpperCase()}*\nOleh: ${item.created_by}\n\n${
+      item.description || item.title
+    }`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
 
   const filteredLogs =
@@ -352,7 +435,17 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
       {/* Header section */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-neutral-50 p-4 sm:p-5 rounded-3xl border border-neutral-200">
         <div>
-          <h2 className="text-base sm:text-lg font-black text-[#111111]">Handover Log & Catatan Shift</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-base sm:text-lg font-black text-[#111111]">
+              Handover Log & Catatan Shift
+            </h2>
+            {isRealtimeConnected && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[9px] font-extrabold text-emerald-700">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Live
+              </span>
+            )}
+          </div>
           <p className="text-xs text-neutral-500 mt-0.5">
             Komunikasi harian stok habis, kendala alat, dan pesan penting antar shift.
           </p>
@@ -417,13 +510,20 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
                     {item.category}
                   </span>
 
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => handleCopyText(item)}
                       className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-neutral-100 hover:bg-neutral-200 text-neutral-600 transition cursor-pointer"
-                      title="Salin format untuk WhatsApp"
+                      title="Salin teks laporan"
                     >
-                      {copiedId === item.id ? '✅ Tersalin' : '📋 Salin WA'}
+                      {copiedId === item.id ? '✅ Tersalin' : '📋 Salin'}
+                    </button>
+                    <button
+                      onClick={() => handleShareWhatsApp(item)}
+                      className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition cursor-pointer"
+                      title="Kirim langsung ke WhatsApp"
+                    >
+                      📲 WA
                     </button>
                     <span className="text-[10px] font-mono text-neutral-400">
                       {new Date(item.created_at).toLocaleDateString('id-ID', {
@@ -495,7 +595,7 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
         </div>
       )}
 
-      {/* MODAL HANDOVER DENGAN KLIK-KLIK OPSI */}
+      {/* MODAL HANDOVER */}
       {isModalOpen &&
         createPortal(
           <div
@@ -556,10 +656,8 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
                   </div>
                 </div>
 
-                {/* 🌟 PANEL KLIK-KLIK OPSI STOK CEPAT */}
                 {isStockCategory ? (
                   <div className="space-y-3 bg-neutral-50/80 p-3 rounded-2xl border border-neutral-200/80">
-                    {/* Filter Sub-Kategori Bahan */}
                     <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
                       {['ALL', 'BEANS', 'SYRUP', 'FRUIT SYRUP', 'POWDER & LAINNYA'].map((tab) => (
                         <button
@@ -577,7 +675,6 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
                       ))}
                     </div>
 
-                    {/* Grid Stepper - / + */}
                     <div className="space-y-3 max-h-[260px] overflow-y-auto no-scrollbar pr-0.5">
                       {filteredStockCategories.map((group) => (
                         <div key={group.category} className="space-y-1.5">
@@ -658,7 +755,6 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
                         </div>
                       ))}
 
-                      {/* Klik Cepat HABIS */}
                       <div className="space-y-1.5 pt-2 border-t border-neutral-200">
                         <p className="text-[10px] font-black uppercase tracking-wider text-red-500">
                           🚨 TANDAI BARANG HABIS (KLIK PILIH)
@@ -685,7 +781,6 @@ export default function HandoverLog({ currentUser, onRequireLogin }: HandoverLog
                       </div>
                     </div>
 
-                    {/* Preview Laporan Otomatis */}
                     {(Object.keys(stockCounts).length > 0 || emptyItems.length > 0) && (
                       <div className="bg-white p-2.5 rounded-xl border border-neutral-200">
                         <span className="text-[9px] font-black uppercase text-neutral-400 block mb-1">
