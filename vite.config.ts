@@ -4,14 +4,36 @@ import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
 import { execSync } from 'child_process';
 
-function getGitCommitCount(): string {
+function getDeployCount(): string {
   try {
-    const count = execSync('git rev-list --count HEAD').toString().trim();
-    if (count) return count;
+    // Tarik seluruh riwayat commit jika Cloudflare Pages melakukan shallow clone
+    try {
+      execSync('git fetch --unshallow', { stdio: 'ignore' });
+    } catch {
+      // Abaikan jika repo sudah full clone atau offline
+    }
+
+    const gitCommits = parseInt(
+      execSync('git rev-list --count HEAD').toString().trim(),
+      10
+    );
+
+    if (!isNaN(gitCommits) && gitCommits > 1) {
+      // Kalibrasi agar sinkron dengan total 64 deploy di Cloudflare Pages
+      // Jika gitCommits saat ini misalnya 58, offset +6 membuatnya menjadi 64 (v0.6)
+      const BASELINE_GIT_COMMITS = 58;
+      const BASELINE_CF_DEPLOYS = 64;
+      const calibratedCount =
+        gitCommits >= BASELINE_GIT_COMMITS
+          ? BASELINE_CF_DEPLOYS + (gitCommits - BASELINE_GIT_COMMITS)
+          : gitCommits;
+
+      return String(calibratedCount);
+    }
   } catch {
-    // Abaikan jika git tidak tersedia
+    // Fallback jika git tidak tersedia
   }
-  return process.env.CF_PAGES_COMMIT_COUNT || '1';
+  return process.env.CF_PAGES_COMMIT_COUNT || '64';
 }
 
 function getGitCommitSha(): string {
@@ -67,7 +89,7 @@ export default defineConfig({
   ],
   define: {
     'import.meta.env.CF_PAGES_COMMIT_SHA': JSON.stringify(getGitCommitSha()),
-    'import.meta.env.CF_PAGES_COMMIT_COUNT': JSON.stringify(getGitCommitCount()),
+    'import.meta.env.CF_PAGES_COMMIT_COUNT': JSON.stringify(getDeployCount()),
   },
   build: {
     sourcemap: false,
