@@ -2,6 +2,28 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { execSync } from 'child_process';
+
+function getGitCommitCount(): string {
+  try {
+    const count = execSync('git rev-list --count HEAD').toString().trim();
+    if (count && Number(count) > 1) return count;
+  } catch {
+    // Abaikan jika git tidak tersedia
+  }
+  return process.env.CF_PAGES_COMMIT_COUNT || '125';
+}
+
+function getGitCommitSha(): string {
+  if (process.env.CF_PAGES_COMMIT_SHA) {
+    return process.env.CF_PAGES_COMMIT_SHA;
+  }
+  try {
+    return execSync('git rev-parse --short HEAD').toString().trim();
+  } catch {
+    return '';
+  }
+}
 
 export default defineConfig({
   plugins: [
@@ -44,12 +66,8 @@ export default defineConfig({
     }),
   ],
   define: {
-    'import.meta.env.CF_PAGES_COMMIT_SHA': JSON.stringify(
-      process.env.CF_PAGES_COMMIT_SHA || ''
-    ),
-    'import.meta.env.CF_PAGES_COMMIT_COUNT': JSON.stringify(
-      process.env.CF_PAGES_COMMIT_COUNT || ''
-    ),
+    'import.meta.env.CF_PAGES_COMMIT_SHA': JSON.stringify(getGitCommitSha()),
+    'import.meta.env.CF_PAGES_COMMIT_COUNT': JSON.stringify(getGitCommitCount()),
   },
   build: {
     sourcemap: false,
