@@ -10,10 +10,17 @@ interface CurrentUser {
   avatar_url?: string;
 }
 
+export interface LeaveSubmitDetails {
+  leaveType: 'Cuti' | 'Sakit' | 'Izin Unpaid';
+  startDate: string;
+  endDate: string;
+  reason: string;
+}
+
 interface LeaveRequestModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (details?: LeaveSubmitDetails) => void;
   currentUser: CurrentUser | null;
 }
 
@@ -142,6 +149,8 @@ export default function LeaveRequestModal({
       const displayName = staffData?.staff_name || 
         (staffData?.first_name ? `${staffData.first_name} ${staffData.last_name || ''}`.trim() : currentUser.name);
 
+      const cleanReason = reason.trim();
+
       const { error: insertError } = await supabase
         .from('leave_requests')
         .insert([
@@ -152,7 +161,7 @@ export default function LeaveRequestModal({
             leave_type: leaveType,
             start_date: startDate,
             end_date: endDate,
-            reason: reason.trim(),
+            reason: cleanReason,
             status: 'Pending',
             attachment_url: attachmentUrl,
           },
@@ -162,6 +171,13 @@ export default function LeaveRequestModal({
         throw new Error(insertError.message);
       }
 
+      const submittedDetails: LeaveSubmitDetails = {
+        leaveType,
+        startDate,
+        endDate,
+        reason: cleanReason,
+      };
+
       setLeaveType('Cuti');
       setStartDate('');
       setEndDate('');
@@ -170,9 +186,9 @@ export default function LeaveRequestModal({
 
       setIsClosing(true);
       setTimeout(() => {
-        onSuccess();
         onClose();
         setIsClosing(false);
+        onSuccess(submittedDetails);
       }, 250);
     } catch (err: any) {
       setErrorMessage(err.message || 'Terjadi kesalahan saat mengajukan izin.');

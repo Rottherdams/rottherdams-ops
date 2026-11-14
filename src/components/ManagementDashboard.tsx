@@ -57,7 +57,6 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
   useEffect(() => {
     fetchAnalyticsData();
 
-    // 🌟 REALTIME SUBSCRIPTION FOR SUPABASE TABLES
     const dashboardChannel = supabase
       .channel('management_dashboard_realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'sop_checklists' }, () => {
@@ -198,24 +197,105 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
 
   const handleApproveSwap = async (swapId: number, status: 'approved' | 'rejected') => {
     try {
-      const { error: primaryError } = await supabase.from('shift_swaps').update({ management_status: status }).eq('id', swapId);
+      const { error: primaryError } = await supabase
+        .from('shift_swaps')
+        .update({
+          management_status: status,
+          status: status === 'approved' ? 'Approved' : 'Rejected',
+        })
+        .eq('id', swapId);
+
       if (primaryError) {
-        const { error: fallbackError } = await supabase.from('shift_swaps').update({ status: status === 'approved' ? 'Approved' : 'Rejected' }).eq('id', swapId);
+        const { error: fallbackError } = await supabase
+          .from('shift_swaps')
+          .update({ status: status === 'approved' ? 'Approved' : 'Rejected' })
+          .eq('id', swapId);
         if (fallbackError) throw fallbackError;
       }
 
       const swapItem = swapRequests.find((s) => s.id === swapId) as any;
-      sendTelegramAlert({
-        title: status === 'approved' ? '✅ TUKAR SHIFT DI-ACC' : '❌ TUKAR SHIFT DITOLAK',
+
+      // Jika di-ACC, tukar jadwal di tabel schedules secara otomatis
+      if (status === 'approved' && swapItem?.week_number && swapItem?.swap_date && swapItem?.requester_shift && swapItem?.target_shift) {
+        await supabase
+          .from('schedules')
+          .update({ shift: swapItem.target_shift })
+          .match({
+            staff_id: swapItem.requester_staff_id,
+            week_number: swapItem.week_number,
+            day: swapItem.swap_date,
+          });
+
+        await supabase
+          .from('schedules')
+          .update({ shift: swapItem.requester_shift })
+          .match({
+            staff_id: swapItem.target_staff_id,
+            week_number: swapItem.week_number,
+            day: swapItem.swap_date,
+          });
+      }
+
+      const requesterName = swapItem?.requester_staff_name || swapItem?.requester_name || swapItem?.requester_staff_id || '-';
+      const targetName = swapItem?.target_staff_name || swapItem?.target_name || swapItem?.target_staff_id || '-';
+      const jadwalText = swapItem?.week_number
+        ? `Minggu ${swapItem.week_number} • ${swapItem.swap_date || swapItem.date || '-'}`
+        : swapItem?.swap_date || swapItem?.date || '-';
+      const shiftDetailText =
+        swapItem?.requester_shift && swapItem?.target_shift
+          ? `${swapItem.requester_shift} 🔄 ${swapItem.target_shift}`
+          : undefined;
+
+      // 1. Kirim Notifikasi ke Grup Operasional
+      await sendTelegramAlert({
+        title: status === 'approved' ? '✅ TUKAR SHIFT DI-ACC MANAGEMENT' : '❌ TUKAR SHIFT DITOLAK MANAGEMENT',
         actor: `${currentUser.name} (${currentUser.staff_id})`,
         details: {
-          'Pemohon': swapItem?.requester_name || swapItem?.requester_staff_id || '-',
-          'Pengganti': swapItem?.target_name || swapItem?.target_staff_name || swapItem?.target_staff_id || '-',
-          'Tanggal': swapItem?.swap_date || swapItem?.date || '-',
+          'Pemohon': requesterName,
+          'Pengganti': targetName,
+          'Jadwal': jadwalText,
+          ...(shiftDetailText ? { 'Detail Shift': shiftDetailText } : {}),
         },
       });
 
-      setSwapRequests((prev) => prev.map((item) => (item.id === swapId ? { ...item, management_status: status, status: status === 'approved' ? 'Approved' : 'Rejected' } : item)));
+      // 2. Kirim Notifikasi Personal ke Karyawan Pemohon & Karyawan Tujuan
+      const targetIds = [swapItem?.requester_staff_id, swapItem?.target_staff_id].filter(Boolean);
+      if (targetIds.length > 0) {
+        const { data: staffRows } = await supabase
+          .from('staff')
+          .select('staff_id, telegram_chat_id')
+          .in('staff_id', targetIds);
+
+        for (const s of staffRows || []) {
+          if (s.telegram_chat_id) {
+            await sendTelegramAlert({
+              title:
+                status === 'approved'
+                  ? '✅ TUKAR SHIFT ANDA DISETUJUI MANAGEMENT'
+                  : '❌ TUKAR SHIFT ANDA DITOLAK MANAGEMENT',
+              actor: `${currentUser.name} (${currentUser.staff_id})`,
+              details: {
+                'Pasangan Tukar': `${requesterName} ↔️ ${targetName}`,
+                'Jadwal': jadwalText,
+                ...(shiftDetailText ? { 'Detail Shift': shiftDetailText } : {}),
+                'Keputusan Final':
+                  status === 'approved'
+                    ? 'Disetujui & Roster Kerja Telah Diperbarui'
+                    : 'Ditolak oleh Management (Jadwal tetap seperti semula)',
+              },
+              targetChatId: s.telegram_chat_id,
+            });
+          }
+        }
+      }
+
+      setSwapRequests((prev) =>
+        prev.map((item) =>
+          item.id === swapId
+            ? { ...item, management_status: status, status: status === 'approved' ? 'Approved' : 'Rejected' }
+            : item
+        )
+      );
       alert(status === 'approved' ? '✅ Tukar Shift Berhasil Di-ACC!' : '❌ Tukar Shift Ditolak!');
       fetchAnalyticsData();
     } catch (err: any) {
@@ -245,7 +325,10 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
       return;
     }
 
-    sendTelegramAlert({
+    const dateRangeStr = `${leaveItem.start_date} s/d ${leaveItem.end_date || leaveItem.start_date}`;
+
+    // 1. Kirim Notifikasi ke Grup Operasional
+    await sendTelegramAlert({
       title:
         status === 'approved'
           ? `✅ PENGAJUAN ${leaveItem.leave_type.toUpperCase()} DI-ACC`
@@ -254,9 +337,38 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
       details: {
         'Staf': `${leaveItem.staff_name} (${leaveItem.staff_id})`,
         'Jenis': leaveItem.leave_type,
-        'Tanggal': `${leaveItem.start_date} s/d ${leaveItem.end_date || leaveItem.start_date}`,
+        'Tanggal': dateRangeStr,
       },
     });
+
+    // 2. Kirim Notifikasi Personal Langsung ke Karyawan Pengaju
+    if (leaveItem.staff_id) {
+      const { data: requesterProfile } = await supabase
+        .from('staff')
+        .select('telegram_chat_id')
+        .eq('staff_id', leaveItem.staff_id)
+        .single();
+
+      if (requesterProfile?.telegram_chat_id) {
+        await sendTelegramAlert({
+          title:
+            status === 'approved'
+              ? `✅ PENGAJUAN ${leaveItem.leave_type.toUpperCase()} ANDA DISETUJUI`
+              : `❌ PENGAJUAN ${leaveItem.leave_type.toUpperCase()} ANDA DITOLAK`,
+          actor: `${currentUser.name} (${currentUser.staff_id})`,
+          details: {
+            'Jenis Pengajuan': leaveItem.leave_type,
+            'Tanggal': dateRangeStr,
+            'Alasan Anda': leaveItem.reason || '-',
+            'Status':
+              status === 'approved'
+                ? 'Disetujui oleh Management'
+                : 'Ditolak oleh Management (Silakan hubungi Management untuk info lanjut)',
+          },
+          targetChatId: requesterProfile.telegram_chat_id,
+        });
+      }
+    }
 
     setLeaveRequests((prev) => prev.map((item) => (item.id === leaveItem.id ? { ...item, status } : item)));
     if (status === 'approved') {

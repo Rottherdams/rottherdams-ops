@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
+import { sendTelegramAlert } from '../lib/telegram';
 
 interface CurrentUser {
   name: string;
@@ -23,8 +24,8 @@ export default function StaffInboxModal({ currentUser, isOpen, onClose, onUpdate
   const [myLeaves, setMyLeaves] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
+  const [toastBanner, setToastBanner] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-  // State transisi fade konten tab
   const [isTabChanging, setIsTabChanging] = useState(false);
 
   const handleTabChange = (newTab: 'incoming' | 'my_requests') => {
@@ -39,6 +40,7 @@ export default function StaffInboxModal({ currentUser, isOpen, onClose, onUpdate
   useEffect(() => {
     if (isOpen) {
       setIsClosing(false);
+      setToastBanner(null);
       fetchStaffInbox();
 
       const swapChannel = supabase
@@ -141,26 +143,101 @@ export default function StaffInboxModal({ currentUser, isOpen, onClose, onUpdate
     try {
       const targetStatusVal = response === 'accepted' ? 'accepted' : 'rejected';
       const legacyStatusVal = response === 'accepted' ? 'Approved' : 'Rejected';
+      const swapItem = incomingSwaps.find((item) => item.id === swapId);
 
       const { error } = await supabase
         .from('shift_swaps')
         .update({ 
           target_status: targetStatusVal,
-          status: legacyStatusVal
+          status: legacyStatusVal,
+          ...(response === 'rejected' ? { management_status: 'rejected' } : {}),
         })
         .eq('id', swapId);
 
       if (error) throw error;
 
-      alert(response === 'accepted' ? '✅ Anda MENYETUJUI permohonan tukar shift ini. Menunggu ACC Management!' : '❌ Anda MENOLAK permohonan tukar shift ini.');
+      const requesterName = swapItem?.requester_staff_name || swapItem?.requester_name || swapItem?.requester_staff_id || '-';
+      const jadwalText = swapItem
+        ? `Minggu ${swapItem.week_number || '-'} • ${swapItem.swap_date || swapItem.shift_date || '-'}`
+        : '-';
+      const shiftDetailText = swapItem
+        ? `${swapItem.requester_shift || '-'} ↔️ ${swapItem.target_shift || '-'}`
+        : '-';
+
+      // 1. Notifikasi ke Grup Operasional (agar Management tahu rekan kerja sudah ACC / Tolak)
+      await sendTelegramAlert({
+        title:
+          response === 'accepted'
+            ? '🤝 REKAN KERJA SETUJU TUKAR SHIFT'
+            : '🚫 REKAN KERJA MENOLAK TUKAR SHIFT',
+        actor: `${currentUser.name} (${currentUser.staff_id})`,
+        details: {
+          'Pemohon': requesterName,
+          'Pengganti': `${currentUser.name} (${currentUser.staff_id})`,
+          'Jadwal': jadwalText,
+          'Detail Shift': shiftDetailText,
+          'Status':
+            response === 'accepted'
+              ? 'Disetujui Rekan Kerja • Menunggu ACC Final Management'
+              : 'Ditolak oleh Rekan Kerja',
+        },
+      });
+
+      // 2. Notifikasi Personal ke Telegram Karyawan Pengaju
+      if (swapItem?.requester_staff_id) {
+        const { data: requesterProfile } = await supabase
+          .from('staff')
+          .select('telegram_chat_id')
+          .eq('staff_id', swapItem.requester_staff_id)
+          .single();
+
+        if (requesterProfile?.telegram_chat_id) {
+          await sendTelegramAlert({
+            title:
+              response === 'accepted'
+                ? '✅ REKAN KERJA MENYETUJUI TUKAR SHIFT'
+                : '❌ REKAN KERJA MENOLAK TUKAR SHIFT',
+            actor: `${currentUser.name} (${currentUser.staff_id})`,
+            details: {
+              'Jadwal': jadwalText,
+              'Detail Shift': shiftDetailText,
+              'Tahap Selanjutnya':
+                response === 'accepted'
+                  ? 'Diteruskan ke Management untuk ACC Final'
+                  : 'Pengajuan dibatalkan',
+            },
+            targetChatId: requesterProfile.telegram_chat_id,
+          });
+        }
+      }
+
+      setToastBanner({
+        type: 'success',
+        text:
+          response === 'accepted'
+            ? '✅ Permohonan tukar shift disetujui & diteruskan ke Management!'
+            : '❌ Permohonan tukar shift telah ditolak.',
+      });
 
       setIncomingSwaps((prev) =>
-        prev.map((item) => (item.id === swapId ? { ...item, target_status: targetStatusVal, status: legacyStatusVal } : item))
+        prev.map((item) =>
+          item.id === swapId
+            ? {
+                ...item,
+                target_status: targetStatusVal,
+                status: legacyStatusVal,
+                ...(response === 'rejected' ? { management_status: 'rejected' } : {}),
+              }
+            : item
+        )
       );
 
       if (onUpdateSuccess) onUpdateSuccess();
     } catch (err: any) {
-      alert('Gagal merespons: ' + err.message);
+      setToastBanner({
+        type: 'error',
+        text: 'Gagal merespons: ' + err.message,
+      });
     }
   };
 
@@ -212,9 +289,20 @@ export default function StaffInboxModal({ currentUser, isOpen, onClose, onUpdate
           </button>
         </div>
 
-        {/* 🌟 SLIDING TAB SWITCHER BERANIMASI */}
+        {toastBanner && (
+          <div
+            className={`p-3 rounded-2xl text-xs font-bold border ${
+              toastBanner.type === 'success'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                : 'bg-red-50 text-red-700 border-red-200'
+            }`}
+          >
+            {toastBanner.text}
+          </div>
+        )}
+
+        {/* SLIDING TAB SWITCHER */}
         <div className="relative bg-neutral-100 p-1 rounded-2xl border border-neutral-200 flex shrink-0 select-none">
-          {/* Highlight Meluncur */}
           <div
             className={`absolute top-1 bottom-1 w-[calc(50%-0.25rem)] rounded-xl shadow-sm transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${
               activeTab === 'incoming' 
@@ -249,7 +337,7 @@ export default function StaffInboxModal({ currentUser, isOpen, onClose, onUpdate
           </button>
         </div>
 
-        {/* Content Section dengan Animasi Soft Fade */}
+        {/* Content Section */}
         <div
           className={`overflow-y-auto flex-1 pr-1 space-y-3 transition-opacity duration-200 ${
             isTabChanging ? 'opacity-0 scale-[0.99]' : 'opacity-100 scale-100'

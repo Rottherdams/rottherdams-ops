@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
+import { sendTelegramAlert } from '../../lib/telegram';
 import { DAYS, getWeekDateRange } from '../../utils/dateUtils';
 
 interface CurrentUser {
@@ -36,11 +37,21 @@ interface SwapRequest {
   created_at: string;
 }
 
+export interface SwapSubmitDetails {
+  targetStaffId: string;
+  targetName: string;
+  weekNumber: number;
+  swapDay: string;
+  requesterShift: string;
+  targetShift: string;
+  reason: string;
+}
+
 interface TukarShiftModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentUser: CurrentUser | null;
-  onSuccess: () => void;
+  onSuccess: (details?: SwapSubmitDetails) => void;
 }
 
 export default function TukarShiftModal({
@@ -56,9 +67,11 @@ export default function TukarShiftModal({
   const [fetchingShifts, setFetchingShifts] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [isTabChanging, setIsTabChanging] = useState(false);
+  const [formError, setFormError] = useState('');
 
   const handleTabChange = (newTab: 'form' | 'history') => {
     if (newTab === activeTab) return;
+    setFormError('');
     setIsTabChanging(true);
     setTimeout(() => {
       setActiveTab(newTab);
@@ -97,6 +110,7 @@ export default function TukarShiftModal({
   useEffect(() => {
     if (isOpen) {
       setIsClosing(false);
+      setFormError('');
       fetchStaffList();
       fetchSwapRequests();
     }
@@ -206,13 +220,15 @@ export default function TukarShiftModal({
 
   const handleSubmitSwap = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
+
     if (!currentUser || !targetStaffId) {
-      alert('Pilih pasangan staf yang ingin diajak tukar shift!');
+      setFormError('Pilih pasangan staf yang ingin diajak tukar shift!');
       return;
     }
 
     if (isSameShift) {
-      alert('Tidak dapat mengajukan tukar shift karena kedua staf berada pada shift yang sama.');
+      setFormError('Tidak dapat mengajukan tukar shift karena kedua staf berada pada shift yang sama.');
       return;
     }
 
@@ -220,6 +236,7 @@ export default function TukarShiftModal({
 
     setLoading(true);
 
+    const cleanReason = reason.trim() || 'Tukar shift operasional';
     const newRequest = {
       requester_staff_id: String(currentUser.staff_id),
       requester_staff_name: currentUser.name,
@@ -229,7 +246,7 @@ export default function TukarShiftModal({
       swap_date: swapDay,
       requester_shift: myShift,
       target_shift: targetShift,
-      reason: reason || 'Tukar shift operasional',
+      reason: cleanReason,
       status: 'Pending',
       target_status: 'pending',
       management_status: 'pending',
@@ -240,12 +257,26 @@ export default function TukarShiftModal({
     setLoading(false);
 
     if (!error) {
-      alert('Pengajuan tukar shift berhasil dikirim!');
+      const submittedDetails: SwapSubmitDetails = {
+        targetStaffId: String(selectedTargetStaff.staff_id),
+        targetName: selectedTargetStaff.staff_name,
+        weekNumber: Number(weekNumber),
+        swapDay,
+        requesterShift: myShift,
+        targetShift,
+        reason: cleanReason,
+      };
+
       setReason('');
-      handleTabChange('history');
-      fetchSwapRequests();
+      setTargetStaffId('');
+      setIsClosing(true);
+      setTimeout(() => {
+        onClose();
+        setIsClosing(false);
+        onSuccess(submittedDetails);
+      }, 250);
     } else {
-      alert('Gagal mengajukan tukar shift: ' + error.message);
+      setFormError('Gagal mengajukan tukar shift: ' + error.message);
     }
   };
 
@@ -271,7 +302,7 @@ export default function TukarShiftModal({
       .eq('id', swapId);
 
     if (error) {
-      alert('Gagal memperbarui status: ' + error.message);
+      setFormError('Gagal memperbarui status: ' + error.message);
       setLoading(false);
       return;
     }
@@ -296,9 +327,33 @@ export default function TukarShiftModal({
         });
     }
 
+    // Kirim notif personal ke kedua staf yang bersangkutan
+    const { data: staffRows } = await supabase
+      .from('staff')
+      .select('staff_id, telegram_chat_id')
+      .in('staff_id', [reqItem.requester_staff_id, reqItem.target_staff_id]);
+
+    for (const s of staffRows || []) {
+      if (s.telegram_chat_id) {
+        await sendTelegramAlert({
+          title:
+            status === 'Approved'
+              ? '✅ TUKAR SHIFT DISETUJUI MANAJEMEN'
+              : '❌ TUKAR SHIFT DITOLAK MANAJEMEN',
+          actor: currentUser?.name || 'Management',
+          details: {
+            'Pasangan Tukar': `${reqItem.requester_staff_name} ↔️ ${reqItem.target_staff_name}`,
+            'Jadwal': `Minggu ${reqItem.week_number} (${reqItem.swap_date})`,
+            'Shift': `${reqItem.requester_shift} 🔄 ${reqItem.target_shift}`,
+            'Status Final': status === 'Approved' ? 'Disetujui & Roster Diperbarui' : 'Ditolak',
+          },
+          targetChatId: s.telegram_chat_id,
+        });
+      }
+    }
+
     setLoading(false);
     fetchSwapRequests();
-    onSuccess();
   };
 
   if (!isOpen) return null;
@@ -372,6 +427,12 @@ export default function TukarShiftModal({
             📋 Riwayat & Status ({swapRequests.length})
           </button>
         </div>
+
+        {formError && (
+          <div className="mb-3 rounded-2xl bg-red-50 p-2.5 text-xs text-red-600 font-bold border border-red-200">
+            ⚠️ {formError}
+          </div>
+        )}
 
         <div
           className={`flex-1 overflow-y-auto pr-1 transition-opacity duration-200 ${
@@ -482,7 +543,7 @@ export default function TukarShiftModal({
                 }`}
               >
                 {loading
-                  ? 'Kirim Pengajuan...'
+                  ? 'Mengirim Pengajuan...'
                   : isSameShift
                   ? '🚫 Shift Sama (Tidak Bisa Ditukar)'
                   : '🚀 Kirim Permohonan Tukar Shift'}

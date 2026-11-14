@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
 import { sendTelegramAlert } from '../lib/telegram';
 import EditRosterModal from './EditRosterModal';
@@ -31,6 +32,13 @@ interface JadwalStafProps {
   currentUser?: CurrentUser | null;
 }
 
+interface SuccessPopupState {
+  isOpen: boolean;
+  title: string;
+  subtitle: string;
+  badgeText?: string;
+}
+
 export default function JadwalStaf({ userRole = 'management', currentUser }: JadwalStafProps) {
   const [staffSummaries, setStaffSummaries] = useState<StaffSummary[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -46,6 +54,13 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
   
   const [isInboxOpen, setIsInboxOpen] = useState<boolean>(false);
   const [pendingInboxCount, setPendingInboxCount] = useState<number>(0);
+
+  // 🌟 Custom Popup Sukses (Pengganti alert() bawaan browser)
+  const [successPopup, setSuccessPopup] = useState<SuccessPopupState>({
+    isOpen: false,
+    title: '',
+    subtitle: '',
+  });
 
   const rawRole = (currentUser?.role || userRole || '').toLowerCase();
   const isManagement = 
@@ -218,6 +233,13 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
           animation: fadeInCol 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
           opacity: 0;
         }
+        @keyframes successPopIn {
+          0% { opacity: 0; transform: scale(0.9) translateY(14px); }
+          100% { opacity: 1; transform: scale(1) translateY(0); }
+        }
+        .animate-success-pop {
+          animation: successPopIn 0.32s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
       `}</style>
 
       {/* Header Roster Komponen Baru */}
@@ -268,33 +290,77 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
         isOpen={isSwapModalOpen}
         onClose={() => setIsSwapModalOpen(false)}
         currentUser={currentUser || null}
-        onSuccess={() => {
-          sendTelegramAlert({
+        onSuccess={async (swapDetails) => {
+          // 1. Kirim Notifikasi ke Grup Operasional
+          await sendTelegramAlert({
             title: '🔄 PENGAJUAN TUKAR SHIFT BARU',
             actor: currentUser ? `${currentUser.name} (${currentUser.staff_id})` : 'Staf',
             details: {
               'Divisi': (currentUser?.role || '').replace(/_/g, ' ').toUpperCase(),
-              'Status': 'Menunggu konfirmasi rekan & ACC Management',
+              'Rekan Tujuan': swapDetails?.targetName || '-',
+              'Jadwal': swapDetails ? `M${swapDetails.weekNumber} • ${swapDetails.swapDay}` : '-',
+              'Detail Shift': swapDetails ? `${swapDetails.requesterShift} ↔️ ${swapDetails.targetShift}` : '-',
+              'Status': 'Menunggu konfirmasi rekan kerja',
             },
           });
+
+          // 2. Kirim Notifikasi Personal ke Telegram Karyawan yang Dituju
+          if (swapDetails?.targetStaffId) {
+            const { data: targetStaff } = await supabase
+              .from('staff')
+              .select('telegram_chat_id')
+              .eq('staff_id', swapDetails.targetStaffId)
+              .single();
+
+            if (targetStaff?.telegram_chat_id) {
+              await sendTelegramAlert({
+                title: '📩 PERMINTAAN TUKAR SHIFT UNTUK ANDA',
+                actor: currentUser ? `${currentUser.name} (${currentUser.staff_id})` : 'Rekan Kerja',
+                details: {
+                  'Minggu & Hari': `Minggu ${swapDetails.weekNumber} (${swapDetails.swapDay})`,
+                  'Shift Dia': swapDetails.requesterShift,
+                  'Shift Anda': swapDetails.targetShift,
+                  'Alasan': swapDetails.reason || '-',
+                  'Tindakan': 'Buka menu Jadwal Staf → Inbox & Status untuk ACC / Tolak',
+                },
+                targetChatId: targetStaff.telegram_chat_id,
+              });
+            }
+          }
+
           fetchSchedulesFromDatabase();
+          setSuccessPopup({
+            isOpen: true,
+            title: 'Permohonan Tukar Shift Terkirim!',
+            subtitle: `Ajakan tukar shift ke ${swapDetails?.targetName || 'rekan kerja'} berhasil dikirim. Menunggu persetujuan rekan kerja & manajemen.`,
+            badgeText: 'Menunggu Konfirmasi Rekan Kerja',
+          });
         }}
       />
 
       <LeaveRequestModal
         isOpen={isLeaveModalOpen}
         onClose={() => setIsLeaveModalOpen(false)}
-        onSuccess={() => {
-          sendTelegramAlert({
+        onSuccess={async (leaveDetails) => {
+          await sendTelegramAlert({
             title: '📝 PENGAJUAN IZIN / CUTI BARU',
             actor: currentUser ? `${currentUser.name} (${currentUser.staff_id})` : 'Staf',
             details: {
               'Divisi': (currentUser?.role || '').replace(/_/g, ' ').toUpperCase(),
+              'Jenis': leaveDetails?.leaveType || '-',
+              'Tanggal': leaveDetails ? `${leaveDetails.startDate} s/d ${leaveDetails.endDate}` : '-',
+              'Alasan': leaveDetails?.reason || '-',
               'Status': 'Menunggu ACC Management di Dashboard',
             },
           });
-          alert('Pengajuan izin berhasil dikirim!');
+
           fetchSchedulesFromDatabase();
+          setSuccessPopup({
+            isOpen: true,
+            title: 'Pengajuan Berhasil Dikirim!',
+            subtitle: `Permohonan ${leaveDetails?.leaveType || 'izin'} Anda telah diteruskan ke Manajemen untuk ditinjau.`,
+            badgeText: 'Menunggu ACC Manajemen',
+          });
         }}
         currentUser={currentUser || null}
       />
@@ -314,6 +380,47 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
           }}
         />
       )}
+
+      {/* 🌟 CUSTOM SUCCESS MODAL (PENGGANTI BROWSER ALERT) */}
+      {successPopup.isOpen &&
+        createPortal(
+          <div
+            onClick={() => setSuccessPopup((prev) => ({ ...prev, isOpen: false }))}
+            className="fixed inset-0 z-[10000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-neutral-100 text-center space-y-4 animate-success-pop"
+            >
+              <div className="w-14 h-14 mx-auto rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-2xl shadow-2xs">
+                ✅
+              </div>
+
+              <div className="space-y-1.5">
+                {successPopup.badgeText && (
+                  <span className="inline-block text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                    {successPopup.badgeText}
+                  </span>
+                )}
+                <h3 className="text-base font-black text-[#111111]">
+                  {successPopup.title}
+                </h3>
+                <p className="text-xs text-neutral-500 leading-relaxed">
+                  {successPopup.subtitle}
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setSuccessPopup((prev) => ({ ...prev, isOpen: false }))}
+                className="w-full py-3 bg-[#111111] hover:bg-black text-white rounded-2xl text-xs font-extrabold transition cursor-pointer active:scale-95 shadow-sm"
+              >
+                Oke, Mengerti
+              </button>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
