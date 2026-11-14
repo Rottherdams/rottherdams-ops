@@ -91,6 +91,7 @@ export default function ExpenseTracker({ currentUser }: ExpenseTrackerProps) {
   const [expenses, setExpenses] = useState<ExpenseItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [isRealtimeConnected, setIsRealtimeConnected] = useState(false);
 
   // Filter state
   const [filterDivision, setFilterDivision] = useState<string>('ALL');
@@ -132,23 +133,15 @@ export default function ExpenseTracker({ currentUser }: ExpenseTrackerProps) {
     setDivision(detectDefaultDivision(currentUser?.role));
   }, [currentUser]);
 
-  useEffect(() => {
-    fetchExpenses();
+  const sortExpenses = (items: ExpenseItem[]) =>
+    [...items].sort((a, b) => {
+      const dateCompare = (b.expense_date || '').localeCompare(a.expense_date || '');
+      if (dateCompare !== 0) return dateCompare;
+      return (b.created_at || '').localeCompare(a.created_at || '');
+    });
 
-    const channel = supabase
-      .channel('operational_expenses_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'operational_expenses' }, () => {
-        fetchExpenses();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [filterMonth]);
-
-  const fetchExpenses = async () => {
-    setLoading(true);
+  const fetchExpenses = async (showLoader = true) => {
+    if (showLoader) setLoading(true);
     try {
       let query = supabase
         .from('operational_expenses')
@@ -170,9 +163,58 @@ export default function ExpenseTracker({ currentUser }: ExpenseTrackerProps) {
     } catch (err) {
       console.error('Gagal memuat data pengeluaran:', err);
     } finally {
-      setLoading(false);
+      if (showLoader) setLoading(false);
     }
   };
+
+  useEffect(() => {
+    fetchExpenses(true);
+
+    const channel = supabase
+      .channel(`operational_expenses_realtime_${filterMonth || 'all'}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'operational_expenses' },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            const newItem = payload.new as ExpenseItem;
+            if (!filterMonth || newItem.expense_date?.startsWith(filterMonth)) {
+              setExpenses((prev) => {
+                if (prev.some((item) => item.id === newItem.id)) return prev;
+                return sortExpenses([newItem, ...prev]);
+              });
+            }
+          } else if (payload.eventType === 'UPDATE') {
+            const updated = payload.new as ExpenseItem;
+            setExpenses((prev) => {
+              const matchesMonth = !filterMonth || updated.expense_date?.startsWith(filterMonth);
+              const exists = prev.some((item) => item.id === updated.id);
+              if (!matchesMonth) {
+                return prev.filter((item) => item.id !== updated.id);
+              }
+              if (exists) {
+                return sortExpenses(
+                  prev.map((item) => (item.id === updated.id ? updated : item))
+                );
+              }
+              return sortExpenses([updated, ...prev]);
+            });
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = (payload.old as { id?: number })?.id;
+            if (deletedId) {
+              setExpenses((prev) => prev.filter((item) => item.id !== deletedId));
+            }
+          }
+        }
+      )
+      .subscribe((status) => {
+        setIsRealtimeConnected(status === 'SUBSCRIBED');
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [filterMonth]);
 
   const formatRupiah = (num: number) =>
     new Intl.NumberFormat('id-ID', {
@@ -248,22 +290,34 @@ export default function ExpenseTracker({ currentUser }: ExpenseTrackerProps) {
 
       const receiptUrl = publicUrlData.publicUrl;
 
-      const { error: insertError } = await supabase.from('operational_expenses').insert([
-        {
-          staff_id: currentUser.staff_id,
-          staff_name: currentUser.name,
-          division,
-          item_name: itemName.trim(),
-          category,
-          amount: parsedAmount,
-          expense_date: expenseDate,
-          notes: notes.trim() || null,
-          receipt_url: receiptUrl,
-          status: 'pending',
-        },
-      ]);
+      const { data: insertedRow, error: insertError } = await supabase
+        .from('operational_expenses')
+        .insert([
+          {
+            staff_id: currentUser.staff_id,
+            staff_name: currentUser.name,
+            division,
+            item_name: itemName.trim(),
+            category,
+            amount: parsedAmount,
+            expense_date: expenseDate,
+            notes: notes.trim() || null,
+            receipt_url: receiptUrl,
+            status: 'pending',
+          },
+        ])
+        .select()
+        .single();
 
       if (insertError) throw new Error(insertError.message);
+
+      // Optimistic / instant state update untuk perangkat pengirim
+      if (insertedRow && (!filterMonth || insertedRow.expense_date?.startsWith(filterMonth))) {
+        setExpenses((prev) => {
+          if (prev.some((item) => item.id === insertedRow.id)) return prev;
+          return sortExpenses([insertedRow as ExpenseItem, ...prev]);
+        });
+      }
 
       // Kirim notifikasi ke Grup Telegram Operasional beserta link foto nota
       await sendTelegramAlert({
@@ -292,7 +346,6 @@ export default function ExpenseTracker({ currentUser }: ExpenseTrackerProps) {
         type: 'success',
         text: `✅ Pengeluaran "${itemName.trim()}" (${formatRupiah(parsedAmount)}) berhasil dicatat!`,
       });
-      fetchExpenses();
     } catch (err: any) {
       setFormError(err.message || 'Gagal menyimpan data pengeluaran.');
     } finally {
@@ -302,12 +355,21 @@ export default function ExpenseTracker({ currentUser }: ExpenseTrackerProps) {
 
   const handleVerifyExpense = async (item: ExpenseItem, newStatus: 'verified' | 'rejected') => {
     if (!currentUser) return;
+    const verifierLabel = `${currentUser.name} (${currentUser.staff_id})`;
+
+    // Optimistic update di layar verifier
+    setExpenses((prev) =>
+      prev.map((row) =>
+        row.id === item.id ? { ...row, status: newStatus, verified_by: verifierLabel } : row
+      )
+    );
+
     try {
       const { error } = await supabase
         .from('operational_expenses')
         .update({
           status: newStatus,
-          verified_by: `${currentUser.name} (${currentUser.staff_id})`,
+          verified_by: verifierLabel,
         })
         .eq('id', item.id);
 
@@ -319,7 +381,7 @@ export default function ExpenseTracker({ currentUser }: ExpenseTrackerProps) {
           newStatus === 'verified'
             ? '✅ NOTA BELANJA ANDA DIVERIFIKASI'
             : '❌ NOTA BELANJA ANDA DITOLAK',
-        actor: `${currentUser.name} (${currentUser.staff_id})`,
+        actor: verifierLabel,
         details: {
           'Divisi': item.division,
           'Item Belanja': item.item_name,
@@ -339,8 +401,8 @@ export default function ExpenseTracker({ currentUser }: ExpenseTrackerProps) {
             ? `✅ Pengeluaran "${item.item_name}" telah diverifikasi!`
             : `❌ Pengeluaran "${item.item_name}" ditolak.`,
       });
-      fetchExpenses();
     } catch (err: any) {
+      fetchExpenses(false);
       setToastMsg({ type: 'error', text: 'Gagal memperbarui status: ' + err.message });
     }
   };
@@ -366,9 +428,25 @@ export default function ExpenseTracker({ currentUser }: ExpenseTrackerProps) {
       {/* HEADER */}
       <div className="bg-white rounded-3xl p-5 sm:p-6 border border-neutral-200 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <span className="text-[10px] font-black uppercase tracking-widest text-[#d22027]">
-            Operational Petty Cash & Purchasing
-          </span>
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-[10px] font-black uppercase tracking-widest text-[#d22027]">
+              Operational Petty Cash & Purchasing
+            </span>
+            <span
+              className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${
+                isRealtimeConnected
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                  : 'bg-neutral-100 text-neutral-500 border border-neutral-200'
+              }`}
+            >
+              <span
+                className={`w-1.5 h-1.5 rounded-full ${
+                  isRealtimeConnected ? 'bg-emerald-500 animate-pulse' : 'bg-neutral-400'
+                }`}
+              />
+              {isRealtimeConnected ? 'Live Sync' : 'Connecting...'}
+            </span>
+          </div>
           <h2 className="text-lg sm:text-xl font-black text-[#111111] mt-0.5">
             🧾 Tracking Pengeluaran & Scan Nota
           </h2>
