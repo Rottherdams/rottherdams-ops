@@ -1,22 +1,15 @@
-declare const __APP_COMMIT_COUNT__: string;
-declare const __APP_COMMIT_SHA__: string;
-
 interface FooterMinimalistProps {
   isHostOnline: boolean;
   isDbOnline: boolean;
 }
 
 export default function FooterMinimalist({ isHostOnline, isDbOnline }: FooterMinimalistProps) {
-  // 🌟 KALKULASI VERSI DINAMIS BERDASARKAN TOTAL COMMIT GIT SAAT BUILD
-  const rawCount = typeof __APP_COMMIT_COUNT__ !== 'undefined' ? __APP_COMMIT_COUNT__ : '125';
-  const deployCount = parseInt(rawCount, 10) || 125;
-  const computedVersion = (deployCount / 100).toFixed(2);
+  // 🌟 KALKULASI VERSI 1 DESIMAL BERDASARKAN TOTAL DEPLOY (COMMIT COUNT)
+  // Contoh: 75 -> v0.7 | 125 -> v1.2 | 155 -> v1.5 | 220 -> v2.2
+  const deployCount = parseInt(import.meta.env.CF_PAGES_COMMIT_COUNT || '1', 10);
+  const computedVersion = (Math.floor(deployCount / 10) / 10).toFixed(1);
 
-  const commitSha =
-    (typeof __APP_COMMIT_SHA__ !== 'undefined' && __APP_COMMIT_SHA__) ||
-    import.meta.env.CF_PAGES_COMMIT_SHA?.substring(0, 7) ||
-    '';
-
+  const commitSha = import.meta.env.CF_PAGES_COMMIT_SHA?.substring(0, 7);
   const appVersion = commitSha ? `${computedVersion} (${commitSha})` : computedVersion;
 
   return (

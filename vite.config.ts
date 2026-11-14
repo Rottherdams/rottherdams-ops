@@ -7,11 +7,11 @@ import { execSync } from 'child_process';
 function getGitCommitCount(): string {
   try {
     const count = execSync('git rev-list --count HEAD').toString().trim();
-    if (count && Number(count) > 1) return count;
+    if (count) return count;
   } catch {
     // Abaikan jika git tidak tersedia
   }
-  return process.env.CF_PAGES_COMMIT_COUNT || '125';
+  return process.env.CF_PAGES_COMMIT_COUNT || '1';
 }
 
 function getGitCommitSha(): string {
