@@ -4,10 +4,13 @@ interface FooterMinimalistProps {
 }
 
 export default function FooterMinimalist({ isHostOnline, isDbOnline }: FooterMinimalistProps) {
-  // 🌟 KALKULASI VERSI 1 DESIMAL BERDASARKAN TOTAL DEPLOY (COMMIT COUNT)
-  // Contoh: 75 -> v0.7 | 125 -> v1.2 | 155 -> v1.5 | 220 -> v2.2
-  const deployCount = parseInt(import.meta.env.CF_PAGES_COMMIT_COUNT || '1', 10);
-  const computedVersion = (Math.floor(deployCount / 10) / 10).toFixed(1);
+  // 🌟 KALKULASI VERSI 3 DIGIT (MAJOR.MINOR.PATCH) BERDASARKAN TOTAL DEPLOY
+  // Contoh: 65 -> v0.6.5 | 125 -> v1.2.5 | 220 -> v2.2.0
+  const deployCount = Math.max(0, parseInt(import.meta.env.CF_PAGES_COMMIT_COUNT || '1', 10) || 1);
+  const major = Math.floor(deployCount / 100);
+  const minor = Math.floor((deployCount % 100) / 10);
+  const patch = deployCount % 10;
+  const computedVersion = `${major}.${minor}.${patch}`;
 
   const commitSha = import.meta.env.CF_PAGES_COMMIT_SHA?.substring(0, 7);
   const appVersion = commitSha ? `${computedVersion} (${commitSha})` : computedVersion;
