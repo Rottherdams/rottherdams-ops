@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
-import { sendTelegramAlert } from '../lib/telegram';
+import { sendTelegramAlert, sendStaffDirectTelegram } from '../lib/telegram';
 import EditRosterModal from './EditRosterModal';
 import TukarShiftModal from './jadwal/TukarShiftModal';
 import LeaveRequestModal from './jadwal/LeaveRequestModal';
@@ -306,26 +306,17 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
 
           // 2. Kirim Notifikasi Personal ke Telegram Karyawan yang Dituju
           if (swapDetails?.targetStaffId) {
-            const { data: targetStaff } = await supabase
-              .from('staff')
-              .select('telegram_chat_id')
-              .eq('staff_id', swapDetails.targetStaffId)
-              .single();
-
-            if (targetStaff?.telegram_chat_id) {
-              await sendTelegramAlert({
-                title: '📩 PERMINTAAN TUKAR SHIFT UNTUK ANDA',
-                actor: currentUser ? `${currentUser.name} (${currentUser.staff_id})` : 'Rekan Kerja',
-                details: {
-                  'Minggu & Hari': `Minggu ${swapDetails.weekNumber} (${swapDetails.swapDay})`,
-                  'Shift Dia': swapDetails.requesterShift,
-                  'Shift Anda': swapDetails.targetShift,
-                  'Alasan': swapDetails.reason || '-',
-                  'Tindakan': 'Buka menu Jadwal Staf → Inbox & Status untuk ACC / Tolak',
-                },
-                targetChatId: targetStaff.telegram_chat_id,
-              });
-            }
+            await sendStaffDirectTelegram(swapDetails.targetStaffId, {
+              title: '📩 PERMINTAAN TUKAR SHIFT UNTUK ANDA',
+              actor: currentUser ? `${currentUser.name} (${currentUser.staff_id})` : 'Rekan Kerja',
+              details: {
+                'Minggu & Hari': `Minggu ${swapDetails.weekNumber} (${swapDetails.swapDay})`,
+                'Shift Dia': swapDetails.requesterShift,
+                'Shift Anda': swapDetails.targetShift,
+                'Alasan': swapDetails.reason || '-',
+                'Tindakan': 'Buka menu Jadwal Staf → Inbox & Status untuk ACC / Tolak',
+              },
+            });
           }
 
           fetchSchedulesFromDatabase();

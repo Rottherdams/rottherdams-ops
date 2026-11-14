@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
-import { sendTelegramAlert } from '../lib/telegram';
+import { sendTelegramAlert, sendStaffDirectTelegram } from '../lib/telegram';
 
 interface CurrentUser {
   name: string;
@@ -185,30 +185,21 @@ export default function StaffInboxModal({ currentUser, isOpen, onClose, onUpdate
 
       // 2. Notifikasi Personal ke Telegram Karyawan Pengaju
       if (swapItem?.requester_staff_id) {
-        const { data: requesterProfile } = await supabase
-          .from('staff')
-          .select('telegram_chat_id')
-          .eq('staff_id', swapItem.requester_staff_id)
-          .single();
-
-        if (requesterProfile?.telegram_chat_id) {
-          await sendTelegramAlert({
-            title:
+        await sendStaffDirectTelegram(swapItem.requester_staff_id, {
+          title:
+            response === 'accepted'
+              ? '✅ REKAN KERJA MENYETUJUI TUKAR SHIFT'
+              : '❌ REKAN KERJA MENOLAK TUKAR SHIFT',
+          actor: `${currentUser.name} (${currentUser.staff_id})`,
+          details: {
+            'Jadwal': jadwalText,
+            'Detail Shift': shiftDetailText,
+            'Tahap Selanjutnya':
               response === 'accepted'
-                ? '✅ REKAN KERJA MENYETUJUI TUKAR SHIFT'
-                : '❌ REKAN KERJA MENOLAK TUKAR SHIFT',
-            actor: `${currentUser.name} (${currentUser.staff_id})`,
-            details: {
-              'Jadwal': jadwalText,
-              'Detail Shift': shiftDetailText,
-              'Tahap Selanjutnya':
-                response === 'accepted'
-                  ? 'Diteruskan ke Management untuk ACC Final'
-                  : 'Pengajuan dibatalkan',
-            },
-            targetChatId: requesterProfile.telegram_chat_id,
-          });
-        }
+                ? 'Diteruskan ke Management untuk ACC Final'
+                : 'Pengajuan dibatalkan',
+          },
+        });
       }
 
       setToastBanner({

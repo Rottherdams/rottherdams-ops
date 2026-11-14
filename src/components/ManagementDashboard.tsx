@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { sendTelegramAlert } from '../lib/telegram';
+import { sendTelegramAlert, sendStaffDirectTelegram } from '../lib/telegram';
 import MetricsSummary from './dashboard/MetricsSummary';
 import ApprovalCenter from './dashboard/ApprovalCenter';
 import type { ShiftSwapRequest, LeaveRequest } from './dashboard/ApprovalCenter';
@@ -259,35 +259,25 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
       });
 
       // 2. Kirim Notifikasi Personal ke Karyawan Pemohon & Karyawan Tujuan
-      const targetIds = [swapItem?.requester_staff_id, swapItem?.target_staff_id].filter(Boolean);
-      if (targetIds.length > 0) {
-        const { data: staffRows } = await supabase
-          .from('staff')
-          .select('staff_id, telegram_chat_id')
-          .in('staff_id', targetIds);
-
-        for (const s of staffRows || []) {
-          if (s.telegram_chat_id) {
-            await sendTelegramAlert({
-              title:
-                status === 'approved'
-                  ? '✅ TUKAR SHIFT ANDA DISETUJUI MANAGEMENT'
-                  : '❌ TUKAR SHIFT ANDA DITOLAK MANAGEMENT',
-              actor: `${currentUser.name} (${currentUser.staff_id})`,
-              details: {
-                'Pasangan Tukar': `${requesterName} ↔️ ${targetName}`,
-                'Jadwal': jadwalText,
-                ...(shiftDetailText ? { 'Detail Shift': shiftDetailText } : {}),
-                'Keputusan Final':
-                  status === 'approved'
-                    ? 'Disetujui & Roster Kerja Telah Diperbarui'
-                    : 'Ditolak oleh Management (Jadwal tetap seperti semula)',
-              },
-              targetChatId: s.telegram_chat_id,
-            });
-          }
+      await sendStaffDirectTelegram(
+        [swapItem?.requester_staff_id, swapItem?.target_staff_id].filter(Boolean),
+        {
+          title:
+            status === 'approved'
+              ? '✅ TUKAR SHIFT ANDA DISETUJUI MANAGEMENT'
+              : '❌ TUKAR SHIFT ANDA DITOLAK MANAGEMENT',
+          actor: `${currentUser.name} (${currentUser.staff_id})`,
+          details: {
+            'Pasangan Tukar': `${requesterName} ↔️ ${targetName}`,
+            'Jadwal': jadwalText,
+            ...(shiftDetailText ? { 'Detail Shift': shiftDetailText } : {}),
+            'Keputusan Final':
+              status === 'approved'
+                ? 'Disetujui & Roster Kerja Telah Diperbarui'
+                : 'Ditolak oleh Management (Jadwal tetap seperti semula)',
+          },
         }
-      }
+      );
 
       setSwapRequests((prev) =>
         prev.map((item) =>
@@ -343,31 +333,22 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
 
     // 2. Kirim Notifikasi Personal Langsung ke Karyawan Pengaju
     if (leaveItem.staff_id) {
-      const { data: requesterProfile } = await supabase
-        .from('staff')
-        .select('telegram_chat_id')
-        .eq('staff_id', leaveItem.staff_id)
-        .single();
-
-      if (requesterProfile?.telegram_chat_id) {
-        await sendTelegramAlert({
-          title:
+      await sendStaffDirectTelegram(leaveItem.staff_id, {
+        title:
+          status === 'approved'
+            ? `✅ PENGAJUAN ${leaveItem.leave_type.toUpperCase()} ANDA DISETUJUI`
+            : `❌ PENGAJUAN ${leaveItem.leave_type.toUpperCase()} ANDA DITOLAK`,
+        actor: `${currentUser.name} (${currentUser.staff_id})`,
+        details: {
+          'Jenis Pengajuan': leaveItem.leave_type,
+          'Tanggal': dateRangeStr,
+          'Alasan Anda': leaveItem.reason || '-',
+          'Status':
             status === 'approved'
-              ? `✅ PENGAJUAN ${leaveItem.leave_type.toUpperCase()} ANDA DISETUJUI`
-              : `❌ PENGAJUAN ${leaveItem.leave_type.toUpperCase()} ANDA DITOLAK`,
-          actor: `${currentUser.name} (${currentUser.staff_id})`,
-          details: {
-            'Jenis Pengajuan': leaveItem.leave_type,
-            'Tanggal': dateRangeStr,
-            'Alasan Anda': leaveItem.reason || '-',
-            'Status':
-              status === 'approved'
-                ? 'Disetujui oleh Management'
-                : 'Ditolak oleh Management (Silakan hubungi Management untuk info lanjut)',
-          },
-          targetChatId: requesterProfile.telegram_chat_id,
-        });
-      }
+              ? 'Disetujui oleh Management'
+              : 'Ditolak oleh Management (Silakan hubungi Management untuk info lanjut)',
+        },
+      });
     }
 
     setLeaveRequests((prev) => prev.map((item) => (item.id === leaveItem.id ? { ...item, status } : item)));

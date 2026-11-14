@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../../lib/supabase';
-import { sendTelegramAlert } from '../../lib/telegram';
+import { sendStaffDirectTelegram } from '../../lib/telegram';
 import { DAYS, getWeekDateRange } from '../../utils/dateUtils';
 
 interface CurrentUser {
@@ -328,29 +328,22 @@ export default function TukarShiftModal({
     }
 
     // Kirim notif personal ke kedua staf yang bersangkutan
-    const { data: staffRows } = await supabase
-      .from('staff')
-      .select('staff_id, telegram_chat_id')
-      .in('staff_id', [reqItem.requester_staff_id, reqItem.target_staff_id]);
-
-    for (const s of staffRows || []) {
-      if (s.telegram_chat_id) {
-        await sendTelegramAlert({
-          title:
-            status === 'Approved'
-              ? '✅ TUKAR SHIFT DISETUJUI MANAJEMEN'
-              : '❌ TUKAR SHIFT DITOLAK MANAJEMEN',
-          actor: currentUser?.name || 'Management',
-          details: {
-            'Pasangan Tukar': `${reqItem.requester_staff_name} ↔️ ${reqItem.target_staff_name}`,
-            'Jadwal': `Minggu ${reqItem.week_number} (${reqItem.swap_date})`,
-            'Shift': `${reqItem.requester_shift} 🔄 ${reqItem.target_shift}`,
-            'Status Final': status === 'Approved' ? 'Disetujui & Roster Diperbarui' : 'Ditolak',
-          },
-          targetChatId: s.telegram_chat_id,
-        });
+    await sendStaffDirectTelegram(
+      [reqItem.requester_staff_id, reqItem.target_staff_id].filter(Boolean),
+      {
+        title:
+          status === 'Approved'
+            ? '✅ TUKAR SHIFT DISETUJUI MANAJEMEN'
+            : '❌ TUKAR SHIFT DITOLAK MANAJEMEN',
+        actor: currentUser?.name || 'Management',
+        details: {
+          'Pasangan Tukar': `${reqItem.requester_staff_name} ↔️ ${reqItem.target_staff_name}`,
+          'Jadwal': `Minggu ${reqItem.week_number} (${reqItem.swap_date})`,
+          'Shift': `${reqItem.requester_shift} 🔄 ${reqItem.target_shift}`,
+          'Status Final': status === 'Approved' ? 'Disetujui & Roster Diperbarui' : 'Ditolak',
+        },
       }
-    }
+    );
 
     setLoading(false);
     fetchSwapRequests();

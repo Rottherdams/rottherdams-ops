@@ -1,4 +1,5 @@
 // src/lib/telegram.ts
+import { supabase } from './supabase';
 
 const escapeHtml = (str: string) =>
   String(str ?? '')
@@ -13,7 +14,7 @@ export interface TelegramNotifyOptions {
   footerNote?: string;
   photoUrl?: string;
   mapUrl?: string;
-  targetChatId?: string;
+  targetChatId?: string | number | null;
 }
 
 export async function sendTelegramAlert({
@@ -26,7 +27,8 @@ export async function sendTelegramAlert({
   targetChatId,
 }: TelegramNotifyOptions): Promise<{ ok: boolean; error?: string }> {
   const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
-  const chatId = targetChatId?.trim() || import.meta.env.VITE_TELEGRAM_CHAT_ID;
+  const cleanTargetId = targetChatId !== undefined && targetChatId !== null ? String(targetChatId).trim() : '';
+  const chatId = cleanTargetId || import.meta.env.VITE_TELEGRAM_CHAT_ID;
 
   if (!botToken || !chatId) {
     return { ok: false, error: 'Bot Token atau Chat ID belum dikonfigurasi.' };
@@ -73,6 +75,7 @@ export async function sendTelegramAlert({
 
     const data = await res.json();
     if (!res.ok || !data.ok) {
+      console.warn('Telegram API Error:', data);
       return { ok: false, error: data.description || 'Gagal mengirim pesan ke Telegram.' };
     }
 
@@ -80,6 +83,46 @@ export async function sendTelegramAlert({
   } catch (err: any) {
     console.warn('Gagal mengirim notifikasi Telegram:', err);
     return { ok: false, error: err?.message || 'Koneksi ke Telegram gagal.' };
+  }
+}
+
+// 📩 Helper Khusus: Kirim DM Pribadi ke Karyawan berdasarkan staff_id (Case-Insensitive)
+export async function sendStaffDirectTelegram(
+  staffIds: string | string[],
+  options: Omit<TelegramNotifyOptions, 'targetChatId'>
+): Promise<void> {
+  const idList = (Array.isArray(staffIds) ? staffIds : [staffIds])
+    .map((id) => String(id || '').trim())
+    .filter(Boolean);
+
+  if (idList.length === 0) return;
+
+  try {
+    // Ambil data staf tanpa terkendala huruf besar/kecil
+    const { data: staffRows, error } = await supabase
+      .from('staff')
+      .select('staff_id, staff_name, telegram_chat_id');
+
+    if (error || !staffRows) {
+      console.warn('Gagal mengambil daftar telegram_chat_id staf:', error);
+      return;
+    }
+
+    const normalizedTargets = new Set(idList.map((id) => id.toUpperCase()));
+
+    for (const row of staffRows) {
+      const rowId = String(row.staff_id || '').trim().toUpperCase();
+      const chatId = row.telegram_chat_id ? String(row.telegram_chat_id).trim() : '';
+
+      if (normalizedTargets.has(rowId) && chatId) {
+        await sendTelegramAlert({
+          ...options,
+          targetChatId: chatId,
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('Error saat mengirim DM Telegram ke karyawan:', err);
   }
 }
 
@@ -110,7 +153,6 @@ export async function detectStaffTelegramChatId(
   }
 
   try {
-    // 0. Nonaktifkan webhook lama (jika ada) agar getUpdates tidak bentrok
     await fetch(`https://api.telegram.org/bot${botToken}/deleteWebhook`, {
       method: 'POST',
     });
@@ -128,7 +170,6 @@ export async function detectStaffTelegramChatId(
     const updates: any[] = data.result || [];
     const targetCode = staffId.trim().toLowerCase();
 
-    // Prioritas 1: Cari dari pesan terbaru ke terlama yang berisi "/start <staff_id>"
     let matchedChat: any = null;
     for (let i = updates.length - 1; i >= 0; i--) {
       const msg = updates[i]?.message;
@@ -144,7 +185,6 @@ export async function detectStaffTelegramChatId(
       }
     }
 
-    // Prioritas 2: Fallback ke pesan "/start" pribadi terbaru jika user mengetik /start manual
     if (!matchedChat) {
       for (let i = updates.length - 1; i >= 0; i--) {
         const msg = updates[i]?.message;
@@ -165,7 +205,6 @@ export async function detectStaffTelegramChatId(
         matchedChat.username ||
         'Akun Telegram';
 
-      // Langsung kirim balasan ke Telegram user sebagai konfirmasi
       await sendTelegramAlert({
         title: '🤖 AKUN TELEGRAM TERHUBUNG',
         actor: `${fullName} (${staffId})`,
