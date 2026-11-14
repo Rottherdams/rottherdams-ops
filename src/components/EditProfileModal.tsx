@@ -1,7 +1,11 @@
 import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
-import { sendTelegramAlert } from '../lib/telegram';
+import {
+  sendTelegramAlert,
+  getTelegramBotUsername,
+  detectStaffTelegramChatId,
+} from '../lib/telegram';
 import { useStaffDetails } from '../lib/hooks/useStaffDetails';
 import AvatarCropModal from './profile/AvatarCropModal';
 
@@ -42,6 +46,8 @@ export default function EditProfileModal({
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [testingTelegram, setTestingTelegram] = useState(false);
+  const [detectingTelegram, setDetectingTelegram] = useState(false);
+  const [openingBot, setOpeningBot] = useState(false);
   const [isClosingModal, setIsClosingModal] = useState(false);
 
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
@@ -59,10 +65,42 @@ export default function EditProfileModal({
     }, 200);
   };
 
+  // 1️⃣ Buka bot Telegram dengan payload /start <staff_id>
+  const handleOpenTelegramBot = async () => {
+    setOpeningBot(true);
+    const botUsername = await getTelegramBotUsername();
+    setOpeningBot(false);
+
+    if (!botUsername) {
+      alert('Gagal membaca username bot Telegram. Pastikan VITE_TELEGRAM_BOT_TOKEN sudah terpasang.');
+      return;
+    }
+
+    const deepLink = `https://t.me/${botUsername}?start=${encodeURIComponent(currentUser.staff_id)}`;
+    window.open(deepLink, '_blank', 'noopener,noreferrer');
+  };
+
+  // 2️⃣ Deteksi otomatis Chat ID setelah user klik Start di Telegram
+  const handleAutoDetectTelegramId = async () => {
+    setDetectingTelegram(true);
+    const res = await detectStaffTelegramChatId(currentUser.staff_id);
+    setDetectingTelegram(false);
+
+    if (res.ok && res.chatId) {
+      setTelegramChatId(res.chatId);
+      alert(
+        `✅ Berhasil terhubung dengan ${res.telegramName}!\nChat ID (${res.chatId}) sudah otomatis diisi.\n\nKlik "Simpan Profil" untuk menyimpan.`
+      );
+    } else {
+      alert(`⚠️ ${res.error}`);
+    }
+  };
+
+  // 3️⃣ Tes kirim pesan ke Chat ID yang terisi
   const handleTestTelegram = async () => {
     const cleanId = telegramChatId.trim();
     if (!cleanId) {
-      alert('Masukkan Telegram Chat ID terlebih dahulu!');
+      alert('Masukkan atau deteksi Telegram Chat ID terlebih dahulu!');
       return;
     }
 
@@ -335,38 +373,65 @@ export default function EditProfileModal({
                 type="text"
                 value={telegramChatId}
                 onChange={(e) => setTelegramChatId(e.target.value.replace(/[^\d-]/g, ''))}
-                placeholder="Contoh: 123456789"
+                placeholder="Otomatis / ketik ID"
                 className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-mono font-bold text-[#111111] focus:outline-none focus:border-[#d22027]"
               />
             </div>
           </div>
 
-          <div className={`p-3 border rounded-2xl flex items-center justify-between gap-2 transition ${
+          {/* KARTU HUBUNGKAN TELEGRAM OTOMATIS */}
+          <div className={`p-3.5 border rounded-2xl space-y-2.5 transition ${
             isTelegramConnected
               ? 'bg-sky-50/70 border-sky-200'
               : 'bg-neutral-50 border-neutral-200'
           }`}>
-            <div>
-              <p className="text-xs font-bold text-[#111111] flex items-center gap-1.5">
-                <span>🤖 Telegram Notification</span>
-                {isTelegramConnected && (
-                  <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-extrabold">
-                    Aktif
-                  </span>
-                )}
-              </p>
-              <p className="text-[10px] text-neutral-500 mt-0.5 leading-snug">
-                Cek ID Anda di bot <span className="font-mono font-bold text-neutral-700">@userinfobot</span>, lalu klik Start di bot Rottherdams.
-              </p>
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-xs font-bold text-[#111111] flex items-center gap-1.5">
+                  <span>🤖 Telegram Notification</span>
+                  {isTelegramConnected && (
+                    <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-extrabold">
+                      Terhubung
+                    </span>
+                  )}
+                </p>
+                <p className="text-[10px] text-neutral-500 mt-0.5 leading-snug">
+                  Klik <strong>Buka Bot</strong> lalu tekan <strong>START</strong> di Telegram, kemudian klik <strong>Ambil ID Otomatis</strong>.
+                </p>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={handleTestTelegram}
-              disabled={testingTelegram || !isTelegramConnected}
-              className="px-3 py-1.5 bg-[#0088cc] hover:bg-[#0077b5] disabled:bg-neutral-300 text-white disabled:text-neutral-500 rounded-xl text-[11px] font-bold transition cursor-pointer disabled:cursor-not-allowed whitespace-nowrap shadow-2xs active:scale-95 shrink-0"
-            >
-              {testingTelegram ? 'Mengirim...' : '📲 Tes Kirim'}
-            </button>
+
+            <div className="flex flex-wrap gap-1.5">
+              <button
+                type="button"
+                onClick={handleOpenTelegramBot}
+                disabled={openingBot}
+                className="flex-1 py-1.5 px-2.5 bg-[#111111] hover:bg-black text-white rounded-xl text-[11px] font-bold transition cursor-pointer whitespace-nowrap active:scale-95"
+              >
+                {openingBot ? 'Membuka...' : '1. Buka Bot & Klik Start'}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAutoDetectTelegramId}
+                disabled={detectingTelegram}
+                className="flex-1 py-1.5 px-2.5 bg-[#0088cc] hover:bg-[#0077b5] text-white rounded-xl text-[11px] font-bold transition cursor-pointer whitespace-nowrap active:scale-95"
+              >
+                {detectingTelegram ? 'Mencari ID...' : '2. Ambil ID Otomatis'}
+              </button>
+
+              {isTelegramConnected && (
+                <button
+                  type="button"
+                  onClick={handleTestTelegram}
+                  disabled={testingTelegram}
+                  className="py-1.5 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[11px] font-bold transition cursor-pointer whitespace-nowrap active:scale-95"
+                  title="Kirim pesan tes ke Telegram Anda"
+                >
+                  {testingTelegram ? '...' : '📲 Tes'}
+                </button>
+              )}
+            </div>
           </div>
 
           <div>

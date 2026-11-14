@@ -82,3 +82,71 @@ export async function sendTelegramAlert({
     return { ok: false, error: err?.message || 'Koneksi ke Telegram gagal.' };
   }
 }
+
+// 🤖 Ambil username bot Telegram otomatis dari token
+export async function getTelegramBotUsername(): Promise<string | null> {
+  const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
+  if (!botToken) return null;
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/getMe`);
+    const data = await res.json();
+    if (data?.ok && data?.result?.username) {
+      return data.result.username;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// 🔍 Deteksi otomatis Chat ID user berdasarkan perintah /start <staff_id>
+export async function detectStaffTelegramChatId(
+  staffId: string
+): Promise<{ ok: boolean; chatId?: string; telegramName?: string; error?: string }> {
+  const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
+  if (!botToken) {
+    return { ok: false, error: 'Token Bot Telegram belum dikonfigurasi.' };
+  }
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/getUpdates?limit=50`);
+    const data = await res.json();
+
+    if (!res.ok || !data.ok) {
+      return {
+        ok: false,
+        error: data.description || 'Gagal membaca update dari bot Telegram.',
+      };
+    }
+
+    const updates: any[] = data.result || [];
+    const targetCode = staffId.trim().toLowerCase();
+
+    // Cari dari pesan terbaru ke terlama yang berisi "/start <staff_id>"
+    for (let i = updates.length - 1; i >= 0; i--) {
+      const msg = updates[i]?.message;
+      const text = (msg?.text || '').trim().toLowerCase();
+      const chat = msg?.chat;
+
+      if (
+        chat?.type === 'private' &&
+        (text === `/start ${targetCode}` || text.includes(targetCode))
+      ) {
+        const fullName = [chat.first_name, chat.last_name].filter(Boolean).join(' ');
+        return {
+          ok: true,
+          chatId: String(chat.id),
+          telegramName: fullName || chat.username || 'Akun Telegram',
+        };
+      }
+    }
+
+    return {
+      ok: false,
+      error: `Belum ditemukan pesan "/start ${staffId}". Klik "1. Buka Bot & Klik Start" terlebih dahulu, lalu tekan "START" di Telegram.`,
+    };
+  } catch (err: any) {
+    return { ok: false, error: err?.message || 'Gagal terhubung ke server Telegram.' };
+  }
+}
