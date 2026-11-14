@@ -48,7 +48,7 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
   const [isClosingAuditModal, setIsClosingAuditModal] = useState(false);
   const [readAuditList, setReadAuditList] = useState<ReadAuditItem[]>([]);
 
-  // 👑 Validasi Manajemen & Owner (Bisa Akses Fitur Audit & Broadcast)
+  // 👑 Validasi Manajemen & Owner
   const rawRole = (currentUser?.role || '').toLowerCase();
   const isManagementOrOwner =
     rawRole.includes('management') ||
@@ -63,7 +63,6 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
   useEffect(() => {
     fetchAnnouncementsAndAutoRead();
 
-    // ⚡ SUBSCRIBER REALTIME SUPABASE UNTUK ANNOUNCEMENTS
     const announcementChannel = supabase
       .channel('public:announcements')
       .on(
@@ -72,7 +71,6 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
         (payload) => {
           const newAnn = payload.new as Announcement;
           setAnnouncements((prev) => [newAnn, ...prev]);
-          // Otomatis tandai dibaca jika ada pengumuman baru yang masuk saat user aktif
           if (currentUser?.staff_id) {
             autoMarkAsRead([newAnn.id]);
           }
@@ -85,11 +83,9 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
     };
   }, [currentUser]);
 
-  // FUNGSI AMBIL DATA & AUTO-MARK READ UNTUK SELURUH PENGUMUMAN TERSEDIA
   const fetchAnnouncementsAndAutoRead = async () => {
     setLoading(true);
 
-    // 1. Fetch pengumuman terbaru
     const { data: annData } = await supabase
       .from('announcements')
       .select('*')
@@ -98,7 +94,6 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
 
     let currentReadIds: number[] = [];
 
-    // 2. Fetch log yang sudah dibaca oleh user saat ini
     if (currentUser?.staff_id) {
       const { data: readData } = await supabase
         .from('announcement_reads')
@@ -111,7 +106,6 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
     }
 
     if (annData && annData.length > 0) {
-      // Ambil avatar penulis dari tabel staff jika ada
       const authorNames = Array.from(new Set(annData.map((a: any) => a.author_name).filter(Boolean)));
       const { data: staffData } = await supabase
         .from('staff')
@@ -130,7 +124,6 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
 
       setAnnouncements(enriched);
 
-      // ⚡ 3. EKSEKUSI OTOMATIS: Cari pengumuman yang BELUM dibaca dan langsung catat ke DB
       if (currentUser?.staff_id) {
         const unreadIds = annData
           .map((a: any) => a.id)
@@ -146,7 +139,6 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
     setLoading(false);
   };
 
-  // HANDLER RECORD OTOMATIS KE SUPABASE
   const autoMarkAsRead = async (announcementIds: number[]) => {
     if (!currentUser?.staff_id || announcementIds.length === 0) return;
 
@@ -158,7 +150,6 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
     await supabase.from('announcement_reads').insert(payload);
   };
 
-  // Handler Tutup Modal Buat Pengumuman dengan Animasi Out
   const handleCloseCreateModal = () => {
     setIsClosingCreateModal(true);
     setTimeout(() => {
@@ -168,7 +159,6 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
     }, 250);
   };
 
-  // Handler Buat Pengumuman Baru (Management & Owner)
   const handleCreateAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim() || !newContent.trim()) return;
@@ -199,7 +189,6 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
     }
   };
 
-  // Handler Tutup Modal Audit dengan Animasi Out
   const handleCloseAuditModal = () => {
     setIsClosingAuditModal(true);
     setTimeout(() => {
@@ -208,7 +197,6 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
     }, 250);
   };
 
-  // Handler Lihat Audit Staf yang Sudah Membaca (Lengkap Foto & Nama)
   const handleOpenAuditModal = async (announcementId: number) => {
     setAuditAnnouncementId(announcementId);
     const { data } = await supabase
@@ -247,8 +235,7 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
   }
 
   return (
-    <div className="space-y-4 text-left">
-      {/* 🌟 Keyframe Animasi Backdrop & Modal */}
+    <div className="space-y-3.5 text-left">
       <style>{`
         @keyframes annBackdropIn { 0% { opacity: 0; } 100% { opacity: 1; } }
         @keyframes annBackdropOut { 0% { opacity: 1; } 100% { opacity: 0; } }
@@ -266,17 +253,28 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
         .ann-modal-out { animation: annModalOut 0.25s ease-in forwards; }
       `}</style>
 
-      {/* HEADER BAR & BUTTON BUAT PENGUMUMAN */}
-      <div className="flex justify-between items-center pb-2 border-b border-neutral-200">
-        <h3 className="font-black text-sm text-[#111111] flex items-center gap-2">
-          <span>📢</span> Bulletin Board & Pengumuman Operasional
-        </h3>
+      {/* HEADER BAR & BUTTON BUAT PENGUMUMAN (RESPONSIVE MOBILE) */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-neutral-200">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <span className="w-8 h-8 rounded-xl bg-red-50 border border-red-100 flex items-center justify-center text-sm shrink-0">
+            📢
+          </span>
+          <div className="min-w-0">
+            <h3 className="font-black text-sm sm:text-base text-[#111111] leading-snug">
+              Bulletin Board & Pengumuman
+            </h3>
+            <p className="text-[11px] text-neutral-400">
+              Informasi & instruksi operasional tim
+            </p>
+          </div>
+        </div>
+
         {isManagementOrOwner && (
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-3 py-1.5 bg-[#d22027] hover:bg-red-700 text-white rounded-xl text-xs font-bold transition cursor-pointer active:scale-95 shadow-xs"
+            className="w-full sm:w-auto px-3.5 py-2 bg-[#d22027] hover:bg-red-700 text-white rounded-xl text-xs font-bold transition cursor-pointer active:scale-95 shadow-xs whitespace-nowrap flex items-center justify-center gap-1.5 shrink-0"
           >
-            + Buat Pengumuman
+            <span>+</span> Buat Pengumuman
           </button>
         )}
       </div>
@@ -300,59 +298,63 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
                     : 'bg-white border-neutral-200 shadow-xs'
                 }`}
               >
-                <div className="flex justify-between items-start gap-3">
-                  <div className="space-y-1 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span
-                        className={`text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase ${
-                          isUrgent
-                            ? 'bg-red-600 text-white animate-pulse'
-                            : 'bg-neutral-100 text-neutral-600 border border-neutral-200'
-                        }`}
-                      >
-                        {isUrgent ? '⚠️ URGENT BROADCAST' : '📢 INFO'}
+                <div className="space-y-2">
+                  {/* Baris Atas: Badge Priority + Status Sudah Dilihat */}
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <span
+                      className={`text-[9px] px-2.5 py-0.5 rounded-full font-black uppercase ${
+                        isUrgent
+                          ? 'bg-red-600 text-white animate-pulse'
+                          : 'bg-neutral-100 text-neutral-600 border border-neutral-200'
+                      }`}
+                    >
+                      {isUrgent ? '⚠️ URGENT BROADCAST' : '📢 INFO'}
+                    </span>
+
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
+                        ✓ Sudah Dilihat
                       </span>
-
-                      <div className="flex items-center gap-1.5">
-                        {item.author_avatar ? (
-                          <img
-                            src={item.author_avatar}
-                            alt={item.author_name}
-                            className="w-4 h-4 rounded-full object-cover"
-                          />
-                        ) : null}
-                        <span className="text-[10px] text-neutral-400 font-mono">
-                          Oleh: <strong>{item.author_name}</strong> •{' '}
-                          {new Date(item.created_at).toLocaleDateString('id-ID', {
-                            day: 'numeric',
-                            month: 'short',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })} WITA
-                        </span>
-                      </div>
+                      {isManagementOrOwner && (
+                        <button
+                          onClick={() => handleOpenAuditModal(item.id)}
+                          className="text-[10px] text-neutral-500 hover:text-neutral-900 underline font-semibold cursor-pointer"
+                        >
+                          Audit
+                        </button>
+                      )}
                     </div>
+                  </div>
 
-                    <h4 className="font-extrabold text-sm text-[#111111] mt-1">{item.title}</h4>
-                    <p className="text-xs text-neutral-700 whitespace-pre-line leading-relaxed">
+                  {/* Judul & Isi Pengumuman */}
+                  <div>
+                    <h4 className="font-extrabold text-sm text-[#111111] leading-snug">
+                      {item.title}
+                    </h4>
+                    <p className="text-xs text-neutral-700 whitespace-pre-line leading-relaxed mt-1">
                       {item.content}
                     </p>
                   </div>
 
-                  {/* AUDIT MANAGEMENT & OWNER / STATUS OTOMATIS READ */}
-                  <div className="flex flex-col items-end gap-2 shrink-0">
-                    <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
-                      ✓ Sudah Dilihat
+                  {/* Footer Penulis & Waktu */}
+                  <div className="pt-2 border-t border-neutral-100 flex items-center gap-1.5 text-[10px] text-neutral-400 font-mono">
+                    {item.author_avatar ? (
+                      <img
+                        src={item.author_avatar}
+                        alt={item.author_name}
+                        className="w-4 h-4 rounded-full object-cover shrink-0"
+                      />
+                    ) : null}
+                    <span className="truncate">
+                      Oleh: <strong className="text-neutral-600">{item.author_name}</strong> •{' '}
+                      {new Date(item.created_at).toLocaleDateString('id-ID', {
+                        day: 'numeric',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}{' '}
+                      WITA
                     </span>
-
-                    {isManagementOrOwner && (
-                      <button
-                        onClick={() => handleOpenAuditModal(item.id)}
-                        className="text-[10px] text-neutral-500 hover:text-neutral-900 underline font-semibold cursor-pointer"
-                      >
-                        Audit Pembaca
-                      </button>
-                    )}
                   </div>
                 </div>
               </div>
@@ -361,7 +363,7 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
         )}
       </div>
 
-      {/* MODAL BUAT PENGUMUMAN (PORTAL KE document.body) */}
+      {/* MODAL BUAT PENGUMUMAN */}
       {showCreateModal && createPortal(
         <div className={`fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] ${
           isClosingCreateModal ? 'ann-backdrop-out' : 'ann-backdrop-in'
@@ -446,7 +448,7 @@ export default function AnnouncementBanner({ currentUser }: AnnouncementBannerPr
         document.body
       )}
 
-      {/* MODAL AUDIT STATUS MEMBACA STAF (PORTAL KE document.body) */}
+      {/* MODAL AUDIT STATUS MEMBACA STAF */}
       {auditAnnouncementId && createPortal(
         <div className={`fixed inset-0 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] ${
           isClosingAuditModal ? 'ann-backdrop-out' : 'ann-backdrop-in'

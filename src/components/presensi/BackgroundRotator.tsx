@@ -12,12 +12,12 @@ interface BackgroundRotatorProps {
 export default function BackgroundRotator({
   images,
   intervalMs = 7000,
-  blurLevel = 4,
-  overlayOpacity = 80,
+  blurLevel = 2,
+  overlayOpacity = 70,
   isRandom = false,
   children,
 }: BackgroundRotatorProps) {
-  const activeMediaList = images;
+  const activeMediaList = (images || []).filter(Boolean);
 
   const [currentIndex, setCurrentIndex] = useState<number | null>(null);
   const [nextIndex, setNextIndex] = useState(0);
@@ -44,17 +44,17 @@ export default function BackgroundRotator({
     );
   };
 
-  // Inisialisasi Media Pertama (Foto / Video): Langsung diacak secara instan begitu data Supabase siap
+  // Inisialisasi Media Pertama (Foto / Video)
   useEffect(() => {
-    if (activeMediaList && activeMediaList.length > 0) {
-      if (isRandom && activeMediaList.length > 1) {
+    if (activeMediaList.length > 0) {
+      if (isRandom && activeMediaList.length > 1 && currentIndex === null) {
         const randomIndex = Math.floor(Math.random() * activeMediaList.length);
         setCurrentIndex(randomIndex);
-      } else if (currentIndex === null) {
+      } else if (currentIndex === null || currentIndex >= activeMediaList.length) {
         setCurrentIndex(0);
       }
     }
-  }, [activeMediaList, isRandom]);
+  }, [activeMediaList.length, isRandom]);
 
   const activeIndex = currentIndex ?? 0;
   const currentMedia = activeMediaList[activeIndex];
@@ -66,13 +66,11 @@ export default function BackgroundRotator({
     let upcomingIndex: number;
 
     if (isRandom) {
-      // Pilih indeks acak foto/video yang berbeda dari media saat ini
       upcomingIndex = Math.floor(Math.random() * activeMediaList.length);
       if (upcomingIndex === activeIndex) {
         upcomingIndex = (activeIndex + 1) % activeMediaList.length;
       }
     } else {
-      // Urutan linier normal
       upcomingIndex = (activeIndex + 1) % activeMediaList.length;
     }
 
@@ -96,7 +94,7 @@ export default function BackgroundRotator({
     return () => clearTimeout(timer);
   }, [currentIndex, activeMediaList.length, intervalMs, isCurrentVideo, isRandom]);
 
-  // Handler saat Video selesai diputar (Video Ended Event)
+  // Handler saat Video selesai diputar
   const handleVideoEnded = () => {
     if (activeMediaList.length > 1) {
       goToNextMedia();
@@ -115,12 +113,12 @@ export default function BackgroundRotator({
   }
 
   return (
-    <div className="relative w-full h-full overflow-hidden rounded-3xl select-none">
+    <div className="relative w-full h-full overflow-hidden rounded-3xl bg-neutral-900 select-none">
       <style>{`
         @keyframes kenBurnsZoom {
           0% { transform: scale(1) translate(0%, 0%); }
-          50% { transform: scale(1.08) translate(-1%, -1%); }
-          100% { transform: scale(1.15) translate(0.5%, -0.5%); }
+          50% { transform: scale(1.06) translate(-1%, -1%); }
+          100% { transform: scale(1.12) translate(0.5%, -0.5%); }
         }
         .animate-ken-burns {
           animation: kenBurnsZoom 14s ease-out infinite alternate;
@@ -139,20 +137,23 @@ export default function BackgroundRotator({
           playsInline
           onEnded={handleVideoEnded}
           className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-          style={{ filter: `blur(${blurLevel}px)` }}
+          style={blurLevel > 0 ? { filter: `blur(${blurLevel}px)` } : undefined}
         />
       ) : (
-        <div
+        <img
           key={`img-${activeIndex}`}
-          className="absolute inset-0 bg-cover bg-center animate-ken-burns pointer-events-none"
-          style={{ 
-            backgroundImage: `url('${currentMedia}')`,
-            filter: `blur(${blurLevel}px)`
+          src={currentMedia}
+          alt="Background Operasional"
+          loading="eager"
+          onError={() => {
+            if (activeMediaList.length > 1) goToNextMedia();
           }}
+          className="absolute inset-0 w-full h-full object-cover object-center animate-ken-burns pointer-events-none"
+          style={blurLevel > 0 ? { filter: `blur(${blurLevel}px)` } : undefined}
         />
       )}
 
-      {/* LAYER 2: INCOMING MEDIA (TRANSISI CROSSFADE SAMA UNTUK FOTO & VIDEO) */}
+      {/* LAYER 2: INCOMING MEDIA (TRANSISI CROSSFADE) */}
       {activeMediaList.length > 1 && (
         isVideoUrl(activeMediaList[nextIndex]) ? (
           <video
@@ -160,28 +161,28 @@ export default function BackgroundRotator({
             src={activeMediaList[nextIndex]}
             muted
             playsInline
-            className={`absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-[1200ms] cubic-bezier(0.4, 0, 0.2, 1) ${
+            className={`absolute inset-0 w-full h-full object-cover pointer-events-none transition-opacity duration-[1200ms] ease-in-out ${
               isTransitioning ? 'opacity-100' : 'opacity-0'
             }`}
-            style={{ filter: `blur(${blurLevel}px)` }}
+            style={blurLevel > 0 ? { filter: `blur(${blurLevel}px)` } : undefined}
           />
         ) : (
-          <div
+          <img
             key={`next-img-${nextIndex}`}
-            className={`absolute inset-0 bg-cover bg-center animate-ken-burns pointer-events-none transition-opacity duration-[1200ms] cubic-bezier(0.4, 0, 0.2, 1) ${
+            src={activeMediaList[nextIndex]}
+            alt=""
+            className={`absolute inset-0 w-full h-full object-cover object-center animate-ken-burns pointer-events-none transition-opacity duration-[1200ms] ease-in-out ${
               isTransitioning ? 'opacity-100' : 'opacity-0'
             }`}
-            style={{ 
-              backgroundImage: `url('${activeMediaList[nextIndex]}')`,
-              filter: `blur(${blurLevel}px)`
-            }}
+            style={blurLevel > 0 ? { filter: `blur(${blurLevel}px)` } : undefined}
           />
         )
       )}
 
+      {/* OVERLAY GRADIENT (Menjaga keterbacaan teks tanpa menutupi gambar sepenuhnya) */}
       <div 
-        className="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent pointer-events-none transition-opacity duration-300"
-        style={{ opacity: overlayOpacity / 100 }}
+        className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/45 to-black/15 pointer-events-none transition-opacity duration-300"
+        style={{ opacity: Math.min(overlayOpacity, 85) / 100 }}
       />
       
       <div className="absolute -right-12 -bottom-12 w-56 h-56 bg-[#d22027] rounded-full blur-2xl opacity-25 pointer-events-none" />
