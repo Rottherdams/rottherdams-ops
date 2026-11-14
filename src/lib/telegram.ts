@@ -13,6 +13,7 @@ export interface TelegramNotifyOptions {
   footerNote?: string;
   photoUrl?: string;
   mapUrl?: string;
+  targetChatId?: string;
 }
 
 export async function sendTelegramAlert({
@@ -22,11 +23,14 @@ export async function sendTelegramAlert({
   footerNote,
   photoUrl,
   mapUrl,
-}: TelegramNotifyOptions) {
+  targetChatId,
+}: TelegramNotifyOptions): Promise<{ ok: boolean; error?: string }> {
   const botToken = import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
-  const chatId = import.meta.env.VITE_TELEGRAM_CHAT_ID;
+  const chatId = targetChatId?.trim() || import.meta.env.VITE_TELEGRAM_CHAT_ID;
 
-  if (!botToken || !chatId) return;
+  if (!botToken || !chatId) {
+    return { ok: false, error: 'Bot Token atau Chat ID belum dikonfigurasi.' };
+  }
 
   const lines: string[] = [
     `🔔 <b>${escapeHtml(title)}</b>`,
@@ -56,7 +60,7 @@ export async function sendTelegramAlert({
   }
 
   try {
-    await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -66,7 +70,15 @@ export async function sendTelegramAlert({
         disable_web_page_preview: false,
       }),
     });
-  } catch (err) {
+
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      return { ok: false, error: data.description || 'Gagal mengirim pesan ke Telegram.' };
+    }
+
+    return { ok: true };
+  } catch (err: any) {
     console.warn('Gagal mengirim notifikasi Telegram:', err);
+    return { ok: false, error: err?.message || 'Koneksi ke Telegram gagal.' };
   }
 }

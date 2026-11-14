@@ -1,6 +1,7 @@
 import { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
+import { sendTelegramAlert } from '../lib/telegram';
 import { useStaffDetails } from '../lib/hooks/useStaffDetails';
 import AvatarCropModal from './profile/AvatarCropModal';
 
@@ -32,7 +33,7 @@ export default function EditProfileModal({
     staffName, setStaffName,
     phoneNumber, setPhoneNumber,
     email, setEmail,
-    telegramChatId,
+    telegramChatId, setTelegramChatId,
     avatarUrl, setAvatarUrl,
   } = useStaffDetails(isOpen, currentUser.staff_id);
 
@@ -40,6 +41,7 @@ export default function EditProfileModal({
   const [confirmPin, setConfirmPin] = useState('');
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [testingTelegram, setTestingTelegram] = useState(false);
   const [isClosingModal, setIsClosingModal] = useState(false);
 
   const [cropImageSrc, setCropImageSrc] = useState<string | null>(null);
@@ -55,6 +57,34 @@ export default function EditProfileModal({
       onClose();
       setIsClosingModal(false);
     }, 200);
+  };
+
+  const handleTestTelegram = async () => {
+    const cleanId = telegramChatId.trim();
+    if (!cleanId) {
+      alert('Masukkan Telegram Chat ID terlebih dahulu!');
+      return;
+    }
+
+    setTestingTelegram(true);
+    const result = await sendTelegramAlert({
+      title: '✅ TES NOTIFIKASI TELEGRAM BERHASIL',
+      actor: `${staffName || firstName || currentUser.name} (${currentUser.staff_id})`,
+      details: {
+        'Status': 'Terhubung dengan Rottherdams Ops',
+        'Chat ID': cleanId,
+      },
+      targetChatId: cleanId,
+    });
+    setTestingTelegram(false);
+
+    if (result.ok) {
+      alert('✅ Pesan tes berhasil dikirim ke Telegram Anda! Jangan lupa klik "Simpan Profil".');
+    } else {
+      alert(
+        `❌ Gagal mengirim ke Telegram: ${result.error}\n\nPastikan Anda sudah menekan tombol START pada bot Telegram Rottherdams terlebih dahulu.`
+      );
+    }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -197,10 +227,12 @@ export default function EditProfileModal({
       };
       localStorage.setItem('rottherdams_user', JSON.stringify(updatedUser));
       onUpdateSuccess(updatedUser);
-      alert('Profil & PIN berhasil diperbarui!');
+      alert('Profil & pengaturan berhasil diperbarui!');
       handleCloseModal();
     }
   };
+
+  const isTelegramConnected = telegramChatId.trim().length > 0;
 
   return createPortal(
     <div
@@ -209,7 +241,6 @@ export default function EditProfileModal({
         isClosingModal ? 'modal-backdrop-out' : 'modal-backdrop-in'
       }`}
     >
-      {/* 🌟 PADDING TOP DIGUNAKAN AGAR TIDAK KETINDIH HEADER NAVBAR PADA SCROLL AWAL */}
       <div
         onClick={(e) => e.stopPropagation()}
         className={`bg-white w-full max-w-md rounded-3xl p-5 sm:p-7 shadow-2xl border border-neutral-100 text-left my-16 sm:my-8 space-y-4 max-h-[85vh] overflow-y-auto ${
@@ -297,20 +328,44 @@ export default function EditProfileModal({
               <input type="text" value={phoneNumber} onChange={(e) => setPhoneNumber(e.target.value)} placeholder="08123456789" className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-bold text-[#111111] focus:outline-none focus:border-[#d22027]" />
             </div>
             <div>
-              <label className="block text-[11px] font-bold text-neutral-400 mb-1">
-                Telegram Chat ID <span className="text-[9px] font-normal italic">(Belum Tersedia)</span>
+              <label className="block text-[11px] font-bold text-neutral-600 mb-1">
+                Telegram Chat ID
               </label>
-              <input type="text" disabled value={telegramChatId} placeholder="ID Chat Telegram" className="w-full px-3.5 py-2 bg-neutral-100 border border-neutral-200 rounded-xl text-xs font-mono font-bold text-neutral-400 cursor-not-allowed select-none" />
+              <input
+                type="text"
+                value={telegramChatId}
+                onChange={(e) => setTelegramChatId(e.target.value.replace(/[^\d-]/g, ''))}
+                placeholder="Contoh: 123456789"
+                className="w-full px-3.5 py-2 bg-neutral-50 border border-neutral-200 rounded-xl text-xs font-mono font-bold text-[#111111] focus:outline-none focus:border-[#d22027]"
+              />
             </div>
           </div>
 
-          <div className="p-3 bg-neutral-100 border border-neutral-200 rounded-2xl flex items-center justify-between gap-2 opacity-75">
+          <div className={`p-3 border rounded-2xl flex items-center justify-between gap-2 transition ${
+            isTelegramConnected
+              ? 'bg-sky-50/70 border-sky-200'
+              : 'bg-neutral-50 border-neutral-200'
+          }`}>
             <div>
-              <p className="text-xs font-bold text-neutral-500">🤖 Telegram Notification</p>
-              <p className="text-[10px] text-neutral-400 mt-0.5">Fitur notifikasi Telegram belum tersedia</p>
+              <p className="text-xs font-bold text-[#111111] flex items-center gap-1.5">
+                <span>🤖 Telegram Notification</span>
+                {isTelegramConnected && (
+                  <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-extrabold">
+                    Aktif
+                  </span>
+                )}
+              </p>
+              <p className="text-[10px] text-neutral-500 mt-0.5 leading-snug">
+                Cek ID Anda di bot <span className="font-mono font-bold text-neutral-700">@userinfobot</span>, lalu klik Start di bot Rottherdams.
+              </p>
             </div>
-            <button type="button" disabled className="px-3 py-1.5 bg-neutral-300 text-neutral-500 rounded-xl text-[11px] font-bold cursor-not-allowed whitespace-nowrap shadow-none">
-              Belum Tersedia 🔒
+            <button
+              type="button"
+              onClick={handleTestTelegram}
+              disabled={testingTelegram || !isTelegramConnected}
+              className="px-3 py-1.5 bg-[#0088cc] hover:bg-[#0077b5] disabled:bg-neutral-300 text-white disabled:text-neutral-500 rounded-xl text-[11px] font-bold transition cursor-pointer disabled:cursor-not-allowed whitespace-nowrap shadow-2xs active:scale-95 shrink-0"
+            >
+              {testingTelegram ? 'Mengirim...' : '📲 Tes Kirim'}
             </button>
           </div>
 
