@@ -13,6 +13,7 @@ import BukuResep from './components/BukuResep';
 import EditProfileModal from './components/EditProfileModal';
 import ManagementDashboard from './components/ManagementDashboard';
 import RekapPresensi from './components/RekapPresensi';
+import ExpenseTracker from './components/ExpenseTracker';
 import AnnouncementBanner from './components/AnnouncementBanner';
 import PWAInstallPrompt from './components/PWAInstallPrompt';
 import BackgroundManager from './components/presensi/BackgroundManager';
@@ -49,7 +50,7 @@ export default function App() {
   const defaultShift = currentHour < 15 ? 'morning' : 'night';
 
   const [activeTab, setActiveTab] = useState<'morning' | 'night'>(defaultShift);
-  const [activeNav, setActiveNav] = useState<'home' | 'sop' | 'resep' | 'jadwal' | 'karyawan' | 'handover' | 'dashboard' | 'presensi'>('home');
+  const [activeNav, setActiveNav] = useState<'home' | 'sop' | 'resep' | 'jadwal' | 'karyawan' | 'handover' | 'dashboard' | 'presensi' | 'expenses'>('home');
   const [isPageFading, setIsPageFading] = useState<boolean>(false);
 
   // State background presensi
@@ -417,9 +418,9 @@ export default function App() {
 
         <HeaderNavbar
           currentUser={currentUser}
-          activeNav={activeNav}
+          activeNav={activeNav as any}
           isManagementOrOwner={isManagementOrOwner}
-          onNavChange={handleNavChange}
+          onNavChange={handleNavChange as any}
           onOpenLogin={() => setIsLoginOpen(true)}
           onToggleUserMenu={handleToggleUserMenu}
           isUserMenuOpen={isUserMenuOpen}
@@ -433,12 +434,14 @@ export default function App() {
           <section className="mb-5 md:mb-8 border-b border-neutral-100 pb-4 md:pb-6 text-left">
             <p className="text-[10px] sm:text-[11px] md:text-xs font-bold uppercase tracking-widest text-[#d22027] mb-1">System Management</p>
             <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-[#111111] tracking-tight leading-tight">Daily Operational Hub.</h1>
-            <p className="text-xs md:text-sm text-neutral-500 mt-1 leading-relaxed">Presensi, checklist SOP harian, dan serah terima shift dalam satu genggaman.</p>
+            <p className="text-xs md:text-sm text-neutral-500 mt-1 leading-relaxed">Presensi, checklist SOP harian, pengeluaran divisi, dan serah terima shift dalam satu genggaman.</p>
           </section>
 
           <div className={`transition-all duration-300 ease-in-out transform ${isPageFading ? 'opacity-0 scale-[0.99] translate-y-1' : 'opacity-100 scale-100 translate-y-0'}`}>
             {activeNav === 'dashboard' && isManagementOrOwner ? (
               <ManagementDashboard currentUser={currentUser as any} />
+            ) : activeNav === 'expenses' && currentUser ? (
+              <ExpenseTracker currentUser={currentUser as any} />
             ) : activeNav === 'presensi' && currentUser ? (
               <RekapPresensi currentUser={currentUser as any} />
             ) : activeNav === 'handover' && currentUser ? (
@@ -576,7 +579,7 @@ export default function App() {
 
                 {currentUser && <SopChecklist activeShift={activeTab} currentUser={currentUser as any} />}
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 md:gap-5 mt-6 sm:mt-8 text-left">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4 md:gap-5 mt-6 sm:mt-8 text-left">
                   {currentUser && (
                     <>
                       <div onClick={() => handleNavChange('presensi')} className="p-4 sm:p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group">
@@ -589,6 +592,12 @@ export default function App() {
                         <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-base sm:text-lg mb-2.5 group-hover:bg-[#d22027] group-hover:text-white transition">📋</div>
                         <h3 className="font-bold text-xs md:text-sm text-[#111111] mb-0.5">SOP Checklist</h3>
                         <p className="text-[10px] md:text-xs text-neutral-400">Tugas harian shift</p>
+                      </div>
+
+                      <div onClick={() => handleNavChange('expenses')} className="p-4 sm:p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group">
+                        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-base sm:text-lg mb-2.5 group-hover:bg-[#d22027] group-hover:text-white transition">🧾</div>
+                        <h3 className="font-bold text-xs md:text-sm text-[#111111] mb-0.5">Pengeluaran & Nota</h3>
+                        <p className="text-[10px] md:text-xs text-neutral-400">Belanja divisi & scan nota</p>
                       </div>
 
                       <div onClick={() => handleNavChange('resep')} className="p-4 sm:p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group">
@@ -605,7 +614,7 @@ export default function App() {
                     </>
                   )}
 
-                  <div onClick={() => handleNavChange('jadwal')} className={`p-4 sm:p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group ${!currentUser ? 'col-span-2 md:col-span-4' : ''}`}>
+                  <div onClick={() => handleNavChange('jadwal')} className={`p-4 sm:p-5 rounded-2xl bg-white border border-neutral-200 hover:border-[#d22027] hover:shadow-md active:scale-98 transition cursor-pointer group ${!currentUser ? 'col-span-2 md:col-span-3' : ''}`}>
                     <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-neutral-100 flex items-center justify-center text-base sm:text-lg mb-2.5 group-hover:bg-[#d22027] group-hover:text-white transition">📅</div>
                     <h3 className="font-bold text-xs md:text-sm text-[#111111] mb-0.5">Jadwal Staf</h3>
                     <p className="text-[10px] md:text-xs text-neutral-400">Roster 2 shift</p>
@@ -647,7 +656,7 @@ export default function App() {
               setIsClosingMoreMenu(false);
               setIsMoreMenuOpen(true);
             }} 
-            className={`flex flex-col items-center gap-0.5 cursor-pointer transition ${['jadwal', 'dashboard', 'karyawan', 'handover'].includes(activeNav) ? 'text-[#d22027]' : 'text-neutral-400 hover:text-neutral-700'}`}
+            className={`flex flex-col items-center gap-0.5 cursor-pointer transition ${['jadwal', 'dashboard', 'karyawan', 'handover', 'expenses'].includes(activeNav) ? 'text-[#d22027]' : 'text-neutral-400 hover:text-neutral-700'}`}
           >
             <span className="text-lg leading-none">⚡</span>
             <span className="text-[10px] font-bold">Lainnya</span>
@@ -689,13 +698,23 @@ export default function App() {
               </button>
 
               {currentUser && (
-                <button 
-                  onClick={() => { handleNavChange('handover'); handleCloseMoreMenu(); }} 
-                  className="p-3.5 bg-neutral-50 hover:bg-neutral-100 active:bg-neutral-200 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
-                >
-                  <span className="text-2xl">📝</span>
-                  <span className="text-[11px] font-bold text-neutral-800">Handover Log</span>
-                </button>
+                <>
+                  <button 
+                    onClick={() => { handleNavChange('expenses'); handleCloseMoreMenu(); }} 
+                    className="p-3.5 bg-neutral-50 hover:bg-neutral-100 active:bg-neutral-200 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
+                  >
+                    <span className="text-2xl">🧾</span>
+                    <span className="text-[11px] font-bold text-neutral-800">Pengeluaran</span>
+                  </button>
+
+                  <button 
+                    onClick={() => { handleNavChange('handover'); handleCloseMoreMenu(); }} 
+                    className="p-3.5 bg-neutral-50 hover:bg-neutral-100 active:bg-neutral-200 rounded-2xl flex flex-col items-center justify-center text-center gap-1.5 active:scale-95 transition-all border border-neutral-100 cursor-pointer"
+                  >
+                    <span className="text-2xl">📝</span>
+                    <span className="text-[11px] font-bold text-neutral-800">Handover Log</span>
+                  </button>
+                </>
               )}
 
               {isManagementOrOwner && (

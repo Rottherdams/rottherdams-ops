@@ -47,6 +47,9 @@ export default function HeaderNavbar({
     return (role || '').replace(/_/g, ' ').toUpperCase();
   };
 
+  const isOperationalActive = ['sop', 'resep', 'handover', 'expenses'].includes(activeNav);
+  const isManagementActive = ['dashboard', 'karyawan'].includes(activeNav);
+
   return (
     <header className="bg-[#d22027] text-white w-full sticky top-0 z-50 shadow-md">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -74,20 +77,55 @@ export default function HeaderNavbar({
                 <button
                   onClick={() => onNavChange('presensi')}
                   className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                    activeNav === 'presensi' ? 'bg-[#white] bg-white text-[#d22027] shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'
+                    activeNav === 'presensi' ? 'bg-white text-[#d22027] shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'
                   }`}
                 >
                   Presensi
                 </button>
 
                 <div className="relative group py-1">
-                  <button className="px-3 py-1.5 text-xs font-bold text-white/80 group-hover:text-white flex items-center gap-1">
+                  <button
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                      isOperationalActive
+                        ? 'bg-white text-[#d22027] shadow-sm'
+                        : 'text-white/80 group-hover:text-white hover:bg-white/10'
+                    }`}
+                  >
                     Operasional ▾
                   </button>
-                  <div className="absolute top-full left-0 hidden group-hover:flex flex-col bg-white text-[#111111] rounded-2xl shadow-xl border border-neutral-100 p-2 min-w-[160px] z-50 animate-dropdown-down">
-                    <button onClick={() => onNavChange('sop')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">📋 SOP Checklist</button>
-                    <button onClick={() => onNavChange('resep')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">☕ Buku Resep</button>
-                    <button onClick={() => onNavChange('handover')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">📝 Handover Log</button>
+                  <div className="absolute top-full left-0 hidden group-hover:flex flex-col bg-white text-[#111111] rounded-2xl shadow-xl border border-neutral-100 p-2 min-w-[180px] z-50 animate-dropdown-down">
+                    <button
+                      onClick={() => onNavChange('sop')}
+                      className={`px-3 py-2 text-left rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeNav === 'sop' ? 'bg-red-50 text-[#d22027]' : 'hover:bg-neutral-100'
+                      }`}
+                    >
+                      📋 SOP Checklist
+                    </button>
+                    <button
+                      onClick={() => onNavChange('expenses')}
+                      className={`px-3 py-2 text-left rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeNav === 'expenses' ? 'bg-red-50 text-[#d22027]' : 'hover:bg-neutral-100'
+                      }`}
+                    >
+                      🧾 Pengeluaran & Nota
+                    </button>
+                    <button
+                      onClick={() => onNavChange('resep')}
+                      className={`px-3 py-2 text-left rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeNav === 'resep' ? 'bg-red-50 text-[#d22027]' : 'hover:bg-neutral-100'
+                      }`}
+                    >
+                      ☕ Buku Resep
+                    </button>
+                    <button
+                      onClick={() => onNavChange('handover')}
+                      className={`px-3 py-2 text-left rounded-xl text-xs font-bold transition cursor-pointer ${
+                        activeNav === 'handover' ? 'bg-red-50 text-[#d22027]' : 'hover:bg-neutral-100'
+                      }`}
+                    >
+                      📝 Handover Log
+                    </button>
                   </div>
                 </div>
               </>
@@ -104,12 +142,32 @@ export default function HeaderNavbar({
 
             {isManagementOrOwner && (
               <div className="relative group py-1">
-                <button className="px-3 py-1.5 text-xs font-bold text-white/80 group-hover:text-white flex items-center gap-1">
+                <button
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                    isManagementActive
+                      ? 'bg-white text-[#d22027] shadow-sm'
+                      : 'text-white/80 group-hover:text-white hover:bg-white/10'
+                  }`}
+                >
                   Management ▾
                 </button>
                 <div className="absolute top-full left-0 hidden group-hover:flex flex-col bg-white text-[#111111] rounded-2xl shadow-xl border border-neutral-100 p-2 min-w-[160px] z-50 animate-dropdown-down">
-                  <button onClick={() => onNavChange('dashboard')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">📊 Analytics</button>
-                  <button onClick={() => onNavChange('karyawan')} className="px-3 py-2 text-left rounded-xl hover:bg-neutral-100 text-xs font-bold transition">👥 Daftar Staf</button>
+                  <button
+                    onClick={() => onNavChange('dashboard')}
+                    className={`px-3 py-2 text-left rounded-xl text-xs font-bold transition cursor-pointer ${
+                      activeNav === 'dashboard' ? 'bg-red-50 text-[#d22027]' : 'hover:bg-neutral-100'
+                    }`}
+                  >
+                    📊 Analytics
+                  </button>
+                  <button
+                    onClick={() => onNavChange('karyawan')}
+                    className={`px-3 py-2 text-left rounded-xl text-xs font-bold transition cursor-pointer ${
+                      activeNav === 'karyawan' ? 'bg-red-50 text-[#d22027]' : 'hover:bg-neutral-100'
+                    }`}
+                  >
+                    👥 Daftar Staf
+                  </button>
                 </div>
               </div>
             )}
