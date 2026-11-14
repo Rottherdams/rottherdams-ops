@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
+import { sendTelegramAlert } from '../lib/telegram';
 
 interface ClockInModalProps {
   isOpen: boolean;
@@ -47,7 +48,6 @@ export default function ClockInModal({
   const streamRef = useRef<MediaStream | null>(null);
   const [isCameraActive, setIsCameraActive] = useState<boolean>(false);
 
-  // Deteksi lingkungan Dev (Localhost)
   const isLocalhost = typeof window !== 'undefined' && 
     (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
@@ -70,7 +70,6 @@ export default function ClockInModal({
     };
   }, [isOpen, currentUser]);
 
-  // Handler Tutup Modal Utama Beranimasi Smooth Out
   const handleAnimatedClose = () => {
     setIsClosing(true);
     setTimeout(() => {
@@ -80,7 +79,6 @@ export default function ClockInModal({
     }, 250);
   };
 
-  // Handler Tutup Modal Clock Out dengan Animasi
   const handleCloseClockOutConfirm = () => {
     setIsClosingClockOutModal(true);
     setTimeout(() => {
@@ -89,7 +87,6 @@ export default function ClockInModal({
     }, 250);
   };
 
-  // Ambil IP Address publik untuk Audit Trail Metadata
   const fetchIpAddress = async () => {
     try {
       const res = await fetch('https://api.ipify.org?format=json');
@@ -120,7 +117,6 @@ export default function ClockInModal({
     }
   };
 
-  // 📍 1. Fungsi Ambil Lokasi GPS & Deteksi Fake GPS
   const getLocation = () => {
     setLocationError('');
     if ('geolocation' in navigator) {
@@ -130,14 +126,12 @@ export default function ClockInModal({
           const accuracy = coords.accuracy;
           setGpsAccuracy(Math.round(accuracy));
 
-          // ⚠️ A. Deteksi Flag 'mocked' dari Android Webview
           const isMock = (position as any).isMock || (coords as any).isMocked;
           if (isMock) {
             setLocationError('⚠️ Penggunaan Fake GPS / Lokasi Palsu terdeteksi! Harap matikan aplikasi pengubah lokasi.');
             return;
           }
 
-          // ⚠️ B. Deteksi Akurasi Terlalu Sempurna (< 2 meter) Ciri Khas Fake GPS
           if (!isLocalhost && accuracy < 2.0) {
             setLocationError('⚠️ Indikasi Fake GPS terdeteksi (Akurasi tidak wajar). Harap gunakan GPS asli HP.');
             return;
@@ -147,7 +141,6 @@ export default function ClockInModal({
           const lng = coords.longitude;
           setLocation({ lat, lng });
 
-          // Hitung jarak Haversine ke lokasi Kafe (dalam meter)
           const dist = calculateDistance(lat, lng, KAFE_LAT, KAFE_LNG);
           setDistance(Math.round(dist));
         },
@@ -161,9 +154,8 @@ export default function ClockInModal({
     }
   };
 
-  // Rumus Jarak Haversine (Meters)
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371e3; // Radius bumi dalam meter
+    const R = 6371e3;
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
     const dLon = ((lon2 - lon1) * Math.PI) / 180;
     const a =
@@ -176,7 +168,6 @@ export default function ClockInModal({
     return R * c;
   };
 
-  // 📸 2. Fungsi Kontrol Kamera Selfie dengan Fallback
   const startCamera = async () => {
     setCameraError(null);
 
@@ -274,7 +265,7 @@ export default function ClockInModal({
 
   if (!isOpen) return null;
 
-  // ☁️ 3. Proses Clock In + Upload Foto Selfie & Audit Metadata
+  // ☁️ 3. Proses Clock In + Upload Foto Selfie & Kirim Telegram
   const handleClockIn = async () => {
     if (!currentUser) return;
     if (!photoBlob) {
@@ -331,6 +322,27 @@ export default function ClockInModal({
       setIsLoading(false);
 
       if (!error) {
+        const waktuSekarang = new Date().toLocaleTimeString('id-ID', {
+          hour: '2-digit',
+          minute: '2-digit',
+        });
+
+        sendTelegramAlert({
+          title: isFakeGpsFlag
+            ? '🚨 PRESENSI MASUK (PERINGATAN GPS)'
+            : '🟢 PRESENSI MASUK (CLOCK IN)',
+          actor: `${staffDisplayName} (${currentUser.staff_id})`,
+          details: {
+            'Divisi': currentUser.role.replace(/_/g, ' ').toUpperCase(),
+            'Shift': currentShiftLabel,
+            'Waktu Masuk': `${waktuSekarang} WITA`,
+            'Jarak dari Kafe': distance !== null ? `${distance} Meter` : 'Tidak terdeteksi',
+            'Status GPS': isFakeGpsFlag ? '⚠️ Indikasi Fake GPS / Luar Radius' : '✅ Valid (Real GPS)',
+          },
+          mapUrl: location ? `https://www.google.com/maps?q=${location.lat},${location.lng}` : undefined,
+          photoUrl: photo_url || undefined,
+        });
+
         setIsClosing(true);
         setTimeout(() => {
           stopCamera();
@@ -347,15 +359,16 @@ export default function ClockInModal({
     }
   };
 
-  // 🚪 4. Proses Clock Out Eksekusi Database
+  // 🚪 4. Proses Clock Out Eksekusi Database + Kirim Telegram
   const handleClockOutSubmit = async () => {
     if (!activeAttendance) return;
     setIsLoading(true);
 
+    const nowIso = new Date().toISOString();
     const { error } = await supabase
       .from('attendances')
       .update({
-        clock_out: new Date().toISOString(),
+        clock_out: nowIso,
         status: 'Completed',
       })
       .eq('id', activeAttendance.id);
@@ -363,6 +376,30 @@ export default function ClockInModal({
     setIsLoading(false);
 
     if (!error) {
+      const startMs = new Date(activeAttendance.clock_in).getTime();
+      const endMs = new Date(nowIso).getTime();
+      const diffHours = Math.max(0, (endMs - startMs) / (1000 * 60 * 60)).toFixed(2);
+      const jamMasuk = new Date(activeAttendance.clock_in).toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      const jamPulang = new Date(nowIso).toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+
+      sendTelegramAlert({
+        title: '🔴 PRESENSI PULANG (CLOCK OUT)',
+        actor: `${activeAttendance.staff_name || currentUser?.name} (${activeAttendance.staff_id || currentUser?.staff_id})`,
+        details: {
+          'Divisi': (activeAttendance.role || currentUser?.role || '').replace(/_/g, ' ').toUpperCase(),
+          'Shift': activeAttendance.shift || currentShiftLabel,
+          'Jam Masuk': `${jamMasuk} WITA`,
+          'Jam Pulang': `${jamPulang} WITA`,
+          'Total Durasi': `${diffHours} Jam`,
+        },
+      });
+
       setIsClosingClockOutModal(true);
       setTimeout(() => {
         setShowClockOutConfirm(false);
@@ -388,7 +425,6 @@ export default function ClockInModal({
         isClosing ? 'animate-backdrop-out' : 'animate-backdrop-in'
       }`}
     >
-      {/* 🌟 Keyframes Animasi Backdrop & Modal */}
       <style>{`
         @keyframes clockInBackdropIn { 0% { opacity: 0; } 100% { opacity: 1; } }
         @keyframes clockInBackdropOut { 0% { opacity: 1; } 100% { opacity: 0; } }
@@ -406,7 +442,6 @@ export default function ClockInModal({
         .animate-modal-out { animation: clockInModalOut 0.25s ease-in forwards; }
       `}</style>
 
-      {/* MODAL UTAMA PRESENSI */}
       <div
         className={`bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl border border-neutral-100 text-left relative my-auto ${
           isClosing ? 'animate-modal-out' : 'animate-modal-in'
@@ -459,7 +494,6 @@ export default function ClockInModal({
           </div>
         ) : (
           <div className="space-y-3.5">
-            {/* Status GPS Lokasi */}
             <div className={`p-3 rounded-2xl text-xs border ${
               isOutsideRadius || isFakeGpsDetected
                 ? 'bg-red-50 border-red-200 text-red-700' 
@@ -494,7 +528,6 @@ export default function ClockInModal({
               )}
             </div>
 
-            {/* Kamera & Preview Selfie */}
             <div className="relative w-full h-48 bg-black rounded-2xl overflow-hidden flex items-center justify-center border border-neutral-200 shadow-inner">
               {photoPreview ? (
                 <img src={photoPreview} alt="Selfie Preview" className="w-full h-full object-cover" />
@@ -544,7 +577,6 @@ export default function ClockInModal({
         )}
       </div>
 
-      {/* 🚪 SUB-MODAL KONFIRMASI CLOCK OUT CUSTOM BERANIMASI */}
       {showClockOutConfirm && createPortal(
         <div
           className={`fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 backdrop-blur-md p-4 ${

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { sendTelegramAlert } from '../lib/telegram';
 import StaffSummaryCards from './staff/StaffSummaryCards';
 import StaffFormModal from './staff/StaffFormModal';
 import type { StaffItem } from './staff/StaffFormModal';
@@ -154,6 +155,16 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     if (error) {
       setErrorMsg(`Gagal menambah karyawan: ${error.message}`);
     } else {
+      sendTelegramAlert({
+        title: '🆕 STAF BARU DIDAFTARKAN',
+        actor: currentUser ? `${currentUser.name} (${currentUser.staff_id})` : 'Management',
+        details: {
+          'ID Staf': generatedId,
+          'Nama': displayName,
+          'Divisi': newStaffRole.replace(/_/g, ' ').toUpperCase(),
+          'No. HP': newPhoneNumber.trim() || '-',
+        },
+      });
       handleCloseAddModal();
       fetchStaff();
     }
@@ -184,6 +195,16 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     if (error) {
       alert(`Gagal memperbarui data: ${error.message}`);
     } else {
+      sendTelegramAlert({
+        title: '✏️ DATA KARYAWAN DIPERBARUI',
+        actor: currentUser ? `${currentUser.name} (${currentUser.staff_id})` : 'Management',
+        details: {
+          'ID Staf': editingStaff.staff_id,
+          'Nama': displayName,
+          'Divisi': editingStaff.role.replace(/_/g, ' ').toUpperCase(),
+          'No. HP': editingStaff.phone_number || '-',
+        },
+      });
       setEditingStaff(null);
       fetchStaff();
     }
@@ -198,6 +219,8 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     } else if (newStatus === 'Aktif') {
       updatedFields.pin = '0000';
     }
+
+    const targetStaff = staffList.find(s => s.staff_id === staff_id);
 
     setStaffList(prev =>
       prev.map(item =>
@@ -219,6 +242,15 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
     if (error) {
       alert('Gagal mengedit status karyawan: ' + error.message);
       fetchStaff();
+    } else {
+      sendTelegramAlert({
+        title: '🔄 PERUBAHAN STATUS KARYAWAN',
+        actor: currentUser ? `${currentUser.name} (${currentUser.staff_id})` : 'Management',
+        details: {
+          'Staf': targetStaff ? `${targetStaff.staff_name} (${staff_id})` : staff_id,
+          'Status Baru': newStatus,
+        },
+      });
     }
   };
 
@@ -232,6 +264,14 @@ export default function DaftarKaryawan({ currentUser }: DaftarKaryawanProps) {
       .eq('staff_id', staff_id);
 
     if (!error) {
+      sendTelegramAlert({
+        title: '🔑 RESET PIN STAF',
+        actor: currentUser ? `${currentUser.name} (${currentUser.staff_id})` : 'Management',
+        details: {
+          'Staf': `${staff_name} (${staff_id})`,
+          'Status': 'PIN berhasil di-reset',
+        },
+      });
       alert(`✅ PIN ${staff_name} diperbarui!`);
       fetchStaff();
     }

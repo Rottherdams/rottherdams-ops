@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
+import { sendTelegramAlert } from '../lib/telegram';
 
 interface EditRosterModalProps {
   isOpen: boolean;
@@ -128,6 +129,17 @@ export default function EditRosterModal({ isOpen, onClose, onSuccess, selectedWe
     if (error) {
       alert('Gagal memperbarui roster: ' + error.message);
     } else {
+      sendTelegramAlert({
+        title: '📅 PERUBAHAN ROSTER KERJA',
+        details: {
+          'Staf': `${displayName} (${staffObj.staff_id})`,
+          'Divisi': (staffObj.role || '').replace(/_/g, ' ').toUpperCase(),
+          'Minggu Ke': `Minggu ${week}`,
+          'Hari': day,
+          'Shift Baru': shift,
+        },
+      });
+
       setIsClosing(true);
       setTimeout(() => {
         onSuccess();

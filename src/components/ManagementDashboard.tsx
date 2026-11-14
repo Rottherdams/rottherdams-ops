@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { sendTelegramAlert } from '../lib/telegram';
 import MetricsSummary from './dashboard/MetricsSummary';
 import ApprovalCenter from './dashboard/ApprovalCenter';
 import type { ShiftSwapRequest, LeaveRequest } from './dashboard/ApprovalCenter';
@@ -202,6 +203,18 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
         const { error: fallbackError } = await supabase.from('shift_swaps').update({ status: status === 'approved' ? 'Approved' : 'Rejected' }).eq('id', swapId);
         if (fallbackError) throw fallbackError;
       }
+
+      const swapItem = swapRequests.find((s) => s.id === swapId) as any;
+      sendTelegramAlert({
+        title: status === 'approved' ? '✅ TUKAR SHIFT DI-ACC' : '❌ TUKAR SHIFT DITOLAK',
+        actor: `${currentUser.name} (${currentUser.staff_id})`,
+        details: {
+          'Pemohon': swapItem?.requester_name || swapItem?.requester_staff_id || '-',
+          'Pengganti': swapItem?.target_name || swapItem?.target_staff_name || swapItem?.target_staff_id || '-',
+          'Tanggal': swapItem?.swap_date || swapItem?.date || '-',
+        },
+      });
+
       setSwapRequests((prev) => prev.map((item) => (item.id === swapId ? { ...item, management_status: status, status: status === 'approved' ? 'Approved' : 'Rejected' } : item)));
       alert(status === 'approved' ? '✅ Tukar Shift Berhasil Di-ACC!' : '❌ Tukar Shift Ditolak!');
       fetchAnalyticsData();
@@ -231,6 +244,19 @@ export default function ManagementDashboard({ currentUser }: ManagementDashboard
       alert(`Gagal memproses izin: ${error.message}`);
       return;
     }
+
+    sendTelegramAlert({
+      title:
+        status === 'approved'
+          ? `✅ PENGAJUAN ${leaveItem.leave_type.toUpperCase()} DI-ACC`
+          : `❌ PENGAJUAN ${leaveItem.leave_type.toUpperCase()} DITOLAK`,
+      actor: `${currentUser.name} (${currentUser.staff_id})`,
+      details: {
+        'Staf': `${leaveItem.staff_name} (${leaveItem.staff_id})`,
+        'Jenis': leaveItem.leave_type,
+        'Tanggal': `${leaveItem.start_date} s/d ${leaveItem.end_date || leaveItem.start_date}`,
+      },
+    });
 
     setLeaveRequests((prev) => prev.map((item) => (item.id === leaveItem.id ? { ...item, status } : item)));
     if (status === 'approved') {

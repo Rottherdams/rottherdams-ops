@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabase';
+import { sendTelegramAlert } from '../lib/telegram';
 
 interface CurrentUser {
   name: string;
@@ -107,6 +108,16 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
             device_info: navigator.userAgent,
           },
         ]);
+
+        sendTelegramAlert({
+          title: '🚨 PERINGATAN KEAMANAN BUKU RESEP',
+          actor: `${currentUser.name} (${currentUser.staff_id})`,
+          details: {
+            'Divisi': currentUser.role.replace(/_/g, ' ').toUpperCase(),
+            'Pelanggaran': type,
+            'Target': unlockedRecipeId ? `Resep ID: ${unlockedRecipeId}` : 'Halaman Buku Resep',
+          },
+        });
       } catch (err) {
         console.error('Gagal mencatat log pelanggaran screenshot:', err);
       }
@@ -208,13 +219,18 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
     if (!name.trim()) return;
 
     setIsSubmitting(true);
+    const recipeName = name.trim();
+    const recipeGrammage = grammage.trim();
+    const recipeTemp = temperature.trim() || '-';
+    const recipeTime = extractionTime.trim() || '-';
+
     const { error } = await supabase.from('recipes').insert([
       {
-        name: name.trim(),
+        name: recipeName,
         category: category,
-        grammage: grammage.trim(),
-        temperature: temperature.trim() || '-',
-        extraction_time: extractionTime.trim() || '-',
+        grammage: recipeGrammage,
+        temperature: recipeTemp,
+        extraction_time: recipeTime,
       },
     ]);
 
@@ -223,6 +239,18 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
     if (error) {
       alert('Gagal menambahkan resep: ' + error.message);
     } else {
+      sendTelegramAlert({
+        title: '📖 RESEP BARU DITAMBAHKAN',
+        actor: currentUser ? `${currentUser.name} (${currentUser.staff_id})` : 'Management',
+        details: {
+          'Nama Menu': recipeName,
+          'Kategori': category,
+          'Suhu / Metode': recipeTemp,
+          'Waktu Penyajian': recipeTime,
+        },
+        footerNote: `Gramasi: ${recipeGrammage}`,
+      });
+
       setName('');
       setGrammage('');
       setTemperature('');
@@ -244,6 +272,13 @@ export default function BukuResep({ currentUser }: BukuResepProps) {
     if (error) {
       alert('Gagal menghapus resep: ' + error.message);
     } else {
+      sendTelegramAlert({
+        title: '🗑️ RESEP DIHAPUS',
+        actor: currentUser ? `${currentUser.name} (${currentUser.staff_id})` : 'Management',
+        details: {
+          'Nama Menu': recipeName,
+        },
+      });
       fetchRecipes();
     }
   };

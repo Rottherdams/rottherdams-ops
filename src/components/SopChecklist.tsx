@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { sendTelegramAlert } from '../lib/telegram';
 import AddSopModal from './sop/AddSopModal';
 import SopItemRow from './sop/SopItemRow';
 import type { SopItem } from './sop/SopItemRow';
@@ -124,18 +125,19 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
       return;
     }
 
+    const targetTask = tasks.find(t => t.id === id);
     const nextStatus = !currentStatus;
     const actorName = currentUser?.name || 'Staf On-Duty';
     const actorAvatar = currentUser?.avatar_url;
 
-    setTasks(prev =>
-      prev.map(t => (t.id === id ? {
-        ...t,
-        is_completed: nextStatus,
-        completed_by: nextStatus ? actorName : null,
-        completed_by_avatar: nextStatus ? actorAvatar : null,
-      } : t))
-    );
+    const updatedTasks = tasks.map(t => (t.id === id ? {
+      ...t,
+      is_completed: nextStatus,
+      completed_by: nextStatus ? actorName : null,
+      completed_by_avatar: nextStatus ? actorAvatar : null,
+    } : t));
+
+    setTasks(updatedTasks);
 
     const { error } = await supabase
       .from('sop_checklists')
@@ -149,6 +151,18 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
     if (error) {
       console.error('Error updating task:', error.message);
       fetchSopTasks();
+    } else if (targetTask) {
+      const doneCount = updatedTasks.filter(t => t.is_completed).length;
+      sendTelegramAlert({
+        title: nextStatus ? '✅ SOP CHECKLIST SELESAI' : '↩️ SOP CHECKLIST DIBATALKAN',
+        actor: currentUser ? `${actorName} (${currentUser.staff_id})` : actorName,
+        details: {
+          'Tugas SOP': targetTask.task_name,
+          'Kategori': targetTask.category || '-',
+          'Shift': (targetTask.shift || currentShift).toUpperCase(),
+          'Progres Shift': `${doneCount}/${updatedTasks.length} tugas selesai`,
+        },
+      });
     }
   };
 
@@ -185,6 +199,15 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
     if (error) {
       alert('Gagal menambahkan SOP: ' + error.message);
     } else {
+      sendTelegramAlert({
+        title: '➕ MASTER SOP BARU DITAMBAHKAN',
+        actor: currentUser ? `${currentUser.name} (${currentUser.staff_id})` : 'Management',
+        details: {
+          'Nama SOP': newTaskName.trim(),
+          'Kategori': newCategory,
+          'Shift': newShift.toUpperCase(),
+        },
+      });
       handleCloseModal();
       fetchSopTasks();
     }
@@ -203,6 +226,13 @@ export default function SopChecklist({ activeShift = 'morning', isFullView = fal
     if (error) {
       alert('Gagal menghapus SOP: ' + error.message);
     } else {
+      sendTelegramAlert({
+        title: '🗑️ MASTER SOP DIHAPUS',
+        actor: currentUser ? `${currentUser.name} (${currentUser.staff_id})` : 'Management',
+        details: {
+          'Nama SOP': taskName,
+        },
+      });
       fetchSopTasks();
     }
   };

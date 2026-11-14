@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { sendTelegramAlert } from '../lib/telegram';
 import EditRosterModal from './EditRosterModal';
 import TukarShiftModal from './jadwal/TukarShiftModal';
 import LeaveRequestModal from './jadwal/LeaveRequestModal';
@@ -267,13 +268,31 @@ export default function JadwalStaf({ userRole = 'management', currentUser }: Jad
         isOpen={isSwapModalOpen}
         onClose={() => setIsSwapModalOpen(false)}
         currentUser={currentUser || null}
-        onSuccess={() => fetchSchedulesFromDatabase()}
+        onSuccess={() => {
+          sendTelegramAlert({
+            title: '🔄 PENGAJUAN TUKAR SHIFT BARU',
+            actor: currentUser ? `${currentUser.name} (${currentUser.staff_id})` : 'Staf',
+            details: {
+              'Divisi': (currentUser?.role || '').replace(/_/g, ' ').toUpperCase(),
+              'Status': 'Menunggu konfirmasi rekan & ACC Management',
+            },
+          });
+          fetchSchedulesFromDatabase();
+        }}
       />
 
       <LeaveRequestModal
         isOpen={isLeaveModalOpen}
         onClose={() => setIsLeaveModalOpen(false)}
         onSuccess={() => {
+          sendTelegramAlert({
+            title: '📝 PENGAJUAN IZIN / CUTI BARU',
+            actor: currentUser ? `${currentUser.name} (${currentUser.staff_id})` : 'Staf',
+            details: {
+              'Divisi': (currentUser?.role || '').replace(/_/g, ' ').toUpperCase(),
+              'Status': 'Menunggu ACC Management di Dashboard',
+            },
+          });
           alert('Pengajuan izin berhasil dikirim!');
           fetchSchedulesFromDatabase();
         }}
