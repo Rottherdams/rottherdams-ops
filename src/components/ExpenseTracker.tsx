@@ -501,28 +501,31 @@ export default function ExpenseTracker({ currentUser }: ExpenseTrackerProps) {
           <div
             key={div}
             onClick={() => setFilterDivision(filterDivision === div ? 'ALL' : div)}
-            className={`p-4 rounded-3xl border transition cursor-pointer ${
+            className={`p-4 rounded-3xl border transition cursor-pointer flex flex-col justify-between ${
               filterDivision === div
                 ? 'bg-red-50/70 border-[#d22027] shadow-xs'
                 : 'bg-white border-neutral-200 hover:border-neutral-300'
             }`}
           >
-            <div className="flex justify-between items-center">
-              <span className="text-[10px] font-extrabold uppercase tracking-wider text-neutral-500">
+            <div>
+              <span className="block text-[10px] font-extrabold uppercase tracking-wider text-neutral-500">
                 {div}
               </span>
+              <p className="text-sm sm:text-base font-black text-[#111111] mt-1.5">
+                {formatRupiah(divisionTotals[div] || 0)}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between gap-1.5 mt-1.5">
+              <span className="text-[10px] text-neutral-400">
+                {validExpenses.filter((e) => e.division === div).length} nota belanja
+              </span>
               {filterDivision === div && (
-                <span className="text-[9px] bg-[#d22027] text-white px-1.5 py-0.5 rounded-full font-bold">
+                <span className="text-[8px] sm:text-[9px] bg-[#d22027] text-white px-2 py-0.5 rounded-full font-bold shrink-0">
                   Filter Aktif
                 </span>
               )}
             </div>
-            <p className="text-sm sm:text-base font-black text-[#111111] mt-1.5">
-              {formatRupiah(divisionTotals[div] || 0)}
-            </p>
-            <span className="text-[10px] text-neutral-400 mt-0.5 block">
-              {validExpenses.filter((e) => e.division === div).length} nota belanja
-            </span>
           </div>
         ))}
       </div>
